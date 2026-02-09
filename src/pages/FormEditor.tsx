@@ -1,0 +1,190 @@
+import { useEffect, useState, useCallback } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { AddFieldDialog } from "@/components/form-editor/AddFieldDialog";
+import { FieldItem, type FormField } from "@/components/form-editor/FieldItem";
+import { FieldConfigPanel } from "@/components/form-editor/FieldConfigPanel";
+import { ArrowLeft, Plus, Sparkles, Save, Eye } from "lucide-react";
+import type { FieldType } from "@/config/fieldTypes";
+
+const FormEditor = () => {
+  const { workspaceId, formId } = useParams<{ workspaceId: string; formId: string }>();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+
+  const [formName, setFormName] = useState("");
+  const [fields, setFields] = useState<FormField[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [versionId, setVersionId] = useState<string | null>(null);
+
+  const selectedField = fields.find((f) => f.id === selectedId) || null;
+
+  useEffect(() => {
+    if (formId) {
+      fetchForm();
+    }
+  }, [formId]);
+
+  const fetchForm = async () => {
+    const { data: form } = await supabase
+      .from("forms")
+      .select("name")
+      .eq("id", formId!)
+      .maybeSingle();
+    if (form) setFormName(form.name);
+
+    // Get latest version
+    const { data: version } = await supabase
+      .from("form_versions")
+      .select("*")
+      .eq("form_id", formId!)
+      .order("version_number", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (version) {
+      setVersionId(version.id);
+      const schema = version.schema as any;
+      if (schema?.fields && Array.isArray(schema.fields)) {
+        setFields(schema.fields);
+        if (schema.fields.length > 0) setSelectedId(schema.fields[0].id);
+      }
+    }
+  };
+
+  const addField = useCallback((type: FieldType) => {
+    const newField: FormField = {
+      id: crypto.randomUUID(),
+      type,
+      label: "",
+      required: false,
+      options: ["multiple_choice", "dropdown", "image_choice", "checkbox", "ranking"].includes(type)
+        ? ["Opção 1", "Opção 2"]
+        : undefined,
+    };
+    setFields((prev) => [...prev, newField]);
+    setSelectedId(newField.id);
+  }, []);
+
+  const updateField = useCallback((updated: FormField) => {
+    setFields((prev) => prev.map((f) => (f.id === updated.id ? updated : f)));
+  }, []);
+
+  const deleteField = useCallback((id: string) => {
+    setFields((prev) => prev.filter((f) => f.id !== id));
+    setSelectedId((prev) => (prev === id ? null : prev));
+  }, []);
+
+  const saveSchema = async () => {
+    if (!versionId) return;
+    setSaving(true);
+    const { error } = await supabase
+      .from("form_versions")
+      .update({ schema: { fields } as any })
+      .eq("id", versionId);
+
+    if (error) {
+      toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Salvo com sucesso!" });
+    }
+    setSaving(false);
+  };
+
+  return (
+    <div className="h-screen flex flex-col bg-background">
+      {/* Header */}
+      <header className="border-b bg-card/50 backdrop-blur-sm h-14 flex items-center px-4 gap-3 shrink-0 z-50">
+        <Button variant="ghost" size="icon" onClick={() => navigate(`/workspace/${workspaceId}`)}>
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <div className="flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-primary" />
+          <span className="font-display font-bold text-sm gradient-text">Pratique Forms</span>
+        </div>
+        <span className="text-muted-foreground">/</span>
+        <span className="font-medium text-sm truncate max-w-[200px]">{formName}</span>
+        <div className="ml-auto flex items-center gap-2">
+          <Button variant="outline" size="sm" disabled>
+            <Eye className="h-4 w-4 mr-1" /> Preview
+          </Button>
+          <Button
+            size="sm"
+            className="gradient-primary text-primary-foreground"
+            onClick={saveSchema}
+            disabled={saving}
+          >
+            <Save className="h-4 w-4 mr-1" /> {saving ? "Salvando..." : "Salvar"}
+          </Button>
+        </div>
+      </header>
+
+      {/* Body */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Left: field list */}
+        <div className="w-80 border-r flex flex-col bg-card/30">
+          <div className="p-4 border-b flex items-center justify-between">
+            <h2 className="font-display font-semibold text-sm">Campos ({fields.length})</h2>
+            <Button size="sm" variant="outline" onClick={() => setDialogOpen(true)}>
+              <Plus className="h-4 w-4 mr-1" /> Adicionar
+            </Button>
+          </div>
+          <ScrollArea className="flex-1">
+            <div className="p-3 space-y-2">
+              {fields.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground text-sm">
+                  <Plus className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                  <p>Nenhum campo adicionado.</p>
+                  <Button
+                    variant="link"
+                    size="sm"
+                    className="mt-2"
+                    onClick={() => setDialogOpen(true)}
+                  >
+                    Adicionar primeiro campo
+                  </Button>
+                </div>
+              ) : (
+                fields.map((field, i) => (
+                  <FieldItem
+                    key={field.id}
+                    field={field}
+                    index={i}
+                    selected={selectedId === field.id}
+                    onClick={() => setSelectedId(field.id)}
+                    onDelete={() => deleteField(field.id)}
+                  />
+                ))
+              )}
+            </div>
+          </ScrollArea>
+        </div>
+
+        {/* Right: config panel */}
+        <div className="flex-1 overflow-auto">
+          {selectedField ? (
+            <div className="max-w-lg mx-auto p-8">
+              <FieldConfigPanel field={selectedField} onChange={updateField} />
+            </div>
+          ) : (
+            <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+              <div className="text-center">
+                <Sparkles className="h-10 w-10 mx-auto mb-3 opacity-20" />
+                <p>Selecione um campo ou adicione um novo</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <AddFieldDialog open={dialogOpen} onOpenChange={setDialogOpen} onAddField={addField} />
+    </div>
+  );
+};
+
+export default FormEditor;
