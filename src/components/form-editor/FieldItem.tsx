@@ -1,15 +1,9 @@
-import { getFieldTypeConfig, type FieldType } from "@/config/fieldTypes";
+import { getFieldTypeConfig } from "@/config/fieldTypes";
 import { Button } from "@/components/ui/button";
 import { GripVertical, Trash2 } from "lucide-react";
+import type { FormField } from "@/types/workflow";
 
-export interface FormField {
-  id: string;
-  type: FieldType;
-  label: string;
-  required: boolean;
-  placeholder?: string;
-  options?: string[];
-}
+export type { FormField };
 
 interface FieldItemProps {
   field: FormField;

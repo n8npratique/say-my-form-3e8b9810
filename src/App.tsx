@@ -10,6 +10,7 @@ import Dashboard from "./pages/Dashboard";
 import WorkspaceForms from "./pages/WorkspaceForms";
 import FormEditor from "./pages/FormEditor";
 import FormRunner from "./pages/FormRunner";
+import FormWorkflow from "./pages/FormWorkflow";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -44,6 +45,14 @@ const App = () => (
             element={
               <ProtectedRoute>
                 <FormEditor />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/workspace/:workspaceId/form/:formId/workflow"
+            element={
+              <ProtectedRoute>
+                <FormWorkflow />
               </ProtectedRoute>
             }
           />
