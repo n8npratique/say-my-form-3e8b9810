@@ -8,7 +8,7 @@ import { AddFieldDialog } from "@/components/form-editor/AddFieldDialog";
 import { FieldItem, type FormField } from "@/components/form-editor/FieldItem";
 import { FieldConfigPanel } from "@/components/form-editor/FieldConfigPanel";
 import { ShareDialog } from "@/components/form-editor/ShareDialog";
-import { ArrowLeft, Plus, Sparkles, Save, Eye, Share2, Rocket } from "lucide-react";
+import { ArrowLeft, Plus, Sparkles, Save, Eye, Share2, Rocket, GitBranch } from "lucide-react";
 import type { FieldType } from "@/config/fieldTypes";
 
 const generateSlug = (name: string) => {
@@ -190,6 +190,13 @@ const FormEditor = () => {
         <span className="text-muted-foreground">/</span>
         <span className="font-medium text-sm truncate max-w-[200px]">{formName}</span>
         <div className="ml-auto flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate(`/workspace/${workspaceId}/form/${formId}/workflow`)}
+          >
+            <GitBranch className="h-4 w-4 mr-1" /> Workflow
+          </Button>
           <Button variant="outline" size="sm" onClick={handlePreview}>
             <Eye className="h-4 w-4 mr-1" /> Preview
           </Button>
