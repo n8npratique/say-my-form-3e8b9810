@@ -8,6 +8,7 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import WorkspaceForms from "./pages/WorkspaceForms";
+import FormEditor from "./pages/FormEditor";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
