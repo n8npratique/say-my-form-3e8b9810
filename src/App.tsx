@@ -42,7 +42,7 @@ const App = () => (
             path="/workspace/:workspaceId/form/:formId/edit"
             element={
               <ProtectedRoute>
-                <div className="p-8 text-center text-muted-foreground">Editor de formulário (em breve)</div>
+                <FormEditor />
               </ProtectedRoute>
             }
           />
