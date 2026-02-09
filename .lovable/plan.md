@@ -1,101 +1,187 @@
 
-# Preview e Compartilhamento de Formularios
 
-## O que sera feito
+# Workflow do Formulario (estilo Typeform)
 
-Habilitar o botao **Preview** no editor e criar o sistema de **publicacao e compartilhamento** com duas opcoes de acesso: **publico** (qualquer pessoa) ou **autenticado por email**.
+## Visao Geral
+
+Implementar a aba **Workflow** no editor de formularios com 4 sub-funcionalidades nativas do Typeform: **Branching** (logica condicional), **Scoring** (pontuacao), **Tagging** (etiquetas) e **Outcome Quiz** (resultados personalizados). Alem disso, um painel lateral de **Actions** com Webhooks e futuras integracoes.
 
 ---
 
-## 1. Migracao de Banco de Dados
+## Funcionalidades
 
-Adicionar coluna `access_mode` na tabela `forms` para controlar o tipo de acesso:
+### 1. Branching (Logica Condicional)
+Permite pular perguntas ou ir para finais diferentes com base nas respostas.
+- Regras do tipo: "Se a resposta da pergunta X for Y, va para pergunta Z"
+- Configuracao visual por campo: selecionar condicao e destino
+- Armazenado no schema JSON da versao (`form_versions.schema`)
+
+### 2. Scoring (Pontuacao)
+Atribuir pontos a respostas de perguntas de escolha.
+- Cada opcao de resposta pode ter um valor numerico
+- Resultado final: soma dos pontos
+- Permite mostrar finais diferentes com base em faixas de pontuacao
+
+### 3. Tagging (Etiquetas)
+Marcar respostas com tags para segmentacao.
+- Tags definidas pelo criador do formulario
+- Cada opcao de resposta pode ser associada a uma ou mais tags
+- Tags coletadas ficam salvas no `responses.meta`
+
+### 4. Outcome Quiz
+Mostrar finais diferentes com base no perfil de respostas.
+- Cada opcao de resposta e vinculada a um "outcome" (resultado)
+- Ao final, o outcome mais frequente determina a tela final exibida
+- Ideal para quizzes de personalidade, recomendacao de produto, etc.
+
+### 5. Painel de Actions (lateral direito)
+- **Webhooks**: CRUD de webhooks por formulario (tabela `webhooks` ja existe)
+- **Connect**: placeholder para futuras integracoes (tabela `integrations` ja existe)
+- **Messages**: placeholder para notificacoes por email (futuro)
+
+---
+
+## Arquitetura de Dados
+
+### Schema JSON (sem migracao SQL)
+
+Toda a logica de branching, scoring, tagging e outcomes sera armazenada dentro do campo `form_versions.schema` (JSONB), mantendo o modelo de versionamento ja existente:
 
 ```text
-forms.settings (jsonb) -> adicionar campo "access_mode": "public" | "email_required"
+{
+  "fields": [...],
+  "logic": [
+    {
+      "field_id": "uuid",
+      "rules": [
+        {
+          "condition": { "op": "equals", "value": "Sim" },
+          "action": { "type": "jump_to", "target": "field_uuid_or_end" }
+        }
+      ],
+      "default_action": { "type": "next" }
+    }
+  ],
+  "scoring": {
+    "enabled": false,
+    "field_scores": {
+      "field_uuid": { "Option A": 10, "Option B": 5 }
+    },
+    "ranges": [
+      { "min": 0, "max": 50, "end_screen_id": "end_1" },
+      { "min": 51, "max": 100, "end_screen_id": "end_2" }
+    ]
+  },
+  "tagging": {
+    "enabled": false,
+    "tags": ["Perfil A", "Perfil B"],
+    "field_tags": {
+      "field_uuid": { "Option A": ["Perfil A"], "Option B": ["Perfil B"] }
+    }
+  },
+  "outcomes": {
+    "enabled": false,
+    "definitions": [
+      { "id": "outcome_1", "label": "Extrovertido", "end_screen_id": "end_1" },
+      { "id": "outcome_2", "label": "Introvertido", "end_screen_id": "end_2" }
+    ],
+    "field_outcomes": {
+      "field_uuid": { "Option A": "outcome_1", "Option B": "outcome_2" }
+    }
+  }
+}
 ```
 
-Usaremos o campo `settings` (jsonb) que ja existe na tabela `forms` para armazenar:
-- `access_mode`: `"public"` ou `"email_required"`
+### Migracao SQL necessaria
 
-Nenhuma migracao SQL necessaria -- o campo `settings` ja existe como jsonb.
-
----
-
-## 2. Publicacao do Formulario (Botao "Publicar")
-
-No editor (`FormEditor.tsx`):
-- Adicionar botao **Publicar** ao lado de Salvar
-- Ao publicar:
-  - Gerar slug unico (se nao existir)
-  - Atualizar `forms.status` para `"published"`
-  - Setar `forms.published_version_id` para a versao atual
-- Adicionar dialog de **Compartilhamento** com:
-  - Toggle entre "Publico" e "Requer email"
-  - Link copiavel do formulario (`/f/{slug}`)
-  - Botao copiar link
+Apenas para o **disparo de webhooks** ao completar um formulario:
+- Criar edge function `fire-webhooks` que e chamada pelo runner ao completar uma resposta
+- Usar a tabela `webhooks` ja existente
 
 ---
 
-## 3. Preview no Editor
+## Arquivos a Criar
 
-- Ativar o botao **Preview** (atualmente desabilitado)
-- Abrir nova aba/modal com a rota `/f/{slug}/preview` ou navegar para `/f/{slug}` em nova aba
-- O preview usa o schema salvo da versao atual (nao precisa estar publicado)
+| Arquivo | Descricao |
+|---------|-----------|
+| `src/pages/FormWorkflow.tsx` | Pagina principal da aba Workflow com sub-abas |
+| `src/components/workflow/WorkflowCanvas.tsx` | Visualizacao do fluxo (pipeline horizontal de campos) |
+| `src/components/workflow/BranchingPanel.tsx` | Editor de regras de branching por campo |
+| `src/components/workflow/ScoringPanel.tsx` | Editor de pontuacao por opcao de resposta |
+| `src/components/workflow/TaggingPanel.tsx` | Editor de tags por opcao de resposta |
+| `src/components/workflow/OutcomePanel.tsx` | Editor de outcomes/resultados |
+| `src/components/workflow/ActionsPanel.tsx` | Painel lateral com Webhooks, Connect, Messages |
+| `src/components/workflow/WebhookManager.tsx` | CRUD de webhooks |
+| `supabase/functions/fire-webhooks/index.ts` | Edge function para disparar webhooks |
 
----
+## Arquivos a Modificar
 
-## 4. Runner Publico (Fase 3 parcial)
-
-Criar a pagina `/f/{slug}` que renderiza o formulario conversacional:
-
-- **Rota**: `/f/:slug` (sem ProtectedRoute)
-- **Fluxo**:
-  1. Buscar formulario pelo slug
-  2. Verificar `settings.access_mode`
-  3. Se `email_required`: mostrar tela de coleta de email antes de iniciar
-  4. Se `public`: iniciar direto
-  5. Renderizar uma pergunta por tela com transicoes suaves (framer-motion)
-  6. Barra de progresso
-  7. Salvar respostas incrementalmente em `responses` + `response_answers`
-  8. Tela final ao concluir
-
----
-
-## 5. Arquivos a Criar/Modificar
-
-| Arquivo | Acao |
-|---------|------|
-| `src/pages/FormRunner.tsx` | **Criar** - Pagina publica do formulario conversacional |
-| `src/pages/FormEditor.tsx` | **Modificar** - Botoes Preview, Publicar, dialog de compartilhamento |
-| `src/components/form-runner/RunnerField.tsx` | **Criar** - Componente que renderiza cada tipo de campo |
-| `src/components/form-runner/EmailGate.tsx` | **Criar** - Tela de coleta de email (quando access_mode = email_required) |
-| `src/components/form-editor/ShareDialog.tsx` | **Criar** - Dialog de compartilhamento com toggle publico/email |
-| `src/components/form-editor/PublishButton.tsx` | **Criar** - Logica de publicacao com geracao de slug |
-| `src/App.tsx` | **Modificar** - Adicionar rota `/f/:slug` |
+| Arquivo | Mudanca |
+|---------|---------|
+| `src/pages/FormEditor.tsx` | Adicionar aba "Workflow" na header com navegacao |
+| `src/components/form-editor/FieldItem.tsx` | Expandir `FormField` com propriedades de score/tag/outcome |
+| `src/pages/FormRunner.tsx` | Integrar logica de branching, calcular score/tags/outcomes ao finalizar, chamar fire-webhooks |
+| `src/App.tsx` | Adicionar rota para workflow |
 
 ---
 
 ## Detalhes Tecnicos
 
-### Geracao de Slug
-- Formato: nome do formulario em kebab-case + 6 chars aleatorios (ex: `meu-formulario-a3f2b1`)
-- Garantir unicidade via query antes de salvar
+### Interface do Editor - Abas
 
-### Runner - Fluxo de Resposta
-1. Criar registro em `responses` com status `in_progress`
-2. A cada pergunta respondida, salvar em `response_answers`
-3. Ao finalizar, atualizar `responses.status` para `completed` e setar `completed_at`
+O header do editor ganha abas (como no Typeform): **Content** | **Workflow** | **Share** | **Results**. A aba Workflow tera sub-abas: Branching, Scoring, Tagging, Outcome Quiz.
 
-### RLS
-- As policies ja existentes cobrem os casos:
-  - `Anyone can view published forms` (SELECT em forms com status = published)
-  - `Anyone can view published form versions` (SELECT em form_versions vinculado a published_version_id)
-  - `Anyone can create response` (INSERT em responses)
-  - `Anyone can create answer` (INSERT em response_answers)
-  - `Anyone can update in_progress response` (UPDATE em responses)
+### WorkflowCanvas
 
-### Email Gate
-- Quando `access_mode = "email_required"`, exibir formulario simples de email
-- Email salvo no campo `responses.meta` como `{"respondent_email": "..."}`
-- Nao requer cadastro/login -- apenas coleta do email
+Pipeline horizontal mostrando os campos do formulario como nodes conectados por linhas. Ao clicar em um node, abre o painel de configuracao (branching rules, scores, etc). Implementado com CSS/flex e posicoes relativas (sem lib de diagramas).
+
+### Branching no Runner
+
+O `FormRunner.tsx` sera atualizado para, ao receber uma resposta:
+1. Verificar se existe regra de logica para o campo atual
+2. Se sim, avaliar a condicao contra a resposta
+3. Determinar o proximo campo (jump) ou seguir sequencialmente
+
+### Scoring no Runner
+
+Ao completar o formulario:
+1. Calcular soma total dos pontos com base nas respostas
+2. Determinar a faixa (range) correspondente
+3. Redirecionar para o end_screen correto
+
+### Fire Webhooks (Edge Function)
+
+Quando uma resposta e completada, o runner chama a edge function que:
+1. Busca webhooks habilitados para o formulario
+2. Envia POST para cada URL com payload das respostas
+3. Assina o payload com HMAC (usando `webhooks.secret`) no header `X-Webhook-Signature`
+
+### Tipo FormField atualizado
+
+```text
+interface FormField {
+  id: string;
+  type: FieldType;
+  label: string;
+  required: boolean;
+  placeholder?: string;
+  options?: string[];
+  scores?: Record<string, number>;     // pontuacao por opcao
+  tags?: Record<string, string[]>;     // tags por opcao
+  outcome?: Record<string, string>;    // outcome_id por opcao
+}
+```
+
+### Fluxo do usuario
+
+1. Criador abre o editor do formulario
+2. Adiciona campos normalmente na aba "Content"
+3. Muda para aba "Workflow"
+4. Ve o pipeline visual com todos os campos
+5. Clica em um campo para configurar branching, scores, tags ou outcomes
+6. Configura webhooks no painel lateral de Actions
+7. Salva e publica
+8. Respondente preenche o formulario
+9. Branching direciona o fluxo
+10. Ao completar: score calculado, tags coletadas, outcome determinado, webhooks disparados
+
