@@ -1,117 +1,101 @@
 
-# Pratique Forms — Plano V1
+# Preview e Compartilhamento de Formularios
 
-## Visão Geral
-Plataforma de formulários conversacionais (estilo Typeform) com builder visual, lógica condicional, loops dinâmicos, versionamento, webhooks e exportação. Design moderno e colorido com gradientes e cores vibrantes.
+## O que sera feito
 
----
-
-## Fase 1: Fundação (Backend + Auth + Estrutura)
-
-### 1.1 Conexão Supabase e Schema do banco
-- Conectar projeto Supabase externo
-- Criar todas as tabelas: `workspaces`, `workspace_members`, `forms`, `form_versions`, `responses`, `response_answers`, `webhooks`, `integrations`
-- Enum `app_role` para permissões (owner, admin, editor, viewer)
-- Tabela `user_roles` separada para segurança
-- RLS policies por `workspace_id` em todas as tabelas relevantes
-
-### 1.2 Autenticação e Workspaces
-- Login/cadastro com email (Supabase Auth)
-- Criação e seleção de workspace
-- Convite de membros com diferentes papéis
-- Tela de gerenciamento de equipe
+Habilitar o botao **Preview** no editor e criar o sistema de **publicacao e compartilhamento** com duas opcoes de acesso: **publico** (qualquer pessoa) ou **autenticado por email**.
 
 ---
 
-## Fase 2: Builder Visual
+## 1. Migracao de Banco de Dados
 
-### 2.1 Listagem e criação de formulários
-- Dashboard com lista de formulários do workspace
-- Cards com nome, status (rascunho/publicado), data de criação
-- Botão de criar novo formulário
+Adicionar coluna `access_mode` na tabela `forms` para controlar o tipo de acesso:
 
-### 2.2 Editor de perguntas
-- Interface drag-and-drop para reordenar blocos
-- Painel lateral para configurar cada pergunta
-- Tipos suportados: texto curto, texto longo, email, número, data, escolha única, múltipla, NPS, arquivo, declaração, consentimento
-- Campos: label, placeholder, obrigatório, validação
-- Suporte a variáveis dinâmicas `{{nome}}`
-- Preview em tempo real ao lado do editor
+```text
+forms.settings (jsonb) -> adicionar campo "access_mode": "public" | "email_required"
+```
 
-### 2.3 Editor de lógica condicional
-- Interface visual para criar regras "Se campo X = valor, ir para bloco Y"
-- Operadores: equals, not_equals, contains, greater_than, less_than
+Usaremos o campo `settings` (jsonb) que ja existe na tabela `forms` para armazenar:
+- `access_mode`: `"public"` ou `"email_required"`
 
-### 2.4 Configuração de loops
-- Definir grupos de blocos que podem se repetir
-- Modo "while" (adicionar mais?) com campo de controle
-- Configuração visual simples
-
-### 2.5 Publicação e versionamento
-- Botão "Publicar" que cria nova versão em `form_versions`
-- Gera slug único para URL pública do formulário
-- Histórico de versões acessível
+Nenhuma migracao SQL necessaria -- o campo `settings` ja existe como jsonb.
 
 ---
 
-## Fase 3: Runner (Experiência de Resposta)
+## 2. Publicacao do Formulario (Botao "Publicar")
 
-### 3.1 Formulário público conversacional
-- URL pública: `/f/{slug}`
-- Uma pergunta por tela, transição suave entre perguntas
-- Barra de progresso
-- Navegação voltar/avançar
-- Design mobile-first, moderno e responsivo
-- Sem necessidade de login para responder
-
-### 3.2 Motor de lógica (runtime)
-- Avaliação de regras condicionais para determinar próximo bloco
-- Gerenciamento de loops ativos com stack no `responses.meta`
-- Salvamento incremental de cada resposta (campo a campo)
-
-### 3.3 Upload de arquivos
-- Perguntas tipo "arquivo" fazem upload para Supabase Storage
-- URLs assinadas para segurança
+No editor (`FormEditor.tsx`):
+- Adicionar botao **Publicar** ao lado de Salvar
+- Ao publicar:
+  - Gerar slug unico (se nao existir)
+  - Atualizar `forms.status` para `"published"`
+  - Setar `forms.published_version_id` para a versao atual
+- Adicionar dialog de **Compartilhamento** com:
+  - Toggle entre "Publico" e "Requer email"
+  - Link copiavel do formulario (`/f/{slug}`)
+  - Botao copiar link
 
 ---
 
-## Fase 4: Resultados e Exportação
+## 3. Preview no Editor
 
-### 4.1 Painel de respostas
-- Lista de respostas por formulário com filtros (data, status)
-- Busca por conteúdo de campo
-- Visualização detalhada de cada resposta individual
-- Indicadores: total de respostas, taxa de conclusão
-
-### 4.2 Exportação
-- Export CSV direto da interface
-- Botão de reenvio de webhook por resposta individual
+- Ativar o botao **Preview** (atualmente desabilitado)
+- Abrir nova aba/modal com a rota `/f/{slug}/preview` ou navegar para `/f/{slug}` em nova aba
+- O preview usa o schema salvo da versao atual (nao precisa estar publicado)
 
 ---
 
-## Fase 5: Integrações (Webhooks + n8n)
+## 4. Runner Publico (Fase 3 parcial)
 
-### 5.1 Configuração de webhooks
-- Tela para cadastrar URL de webhook por formulário
-- Secret para assinatura HMAC
-- Seleção de eventos (ex: `response.completed`)
-- Toggle ativar/desativar
+Criar a pagina `/f/{slug}` que renderiza o formulario conversacional:
 
-### 5.2 Edge Function de disparo
-- Ao completar resposta, Edge Function dispara POST com payload padronizado
-- Inclui assinatura HMAC no header
-- Payload: event, form_id, response_id, answers, meta
-
-### 5.3 Google Sheets sync
-- Configuração de integração por formulário (spreadsheet_id, tab, mapeamento de colunas)
-- Export manual para Google Sheets (via n8n webhook)
+- **Rota**: `/f/:slug` (sem ProtectedRoute)
+- **Fluxo**:
+  1. Buscar formulario pelo slug
+  2. Verificar `settings.access_mode`
+  3. Se `email_required`: mostrar tela de coleta de email antes de iniciar
+  4. Se `public`: iniciar direto
+  5. Renderizar uma pergunta por tela com transicoes suaves (framer-motion)
+  6. Barra de progresso
+  7. Salvar respostas incrementalmente em `responses` + `response_answers`
+  8. Tela final ao concluir
 
 ---
 
-## Design e UX
-- Paleta moderna e colorida com gradientes vibrantes
-- Cores de destaque para diferentes tipos de pergunta
-- Tipografia clean com hierarquia clara
-- Animações suaves nas transições do runner
-- Interface administrativa rica com ícones e badges coloridos
-- Dark mode disponível
+## 5. Arquivos a Criar/Modificar
+
+| Arquivo | Acao |
+|---------|------|
+| `src/pages/FormRunner.tsx` | **Criar** - Pagina publica do formulario conversacional |
+| `src/pages/FormEditor.tsx` | **Modificar** - Botoes Preview, Publicar, dialog de compartilhamento |
+| `src/components/form-runner/RunnerField.tsx` | **Criar** - Componente que renderiza cada tipo de campo |
+| `src/components/form-runner/EmailGate.tsx` | **Criar** - Tela de coleta de email (quando access_mode = email_required) |
+| `src/components/form-editor/ShareDialog.tsx` | **Criar** - Dialog de compartilhamento com toggle publico/email |
+| `src/components/form-editor/PublishButton.tsx` | **Criar** - Logica de publicacao com geracao de slug |
+| `src/App.tsx` | **Modificar** - Adicionar rota `/f/:slug` |
+
+---
+
+## Detalhes Tecnicos
+
+### Geracao de Slug
+- Formato: nome do formulario em kebab-case + 6 chars aleatorios (ex: `meu-formulario-a3f2b1`)
+- Garantir unicidade via query antes de salvar
+
+### Runner - Fluxo de Resposta
+1. Criar registro em `responses` com status `in_progress`
+2. A cada pergunta respondida, salvar em `response_answers`
+3. Ao finalizar, atualizar `responses.status` para `completed` e setar `completed_at`
+
+### RLS
+- As policies ja existentes cobrem os casos:
+  - `Anyone can view published forms` (SELECT em forms com status = published)
+  - `Anyone can view published form versions` (SELECT em form_versions vinculado a published_version_id)
+  - `Anyone can create response` (INSERT em responses)
+  - `Anyone can create answer` (INSERT em response_answers)
+  - `Anyone can update in_progress response` (UPDATE em responses)
+
+### Email Gate
+- Quando `access_mode = "email_required"`, exibir formulario simples de email
+- Email salvo no campo `responses.meta` como `{"respondent_email": "..."}`
+- Nao requer cadastro/login -- apenas coleta do email
