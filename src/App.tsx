@@ -8,6 +8,7 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import WorkspaceForms from "./pages/WorkspaceForms";
+import FormEditor from "./pages/FormEditor";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -41,7 +42,7 @@ const App = () => (
             path="/workspace/:workspaceId/form/:formId/edit"
             element={
               <ProtectedRoute>
-                <div className="p-8 text-center text-muted-foreground">Editor de formulário (em breve)</div>
+                <FormEditor />
               </ProtectedRoute>
             }
           />
