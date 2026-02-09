@@ -7,8 +7,20 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { AddFieldDialog } from "@/components/form-editor/AddFieldDialog";
 import { FieldItem, type FormField } from "@/components/form-editor/FieldItem";
 import { FieldConfigPanel } from "@/components/form-editor/FieldConfigPanel";
-import { ArrowLeft, Plus, Sparkles, Save, Eye } from "lucide-react";
+import { ShareDialog } from "@/components/form-editor/ShareDialog";
+import { ArrowLeft, Plus, Sparkles, Save, Eye, Share2, Rocket } from "lucide-react";
 import type { FieldType } from "@/config/fieldTypes";
+
+const generateSlug = (name: string) => {
+  const base = name
+    .toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 40);
+  const rand = Math.random().toString(36).slice(2, 8);
+  return `${base}-${rand}`;
+};
 
 const FormEditor = () => {
   const { workspaceId, formId } = useParams<{ workspaceId: string; formId: string }>();
@@ -20,25 +32,28 @@ const FormEditor = () => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [publishing, setPublishing] = useState(false);
   const [versionId, setVersionId] = useState<string | null>(null);
+  const [slug, setSlug] = useState<string | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
 
   const selectedField = fields.find((f) => f.id === selectedId) || null;
 
   useEffect(() => {
-    if (formId) {
-      fetchForm();
-    }
+    if (formId) fetchForm();
   }, [formId]);
 
   const fetchForm = async () => {
     const { data: form } = await supabase
       .from("forms")
-      .select("name")
+      .select("name, slug")
       .eq("id", formId!)
       .maybeSingle();
-    if (form) setFormName(form.name);
+    if (form) {
+      setFormName(form.name);
+      setSlug(form.slug || null);
+    }
 
-    // Get latest version
     const { data: version } = await supabase
       .from("form_versions")
       .select("*")
@@ -96,6 +111,71 @@ const FormEditor = () => {
     setSaving(false);
   };
 
+  const publishForm = async () => {
+    if (!versionId || !formId) return;
+    setPublishing(true);
+
+    // Save schema first
+    await supabase
+      .from("form_versions")
+      .update({ schema: { fields } as any })
+      .eq("id", versionId);
+
+    // Generate slug if needed
+    let currentSlug = slug;
+    if (!currentSlug) {
+      currentSlug = generateSlug(formName);
+      // Check uniqueness
+      const { data: existing } = await supabase
+        .from("forms")
+        .select("id")
+        .eq("slug", currentSlug)
+        .maybeSingle();
+      if (existing) {
+        currentSlug = generateSlug(formName); // retry with new random
+      }
+    }
+
+    // Update form
+    const { data: currentForm } = await supabase
+      .from("forms")
+      .select("settings")
+      .eq("id", formId)
+      .maybeSingle();
+
+    const currentSettings = (currentForm?.settings as any) || {};
+    if (!currentSettings.access_mode) {
+      currentSettings.access_mode = "public";
+    }
+
+    const { error } = await supabase
+      .from("forms")
+      .update({
+        status: "published",
+        slug: currentSlug,
+        published_version_id: versionId,
+        settings: currentSettings as any,
+      })
+      .eq("id", formId);
+
+    if (error) {
+      toast({ title: "Erro ao publicar", description: error.message, variant: "destructive" });
+    } else {
+      setSlug(currentSlug);
+      toast({ title: "Publicado com sucesso!" });
+      setShareOpen(true);
+    }
+    setPublishing(false);
+  };
+
+  const handlePreview = () => {
+    if (slug) {
+      window.open(`/f/${slug}`, "_blank");
+    } else {
+      toast({ title: "Publique o formulário primeiro para gerar o preview.", variant: "destructive" });
+    }
+  };
+
   return (
     <div className="h-screen flex flex-col bg-background">
       {/* Header */}
@@ -110,8 +190,21 @@ const FormEditor = () => {
         <span className="text-muted-foreground">/</span>
         <span className="font-medium text-sm truncate max-w-[200px]">{formName}</span>
         <div className="ml-auto flex items-center gap-2">
-          <Button variant="outline" size="sm" disabled>
+          <Button variant="outline" size="sm" onClick={handlePreview}>
             <Eye className="h-4 w-4 mr-1" /> Preview
+          </Button>
+          {slug && (
+            <Button variant="outline" size="sm" onClick={() => setShareOpen(true)}>
+              <Share2 className="h-4 w-4 mr-1" /> Compartilhar
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={publishForm}
+            disabled={publishing}
+          >
+            <Rocket className="h-4 w-4 mr-1" /> {publishing ? "Publicando..." : "Publicar"}
           </Button>
           <Button
             size="sm"
@@ -140,12 +233,7 @@ const FormEditor = () => {
                 <div className="text-center py-12 text-muted-foreground text-sm">
                   <Plus className="h-8 w-8 mx-auto mb-2 opacity-30" />
                   <p>Nenhum campo adicionado.</p>
-                  <Button
-                    variant="link"
-                    size="sm"
-                    className="mt-2"
-                    onClick={() => setDialogOpen(true)}
-                  >
+                  <Button variant="link" size="sm" className="mt-2" onClick={() => setDialogOpen(true)}>
                     Adicionar primeiro campo
                   </Button>
                 </div>
@@ -183,6 +271,7 @@ const FormEditor = () => {
       </div>
 
       <AddFieldDialog open={dialogOpen} onOpenChange={setDialogOpen} onAddField={addField} />
+      <ShareDialog open={shareOpen} onOpenChange={setShareOpen} formId={formId!} slug={slug} />
     </div>
   );
 };
