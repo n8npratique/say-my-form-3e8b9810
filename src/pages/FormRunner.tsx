@@ -107,7 +107,17 @@ const FormRunner = () => {
       })
       .select("id")
       .single();
-    if (data) setResponseId(data.id);
+    if (data) {
+      setResponseId(data.id);
+      // Fire webhooks for response.started (best-effort)
+      try {
+        await supabase.functions.invoke("fire-webhooks", {
+          body: { form_id: formId, response_id: data.id, event: "response.started" },
+        });
+      } catch {
+        // silent fail
+      }
+    }
   };
 
   const handleEmailSubmit = async (email: string) => {
@@ -165,10 +175,10 @@ const FormRunner = () => {
 
     setCompleted(true);
 
-    // Fire webhooks (best-effort)
+    // Fire webhooks for response.completed (best-effort)
     try {
       await supabase.functions.invoke("fire-webhooks", {
-        body: { form_id: formId, response_id: responseId },
+        body: { form_id: formId, response_id: responseId, event: "response.completed" },
       });
     } catch {
       // silent fail
