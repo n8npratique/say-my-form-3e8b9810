@@ -69,8 +69,8 @@ const Auth = () => {
           >
             <div className="flex items-center justify-center gap-3 mb-6">
               <Sparkles className="h-10 w-10 text-primary-foreground" />
-              <h1 className="text-5xl font-display font-bold text-primary-foreground">
-                Pratique Forms
+               <h1 className="text-5xl font-display font-bold text-primary-foreground">
+                TecForms
               </h1>
             </div>
             <p className="text-xl text-primary-foreground/80 max-w-md">
@@ -90,7 +90,7 @@ const Auth = () => {
         >
           <div className="lg:hidden flex items-center justify-center gap-2 mb-8">
             <Sparkles className="h-7 w-7 text-primary" />
-            <h1 className="text-3xl font-display font-bold gradient-text">Pratique Forms</h1>
+            <h1 className="text-3xl font-display font-bold gradient-text">TecForms</h1>
           </div>
 
           <Card className="border-0 shadow-xl">

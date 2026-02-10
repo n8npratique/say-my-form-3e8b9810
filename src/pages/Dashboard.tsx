@@ -70,7 +70,7 @@ const Dashboard = () => {
         <div className="container flex items-center justify-between h-16">
           <div className="flex items-center gap-2">
             <Sparkles className="h-6 w-6 text-primary" />
-            <span className="text-xl font-display font-bold gradient-text">Pratique Forms</span>
+            <span className="text-xl font-display font-bold gradient-text">TecForms</span>
           </div>
           <div className="flex items-center gap-4">
             <span className="text-sm text-muted-foreground">{user?.email}</span>
