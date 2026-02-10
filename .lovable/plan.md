@@ -1,62 +1,155 @@
 
 
-# Correcao: Tema nao aplica ao clicar "Aplicar"
+# Actions Panel Completo: Webhooks, Connect e Messages
 
-## Problemas Identificados
+## Visao Geral
 
-1. **Estado local nao sincroniza ao reabrir o painel**: O `ThemePanel` usa `useState(theme)` que so inicializa uma vez. Se o Dialog permanece montado (comportamento padrao do Radix), reabrir o painel mostra valores antigos em vez do tema atual.
+Transformar o painel lateral "Actions" do Workflow em um sistema completo com 3 abas funcionais:
 
-2. **Nenhum feedback visual no editor**: O tema so e aplicado na pagina do Runner (`/f/slug`). No editor, o usuario clica "Aplicar" mas nada muda visualmente na tela, dando a impressao de que nao funcionou.
-
-3. **Fluxo confuso**: Apos "Aplicar", o usuario ainda precisa clicar "Salvar" e depois "Publicar" para ver as mudancas no formulario publico. Nao ha indicacao clara disso.
+1. **Webhooks** - Melhorar o gerenciador existente com suporte explicito a n8n (instrucoes e dicas)
+2. **Connect** - Painel de integracoes externas (n8n, Zapier, webhook generico) com configuracao de URL e teste
+3. **Messages** - Editor completo de email de notificacao com titulo, corpo rico, imagem de topo, rodape e call-to-action
 
 ---
 
-## Solucao
+## 1. Webhooks (Melhorias)
 
-### 1. Sincronizar estado local do ThemePanel
+### O que muda
+- Adicionar label/nome ao webhook para identificacao (ex: "Notificacao n8n")
+- Exibir dica visual de como conectar com n8n: "Cole a URL do webhook do n8n aqui"
+- Mostrar o secret (copiavel) para validacao HMAC no n8n
+- Adicionar seletor de eventos: `response.completed`, `response.started`
+- Botao "Testar" que envia um payload de teste ao webhook
 
-Adicionar um `useEffect` no `ThemePanel` para atualizar o estado local sempre que o dialog abrir ou o tema externo mudar:
+### Mudancas tecnicas
+- Atualizar `WebhookManager.tsx` com campos de label, seletor de eventos, botao de copiar secret e botao de teste
+- O teste invoca a Edge Function `fire-webhooks` com um payload dummy ou faz fetch direto
+
+---
+
+## 2. Connect
+
+### O que sera construido
+- Lista de conectores disponiveis: **n8n**, **Zapier**, **Webhook Generico**
+- Cada conector mostra:
+  - Icone e nome
+  - Campo para URL do webhook
+  - Instrucoes contextuais (ex: "No n8n, crie um workflow com trigger Webhook e cole a URL aqui")
+  - Status de conexao (conectado/nao conectado)
+  - Botao para testar e remover
+
+### Armazenamento
+- Usar a tabela `integrations` existente (type: "n8n" | "zapier" | "webhook_custom", config: { url, name, ... })
+- CRUD via Supabase client
+
+### Componente novo
+- `ConnectPanel.tsx` - lista de conectores com cards expansiveis
+
+---
+
+## 3. Messages (Editor de Email)
+
+### O que sera construido
+Editor completo de template de email que sera enviado ao respondente (se email foi coletado) ou ao dono do formulario ao completar uma resposta.
+
+O editor tera:
+- **Destinatario**: toggle entre "Respondente" e "Dono do formulario"
+- **Assunto**: campo de texto com variaveis dinamicas (ex: `{{form_name}}`, `{{respondent_email}}`)
+- **Imagem de topo (header)**: campo URL para imagem de banner
+- **Corpo do email**: textarea rico com suporte a variaveis
+- **Call-to-Action (CTA)**: texto do botao + URL de destino
+- **Rodape**: texto livre para informacoes legais ou branding
+- **Preview**: visualizacao do email montado ao lado
+
+### Armazenamento
+- Salvar no schema do formulario como `form_versions.schema.email_templates[]`
+- Cada template:
 
 ```text
-useEffect(() => {
-  if (open) setLocal(theme);
-}, [open, theme]);
+interface EmailTemplate {
+  id: string;
+  name: string;
+  enabled: boolean;
+  recipient: "respondent" | "owner";
+  subject: string;
+  header_image_url?: string;
+  body: string;            // texto com {{variaveis}}
+  cta_text?: string;
+  cta_url?: string;
+  footer?: string;
+}
 ```
 
-### 2. Adicionar preview visual no editor
-
-Mostrar uma barra ou mini-preview no editor que reflete o tema atual, para que o usuario veja que as mudancas foram aplicadas. Opcoes:
-- Adicionar um indicador visual no header do editor mostrando as cores do tema ativo (circulos coloridos)
-- Ou: aplicar uma borda/fundo sutil no painel do editor baseado no tema
-
-### 3. Toast de confirmacao com orientacao
-
-Ao aplicar o tema, exibir um toast informando: "Tema aplicado! Salve e publique para ver no formulario."
+### Envio (futuro - preparacao)
+- O template sera salvo no schema agora
+- O envio real sera implementado via Edge Function futura (ex: `send-email`) que monta o HTML e envia via servico de email
+- Por ora, o editor permite configurar e salvar os templates
 
 ---
 
-## Arquivos a Modificar
+## Arquivos
 
+### Criar
+| Arquivo | Descricao |
+|---------|-----------|
+| `src/components/workflow/ConnectPanel.tsx` | Painel de conectores (n8n, Zapier, webhook generico) |
+| `src/components/workflow/MessagesPanel.tsx` | Editor completo de template de email |
+| `src/components/workflow/EmailPreview.tsx` | Preview visual do email montado |
+
+### Modificar
 | Arquivo | Mudanca |
 |---------|---------|
-| `src/components/form-editor/ThemePanel.tsx` | Adicionar `useEffect` para sincronizar `local` com `theme` quando `open` mudar |
-| `src/pages/FormEditor.tsx` | Adicionar indicador visual do tema ativo no header + toast apos aplicar tema |
+| `src/components/workflow/ActionsPanel.tsx` | Substituir placeholders por ConnectPanel e MessagesPanel |
+| `src/components/workflow/WebhookManager.tsx` | Adicionar label, seletor de eventos, botao copiar secret, botao testar, dicas n8n |
+| `src/types/workflow.ts` | Adicionar interface EmailTemplate e campo `email_templates?` no FormSchema |
+| `src/pages/FormWorkflow.tsx` | Carregar e salvar `email_templates` do schema |
 
 ---
 
 ## Detalhes Tecnicos
 
-### ThemePanel.tsx
+### WebhookManager - Melhorias
 
-- Adicionar `useEffect` com dependencia em `open` e `theme` para resetar o estado local
-- Isso garante que ao reabrir o painel, os valores refletem o tema salvo atualmente
+- Adicionar campo `label` (input texto) antes da URL
+- Mostrar badge com eventos selecionados
+- Botao icone para copiar `secret` com feedback "Copiado!"
+- Botao "Testar" que faz `fetch(url, { method: "POST", mode: "no-cors", body: testPayload })`
+- Texto de ajuda contextual: "Compativel com n8n, Zapier, Make e qualquer servico que aceite webhooks HTTP POST"
 
-### FormEditor.tsx
+### ConnectPanel
 
-- Adicionar um callback `handleThemeChange` que:
-  1. Atualiza o estado `theme`
-  2. Exibe toast: "Tema atualizado! Clique em Salvar para persistir."
-- Adicionar indicadores visuais (3 circulos coloridos pequenos) ao lado do botao "Aparencia" mostrando as cores ativas do tema (fundo, texto, botao)
-- Considerar salvar automaticamente ao aplicar tema (chamar `saveSchema` apos `setTheme`)
+- 3 cards de conectores:
+  - **n8n**: icone, descricao "Conecte seu workflow n8n", campo URL, instrucoes passo-a-passo
+  - **Zapier**: icone, descricao "Conecte com Zapier", campo URL, instrucoes
+  - **Webhook Generico**: icone, descricao "Qualquer servico HTTP", campo URL
+- Ao salvar, insere/atualiza na tabela `integrations` com `type` e `config: { url, name }`
+- Lista integracoes salvas com toggle ativo/inativo e botao remover
+
+### MessagesPanel
+
+- Lista de templates de email (inicialmente vazia, botao "+ Novo template")
+- Ao criar/editar, abre formulario com:
+  - Toggle "Ativo"
+  - Select destinatario (respondent/owner)
+  - Input assunto com botoes de variavel
+  - Input URL imagem de topo com preview
+  - Textarea corpo com botoes para inserir variaveis `{{form_name}}`, `{{respondent_email}}`, `{{score}}`, `{{outcome}}`
+  - Input CTA texto + URL
+  - Textarea rodape
+- Variaveis disponiveis mostradas como chips clicaveis que inserem no campo ativo
+
+### EmailPreview
+
+- Renderiza um card estilizado simulando um email:
+  - Header com imagem (se definida)
+  - Titulo (assunto)
+  - Corpo (com variaveis substituidas por exemplos)
+  - Botao CTA estilizado
+  - Rodape em texto menor
+
+### FormWorkflow - Estado
+
+- Adicionar estado `emailTemplates` carregado de `schema.email_templates`
+- Passar para `ActionsPanel` como prop
+- Salvar junto com o resto do schema no `saveWorkflow`
 
