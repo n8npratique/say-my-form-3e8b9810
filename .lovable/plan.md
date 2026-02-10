@@ -1,34 +1,51 @@
 
-# Pagina de Respostas do Formulario
+
+# Graficos, Exportacao CSV e Drag-and-Drop
 
 ## Visao Geral
 
-Criar a pagina `/workspace/:workspaceId/form/:formId/responses` onde o dono do formulario pode visualizar todas as respostas recebidas, incluindo scores, tags e outcomes calculados pelo workflow.
+Tres melhorias complementares: (1) graficos analiticos na pagina de respostas, (2) exportacao CSV, e (3) reordenacao de campos com arrastar e soltar no editor.
 
 ---
 
-## O que sera construido
+## 1. Graficos de Distribuicao (FormResponses)
 
-### Pagina Principal (FormResponses)
-- Header com nome do formulario, contagem de respostas e botao de voltar
-- Cards de resumo: total de respostas, taxa de completude, score medio (se scoring habilitado)
-- Tabela com todas as respostas mostrando:
-  - Data/hora de inicio e conclusao
-  - Status (em andamento / completada)
-  - Email do respondente (se coletado)
-  - Score (se scoring habilitado)
-  - Tags (como badges coloridos)
-  - Outcome (se quiz habilitado)
-- Ao clicar em uma linha, abre um painel/dialog com os detalhes de todas as respostas individuais daquela submissao
+Adicionar uma secao de graficos abaixo dos cards de resumo, usando a biblioteca `recharts` (ja instalada).
 
-### Painel de Detalhes da Resposta
-- Lista campo a campo com label da pergunta e valor respondido
-- Metadados: score total, tags coletadas, outcome determinado
-- Horarios de inicio e conclusao
+### Graficos planejados:
+- **Distribuicao de Scores** (BarChart): histograma mostrando quantas respostas caem em cada faixa de score (quando scoring habilitado)
+- **Respostas por Campo** (BarChart horizontal): para cada campo de escolha (multiple_choice, dropdown, yes_no, checkbox), exibir a contagem de cada opcao selecionada
 
-### Filtros e Ordenacao
-- Filtrar por status (completada / em andamento)
-- Ordenar por data (mais recente primeiro por padrao)
+### Dados:
+- Scores: extraidos de `responses.meta.score` (ja carregados)
+- Respostas por campo: requer buscar todos os `response_answers` do formulario (novo fetch agrupando por field_key + value)
+
+---
+
+## 2. Exportacao CSV (FormResponses)
+
+Botao "Exportar CSV" no header da pagina que gera e baixa um arquivo .csv com todas as respostas filtradas.
+
+### Colunas do CSV:
+- Data, Status, Email, Score, Tags, Outcome + uma coluna por campo do formulario (usando labels do fieldMap)
+
+### Implementacao:
+- Buscar todos os `response_answers` dos responses filtrados
+- Montar matriz de dados em memoria
+- Gerar string CSV e disparar download via `Blob` + `URL.createObjectURL`
+- Sem dependencia externa necessaria
+
+---
+
+## 3. Drag-and-Drop para Reordenar Campos (FormEditor)
+
+Permitir arrastar os cards de campo na lista lateral para reordenar, conforme a imagem de referencia (icone de grip ja existe no FieldItem).
+
+### Implementacao:
+- Usar a API nativa HTML5 Drag and Drop (sem nova dependencia)
+- Adicionar handlers `onDragStart`, `onDragOver`, `onDrop` no FieldItem e na lista
+- Ao soltar, reordenar o array `fields` no state do FormEditor
+- Indicador visual de posicao de drop (linha colorida entre items)
 
 ---
 
@@ -37,44 +54,43 @@ Criar a pagina `/workspace/:workspaceId/form/:formId/responses` onde o dono do f
 ### Criar
 | Arquivo | Descricao |
 |---------|-----------|
-| `src/pages/FormResponses.tsx` | Pagina principal com tabela de respostas, cards de resumo e dialog de detalhes |
+| `src/components/responses/ScoreDistributionChart.tsx` | Grafico de barras com distribuicao de scores |
+| `src/components/responses/FieldResponsesChart.tsx` | Grafico de respostas por opcao para cada campo de escolha |
 
 ### Modificar
 | Arquivo | Mudanca |
 |---------|---------|
-| `src/App.tsx` | Adicionar rota `/workspace/:workspaceId/form/:formId/responses` |
-| `src/pages/FormEditor.tsx` | Adicionar botao "Respostas" no header |
+| `src/pages/FormResponses.tsx` | Adicionar secao de graficos, botao de exportar CSV, fetch adicional de answers para graficos |
+| `src/pages/FormEditor.tsx` | Implementar drag-and-drop na lista de campos com reordenacao do array |
+| `src/components/form-editor/FieldItem.tsx` | Adicionar props e handlers de drag (onDragStart, onDragOver, onDrop, onDragEnd) com feedback visual |
 
 ---
 
 ## Detalhes Tecnicos
 
-### Consultas ao banco
-1. Buscar formulario: `forms` filtrado por `id` para obter nome
-2. Buscar versao publicada: `form_versions` para obter schema com labels dos campos
-3. Buscar respostas: `responses` filtrado por `form_id`, ordenado por `started_at desc`
-4. Buscar answers: `response_answers` filtrado por `response_id` (ao abrir detalhes)
+### Graficos (recharts)
 
-### Mapeamento de field_key para label
-- O `response_answers.field_key` armazena o `field.id`
-- Para mostrar o label legivel, buscar `form_versions.schema.fields` e criar um mapa `id -> label`
+**ScoreDistributionChart**: Recebe array de scores numericos. Agrupa em faixas (buckets) de 10 pontos e renderiza um `BarChart` com eixo X = faixa, eixo Y = contagem.
 
-### Exibicao de meta (score, tags, outcome)
-- `responses.meta` e JSONB contendo `score`, `score_range`, `tags[]`, `outcome_id`, `outcome_label`
-- Renderizar score como numero, tags como badges, outcome como texto
+**FieldResponsesChart**: Recebe `fieldMap`, `fields` (schema) e `allAnswers` (todos os response_answers). Para cada campo do tipo escolha, conta ocorrencias de cada valor e renderiza um `BarChart` horizontal.
 
-### Estrutura da tabela
+### Exportacao CSV
 
 ```text
-| Data       | Status     | Email          | Score | Tags              | Outcome      |
-|------------|------------|----------------|-------|-------------------|--------------|
-| 10/02/2026 | Completada | user@email.com | 85    | Perfil A, Perfil B| Extrovertido |
+Fluxo:
+1. Usuario clica "Exportar CSV"
+2. Buscar response_answers para todos os response IDs filtrados
+3. Montar headers: [Data, Status, Email, Score, Tags, Outcome, ...campo labels]
+4. Para cada response, preencher linha com meta + respostas mapeadas
+5. Gerar CSV string, criar Blob, disparar download
 ```
 
-### Componentes UI utilizados
-- `Table`, `TableHeader`, `TableBody`, `TableRow`, `TableCell`, `TableHead` (ja existem)
-- `Badge` para tags e status
-- `Dialog` para detalhes da resposta
-- `Card` para metricas de resumo
-- `Skeleton` para loading states
-- `Button` para navegacao
+Funcao auxiliar para escapar valores CSV (aspas duplas, virgulas, quebras de linha).
+
+### Drag-and-Drop (HTML5 nativo)
+
+- `FieldItem` recebe props: `draggable`, `onDragStart`, `onDragOver`, `onDrop`, `onDragEnd`
+- No `FormEditor`, manter estado `dragIndex` para rastrear o item sendo arrastado
+- No `onDrop`, calcular nova posicao e reordenar o array com splice
+- CSS: adicionar classe `border-t-2 border-primary` no item sobre o qual esta passando o arraste
+
