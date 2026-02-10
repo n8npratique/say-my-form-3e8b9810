@@ -60,6 +60,27 @@ export const RunnerField = ({ field, index, total, onAnswer }: RunnerFieldProps)
 
   const renderInput = () => {
     switch (field.type) {
+      case "contact_info": {
+        const activeFields = field.contact_fields || ["first_name", "email"];
+        return (
+          <div className="space-y-4">
+            {activeFields.map((key) => (
+              <div key={key} className="space-y-1">
+                <Label className="text-sm" style={{ color: "var(--runner-text-secondary)" }}>
+                  {CONTACT_LABELS[key]}
+                </Label>
+                <Input
+                  type={key === "email" ? "email" : key === "phone" ? "tel" : "text"}
+                  placeholder={CONTACT_LABELS[key]}
+                  value={contactValues[key] || ""}
+                  onChange={(e) => setContactValues(prev => ({ ...prev, [key]: e.target.value }))}
+                  className="text-lg h-12 border-0 border-b-2 rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-primary"
+                />
+              </div>
+            ))}
+          </div>
+        );
+      }
       case "short_text":
       case "email":
       case "phone":
