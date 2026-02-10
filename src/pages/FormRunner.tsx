@@ -311,7 +311,7 @@ const FormRunner = () => {
       <footer className="p-4 text-center relative z-10">
         <div className="flex items-center justify-center gap-1 text-xs" style={{ color: theme.text_secondary_color }}>
           <Sparkles className="h-3 w-3" />
-          <span>Pratique Forms</span>
+          <span>TecForms</span>
         </div>
       </footer>
     </div>

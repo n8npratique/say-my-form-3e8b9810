@@ -209,10 +209,10 @@ const FormEditor = () => {
         <Button variant="ghost" size="icon" onClick={() => navigate(`/workspace/${workspaceId}`)}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div className="flex items-center gap-2">
+        <button onClick={() => navigate("/dashboard")} className="flex items-center gap-2 hover:opacity-80 transition">
           <Sparkles className="h-4 w-4 text-primary" />
-          <span className="font-display font-bold text-sm gradient-text">Pratique Forms</span>
-        </div>
+          <span className="font-display font-bold text-sm gradient-text">TecForms</span>
+        </button>
         <span className="text-muted-foreground">/</span>
         <span className="font-medium text-sm truncate max-w-[200px]">{formName}</span>
         <div className="ml-auto flex items-center gap-2">
