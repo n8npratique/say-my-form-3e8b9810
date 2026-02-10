@@ -31,6 +31,7 @@ const FormRunner = () => {
   const [respondentEmail, setRespondentEmail] = useState<string | null>(null);
   const [currentFieldId, setCurrentFieldId] = useState<string | null>(null);
   const [responseId, setResponseId] = useState<string | null>(null);
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
   const [completed, setCompleted] = useState(false);
   const [answeredCount, setAnsweredCount] = useState(0);
   const answersRef = useRef<Record<string, any>>({});
@@ -106,14 +107,15 @@ const FormRunner = () => {
         status: "in_progress",
         meta: meta as any,
       })
-      .select("id")
+      .select("id, session_token")
       .single();
     if (data) {
       setResponseId(data.id);
+      setSessionToken((data as any).session_token);
       // Fire webhooks for response.started (best-effort)
       try {
         await supabase.functions.invoke("fire-webhooks", {
-          body: { form_id: formId, response_id: data.id, event: "response.started" },
+          body: { form_id: formId, response_id: data.id, session_token: (data as any).session_token, event: "response.started" },
         });
       } catch {
         // silent fail
@@ -172,14 +174,15 @@ const FormRunner = () => {
         completed_at: new Date().toISOString(),
         meta: meta as any,
       })
-      .eq("id", responseId);
+      .eq("id", responseId)
+      .eq("session_token", sessionToken);
 
     setCompleted(true);
 
     // Fire webhooks for response.completed (best-effort)
     try {
       await supabase.functions.invoke("fire-webhooks", {
-        body: { form_id: formId, response_id: responseId, event: "response.completed" },
+        body: { form_id: formId, response_id: responseId, session_token: sessionToken, event: "response.completed" },
       });
     } catch {
       // silent fail
