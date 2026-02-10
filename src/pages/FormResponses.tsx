@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -14,9 +14,11 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, BarChart3, CheckCircle2, ClipboardList, Sparkles } from "lucide-react";
+import { ArrowLeft, BarChart3, CheckCircle2, ClipboardList, Download, Sparkles } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { ScoreDistributionChart } from "@/components/responses/ScoreDistributionChart";
+import { FieldResponsesChart } from "@/components/responses/FieldResponsesChart";
 
 interface ResponseRow {
   id: string;
@@ -32,12 +34,28 @@ interface AnswerRow {
   value_text: string | null;
 }
 
+interface SchemaField {
+  id: string;
+  type: string;
+  label?: string;
+  options?: string[];
+}
+
+// CSV helpers
+const escapeCsv = (val: string) => {
+  if (val.includes('"') || val.includes(",") || val.includes("\n")) {
+    return `"${val.replace(/"/g, '""')}"`;
+  }
+  return val;
+};
+
 const FormResponses = () => {
   const { workspaceId, formId } = useParams<{ workspaceId: string; formId: string }>();
   const navigate = useNavigate();
 
   const [formName, setFormName] = useState("");
   const [fieldMap, setFieldMap] = useState<Record<string, string>>({});
+  const [schemaFields, setSchemaFields] = useState<SchemaField[]>([]);
   const [responses, setResponses] = useState<ResponseRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -46,6 +64,10 @@ const FormResponses = () => {
   const [answers, setAnswers] = useState<AnswerRow[]>([]);
   const [loadingAnswers, setLoadingAnswers] = useState(false);
 
+  // All answers for charts
+  const [allAnswers, setAllAnswers] = useState<AnswerRow[]>([]);
+  const [exporting, setExporting] = useState(false);
+
   useEffect(() => {
     if (formId) fetchData();
   }, [formId]);
@@ -53,7 +75,6 @@ const FormResponses = () => {
   const fetchData = async () => {
     setLoading(true);
 
-    // Parallel fetches
     const [formRes, versionRes, responsesRes] = await Promise.all([
       supabase.from("forms").select("name, published_version_id").eq("id", formId!).maybeSingle(),
       supabase
@@ -72,18 +93,31 @@ const FormResponses = () => {
 
     if (formRes.data) setFormName(formRes.data.name);
 
+    let fields: SchemaField[] = [];
     if (versionRes.data) {
       const schema = versionRes.data.schema as any;
       if (schema?.fields && Array.isArray(schema.fields)) {
+        fields = schema.fields;
         const map: Record<string, string> = {};
-        schema.fields.forEach((f: any) => {
-          map[f.id] = f.label || f.type || f.id;
-        });
+        fields.forEach((f) => { map[f.id] = f.label || f.type || f.id; });
         setFieldMap(map);
+        setSchemaFields(fields);
       }
     }
 
-    if (responsesRes.data) setResponses(responsesRes.data as ResponseRow[]);
+    const resps = (responsesRes.data as ResponseRow[]) || [];
+    setResponses(resps);
+
+    // Fetch all answers for charts
+    if (resps.length > 0) {
+      const ids = resps.map((r) => r.id);
+      const { data: answersData } = await supabase
+        .from("response_answers")
+        .select("field_key, value, value_text")
+        .in("response_id", ids);
+      setAllAnswers((answersData as AnswerRow[]) || []);
+    }
+
     setLoading(false);
   };
 
@@ -106,13 +140,13 @@ const FormResponses = () => {
   const completedCount = responses.filter((r) => r.status === "completed").length;
   const completionRate = responses.length > 0 ? Math.round((completedCount / responses.length) * 100) : 0;
 
-  const avgScore = useMemo(() => {
-    const scored = responses.filter((r) => r.meta?.score != null);
-    if (scored.length === 0) return null;
-    return Math.round(scored.reduce((sum, r) => sum + Number(r.meta.score), 0) / scored.length);
-  }, [responses]);
+  const scores = useMemo(
+    () => responses.filter((r) => r.meta?.score != null).map((r) => Number(r.meta.score)),
+    [responses]
+  );
+  const avgScore = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null;
 
-  const hasScoring = responses.some((r) => r.meta?.score != null);
+  const hasScoring = scores.length > 0;
   const hasTags = responses.some((r) => r.meta?.tags?.length > 0);
   const hasOutcome = responses.some((r) => r.meta?.outcome_label);
 
@@ -125,6 +159,52 @@ const FormResponses = () => {
     if (typeof val === "object") return JSON.stringify(val);
     return String(val);
   };
+
+  // CSV Export
+  const exportCsv = useCallback(async () => {
+    setExporting(true);
+    try {
+      const ids = filtered.map((r) => r.id);
+      const { data: csvAnswers } = await supabase
+        .from("response_answers")
+        .select("response_id, field_key, value, value_text")
+        .in("response_id", ids);
+
+      const answersByResp: Record<string, Record<string, string>> = {};
+      (csvAnswers || []).forEach((a: any) => {
+        if (!answersByResp[a.response_id]) answersByResp[a.response_id] = {};
+        answersByResp[a.response_id][a.field_key] = a.value_text || (a.value != null ? (Array.isArray(a.value) ? a.value.join("; ") : String(a.value)) : "");
+      });
+
+      const fieldKeys = schemaFields.map((f) => f.id);
+      const headers = ["Data", "Status", "Email", "Score", "Tags", "Outcome", ...fieldKeys.map((k) => fieldMap[k] || k)];
+
+      const rows = filtered.map((r) => {
+        const meta = r.meta || {};
+        const ra = answersByResp[r.id] || {};
+        return [
+          formatDate(r.started_at),
+          r.status === "completed" ? "Completada" : "Em andamento",
+          meta.email || "",
+          meta.score != null ? String(meta.score) : "",
+          (meta.tags || []).join("; "),
+          meta.outcome_label || "",
+          ...fieldKeys.map((k) => ra[k] || ""),
+        ];
+      });
+
+      const csv = [headers.map(escapeCsv).join(","), ...rows.map((row) => row.map(escapeCsv).join(","))].join("\n");
+      const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${formName || "respostas"}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
+  }, [filtered, schemaFields, fieldMap, formName]);
 
   return (
     <div className="h-screen flex flex-col bg-background">
@@ -141,6 +221,11 @@ const FormResponses = () => {
         <span className="font-medium text-sm truncate max-w-[200px]">{formName}</span>
         <span className="text-muted-foreground">/</span>
         <span className="text-sm text-muted-foreground">Respostas</span>
+        <div className="ml-auto">
+          <Button variant="outline" size="sm" onClick={exportCsv} disabled={exporting || filtered.length === 0}>
+            <Download className="h-4 w-4 mr-1" /> {exporting ? "Exportando..." : "Exportar CSV"}
+          </Button>
+        </div>
       </header>
 
       <div className="flex-1 overflow-auto p-6 space-y-6 max-w-6xl mx-auto w-full">
@@ -153,9 +238,7 @@ const FormResponses = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {loading ? <Skeleton className="h-8 w-16" /> : (
-                <p className="text-3xl font-bold">{responses.length}</p>
-              )}
+              {loading ? <Skeleton className="h-8 w-16" /> : <p className="text-3xl font-bold">{responses.length}</p>}
             </CardContent>
           </Card>
 
@@ -166,9 +249,7 @@ const FormResponses = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {loading ? <Skeleton className="h-8 w-16" /> : (
-                <p className="text-3xl font-bold">{completionRate}%</p>
-              )}
+              {loading ? <Skeleton className="h-8 w-16" /> : <p className="text-3xl font-bold">{completionRate}%</p>}
             </CardContent>
           </Card>
 
@@ -180,13 +261,19 @@ const FormResponses = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {loading ? <Skeleton className="h-8 w-16" /> : (
-                  <p className="text-3xl font-bold">{avgScore ?? "—"}</p>
-                )}
+                {loading ? <Skeleton className="h-8 w-16" /> : <p className="text-3xl font-bold">{avgScore ?? "—"}</p>}
               </CardContent>
             </Card>
           )}
         </div>
+
+        {/* Charts */}
+        {!loading && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {hasScoring && <ScoreDistributionChart scores={scores} />}
+            <FieldResponsesChart fields={schemaFields} fieldMap={fieldMap} allAnswers={allAnswers} />
+          </div>
+        )}
 
         {/* Filter */}
         <div className="flex items-center gap-3">
@@ -230,41 +317,25 @@ const FormResponses = () => {
                 {filtered.map((resp) => {
                   const meta = resp.meta || {};
                   return (
-                    <TableRow
-                      key={resp.id}
-                      className="cursor-pointer"
-                      onClick={() => openDetails(resp)}
-                    >
-                      <TableCell className="whitespace-nowrap">
-                        {formatDate(resp.started_at)}
-                      </TableCell>
+                    <TableRow key={resp.id} className="cursor-pointer" onClick={() => openDetails(resp)}>
+                      <TableCell className="whitespace-nowrap">{formatDate(resp.started_at)}</TableCell>
                       <TableCell>
                         <Badge variant={resp.status === "completed" ? "default" : "secondary"}>
                           {resp.status === "completed" ? "Completada" : "Em andamento"}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {meta.email || "—"}
-                      </TableCell>
-                      {hasScoring && (
-                        <TableCell className="font-medium">
-                          {meta.score != null ? meta.score : "—"}
-                        </TableCell>
-                      )}
+                      <TableCell className="text-muted-foreground">{meta.email || "—"}</TableCell>
+                      {hasScoring && <TableCell className="font-medium">{meta.score != null ? meta.score : "—"}</TableCell>}
                       {hasTags && (
                         <TableCell>
                           <div className="flex flex-wrap gap-1">
                             {(meta.tags || []).map((tag: string, i: number) => (
-                              <Badge key={i} variant="outline" className="text-xs">
-                                {tag}
-                              </Badge>
+                              <Badge key={i} variant="outline" className="text-xs">{tag}</Badge>
                             ))}
                           </div>
                         </TableCell>
                       )}
-                      {hasOutcome && (
-                        <TableCell>{meta.outcome_label || "—"}</TableCell>
-                      )}
+                      {hasOutcome && <TableCell>{meta.outcome_label || "—"}</TableCell>}
                     </TableRow>
                   );
                 })}
@@ -289,22 +360,16 @@ const FormResponses = () => {
             </DialogDescription>
           </DialogHeader>
 
-          {/* Meta info */}
           {selectedResponse?.meta && (
             <div className="flex flex-wrap gap-2 pb-2 border-b">
-              {selectedResponse.meta.score != null && (
-                <Badge>Score: {selectedResponse.meta.score}</Badge>
-              )}
-              {selectedResponse.meta.outcome_label && (
-                <Badge variant="secondary">{selectedResponse.meta.outcome_label}</Badge>
-              )}
+              {selectedResponse.meta.score != null && <Badge>Score: {selectedResponse.meta.score}</Badge>}
+              {selectedResponse.meta.outcome_label && <Badge variant="secondary">{selectedResponse.meta.outcome_label}</Badge>}
               {(selectedResponse.meta.tags || []).map((t: string, i: number) => (
                 <Badge key={i} variant="outline">{t}</Badge>
               ))}
             </div>
           )}
 
-          {/* Answers */}
           {loadingAnswers ? (
             <div className="space-y-3">
               {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
@@ -315,9 +380,7 @@ const FormResponses = () => {
             <div className="space-y-4">
               {answers.map((a, i) => (
                 <div key={i}>
-                  <p className="text-xs font-medium text-muted-foreground mb-1">
-                    {fieldMap[a.field_key] || a.field_key}
-                  </p>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">{fieldMap[a.field_key] || a.field_key}</p>
                   <p className="text-sm">{renderValue(a.value, a.value_text)}</p>
                 </div>
               ))}
