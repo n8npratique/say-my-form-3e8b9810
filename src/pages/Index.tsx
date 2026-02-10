@@ -2,7 +2,8 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { Sparkles, ArrowRight, Zap, GitBranch, BarChart3 } from "lucide-react";
+import { ArrowRight, Zap, GitBranch, BarChart3 } from "lucide-react";
+import logoPratique from "@/assets/logo-pratique.png";
 import { useEffect } from "react";
 
 const Index = () => {
