@@ -235,6 +235,11 @@ const FormEditor = () => {
           </Button>
           <Button variant="outline" size="sm" onClick={() => setThemeOpen(true)}>
             <Palette className="h-4 w-4 mr-1" /> Aparência
+            <span className="ml-1 flex gap-0.5">
+              <span className="w-2.5 h-2.5 rounded-full border border-border" style={{ background: theme.background_color.includes("gradient") ? theme.background_color : theme.background_color }} />
+              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: theme.button_color }} />
+              <span className="w-2.5 h-2.5 rounded-full border border-border" style={{ backgroundColor: theme.text_color }} />
+            </span>
           </Button>
           {slug && (
             <Button variant="outline" size="sm" onClick={() => setShareOpen(true)}>
@@ -351,7 +356,10 @@ const FormEditor = () => {
 
       <AddFieldDialog open={dialogOpen} onOpenChange={setDialogOpen} onAddField={addField} />
       <ShareDialog open={shareOpen} onOpenChange={setShareOpen} formId={formId!} slug={slug} />
-      <ThemePanel open={themeOpen} onOpenChange={setThemeOpen} theme={theme} onChange={setTheme} />
+      <ThemePanel open={themeOpen} onOpenChange={setThemeOpen} theme={theme} onChange={(t) => {
+        setTheme(t);
+        toast({ title: "Tema atualizado!", description: "Clique em Salvar para persistir as mudanças." });
+      }} />
     </div>
   );
 };

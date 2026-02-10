@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
@@ -24,6 +24,10 @@ interface ThemePanelProps {
 
 export const ThemePanel = ({ open, onOpenChange, theme, onChange }: ThemePanelProps) => {
   const [local, setLocal] = useState<FormTheme>(theme);
+
+  useEffect(() => {
+    if (open) setLocal(theme);
+  }, [open, theme]);
 
   const update = (patch: Partial<FormTheme>) => {
     setLocal((prev) => ({ ...prev, ...patch }));
