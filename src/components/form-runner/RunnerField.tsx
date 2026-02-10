@@ -21,9 +21,22 @@ export const RunnerField = ({ field, index, total, onAnswer }: RunnerFieldProps)
   const [value, setValue] = useState<any>("");
   const [checkboxValues, setCheckboxValues] = useState<string[]>([]);
   const [rating, setRating] = useState(0);
+  const [contactValues, setContactValues] = useState<Record<string, string>>({});
+
+  const CONTACT_LABELS: Record<ContactFieldKey, string> = {
+    first_name: "Nome",
+    last_name: "Sobrenome",
+    email: "E-mail",
+    phone: "Telefone",
+    cpf: "CPF",
+    cep: "CEP",
+    address: "Endereço",
+  };
 
   const submit = () => {
-    if (field.type === "checkbox" || field.type === "ranking") {
+    if (field.type === "contact_info") {
+      onAnswer(contactValues);
+    } else if (field.type === "checkbox" || field.type === "ranking") {
       onAnswer(checkboxValues);
     } else if (field.type === "rating") {
       onAnswer(rating);
