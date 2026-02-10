@@ -49,6 +49,16 @@ export const WelcomeScreen = ({ formName, theme, welcome, onStart }: WelcomeScre
       )}
 
       <div className="relative z-10 text-center max-w-lg space-y-6">
+        {welcome.logo_url && (
+          <motion.img
+            src={welcome.logo_url}
+            alt=""
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.1 }}
+            className="max-h-40 max-w-xs object-contain rounded-lg mx-auto"
+          />
+        )}
         <motion.h1
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}

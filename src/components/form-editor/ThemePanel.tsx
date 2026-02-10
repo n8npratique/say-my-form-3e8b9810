@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
@@ -13,11 +13,13 @@ import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
-import { Check, X, ImageIcon, Sparkles } from "lucide-react";
+import { Check, X, ImageIcon, Sparkles, Upload, Trash2 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import type { FormTheme, WelcomeScreen } from "@/lib/formTheme";
 import { THEME_PALETTES, AVAILABLE_FONTS, DEFAULT_THEME } from "@/lib/formTheme";
 import { BackgroundPicker } from "./BackgroundPicker";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 interface ThemePanelProps {
   open: boolean;
@@ -28,6 +30,9 @@ interface ThemePanelProps {
 
 export const ThemePanel = ({ open, onOpenChange, theme, onChange }: ThemePanelProps) => {
   const [local, setLocal] = useState<FormTheme>(theme);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const logoFileRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     if (open) setLocal(theme);
@@ -207,6 +212,77 @@ export const ThemePanel = ({ open, onOpenChange, theme, onChange }: ThemePanelPr
 
               {welcome.enabled && (
                 <div className="space-y-4">
+                  {/* Logo / Imagem introdutória */}
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold">Imagem / Logo</Label>
+                    <p className="text-[10px] text-muted-foreground">Aparece acima do título na tela de boas-vindas</p>
+                    {welcome.logo_url && (
+                      <div className="relative rounded-lg border overflow-hidden h-24 bg-muted flex items-center justify-center">
+                        <img src={welcome.logo_url} alt="Logo" className="max-h-full max-w-full object-contain" />
+                        <Button
+                          variant="destructive"
+                          size="icon"
+                          className="absolute top-1 right-1 h-6 w-6"
+                          onClick={() => updateWelcome({ logo_url: undefined })}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    )}
+                    <input
+                      ref={logoFileRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        if (!file.type.startsWith("image/")) {
+                          toast({ title: "Selecione um arquivo de imagem", variant: "destructive" });
+                          return;
+                        }
+                        if (file.size > 5 * 1024 * 1024) {
+                          toast({ title: "Imagem deve ter no máximo 5MB", variant: "destructive" });
+                          return;
+                        }
+                        setUploadingLogo(true);
+                        const ext = file.name.split(".").pop();
+                        const path = `logos/${crypto.randomUUID()}.${ext}`;
+                        const { error } = await supabase.storage.from("form-assets").upload(path, file);
+                        if (error) {
+                          toast({ title: "Erro ao enviar imagem", description: error.message, variant: "destructive" });
+                          setUploadingLogo(false);
+                          return;
+                        }
+                        const { data: urlData } = supabase.storage.from("form-assets").getPublicUrl(path);
+                        updateWelcome({ logo_url: urlData.publicUrl });
+                        setUploadingLogo(false);
+                        if (logoFileRef.current) logoFileRef.current.value = "";
+                      }}
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-xs"
+                        onClick={() => logoFileRef.current?.click()}
+                        disabled={uploadingLogo}
+                      >
+                        <Upload className="h-3 w-3 mr-1" />
+                        {uploadingLogo ? "Enviando..." : "Upload"}
+                      </Button>
+                    </div>
+                    <Input
+                      placeholder="Ou cole uma URL de imagem..."
+                      value={welcome.logo_url?.startsWith("http") ? welcome.logo_url : ""}
+                      onChange={(e) => updateWelcome({ logo_url: e.target.value || undefined })}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+
+                  <Separator />
+
                   <div className="space-y-1.5">
                     <Label className="text-xs">Título</Label>
                     <Input
@@ -287,6 +363,9 @@ export const ThemePanel = ({ open, onOpenChange, theme, onChange }: ThemePanelPr
                         <div className="absolute inset-0" style={{ backgroundColor: `rgba(0,0,0,${welcome.image_url ? welcome.image_overlay : local.background_overlay})` }} />
                       )}
                       <div className="relative z-10 text-center space-y-3">
+                        {welcome.logo_url && (
+                          <img src={welcome.logo_url} alt="" className="max-h-16 max-w-[120px] object-contain mx-auto rounded" />
+                        )}
                         <p className="text-xl font-bold">{welcome.title || "Bem-vindo!"}</p>
                         {welcome.description && <p className="text-sm" style={{ color: local.text_secondary_color }}>{welcome.description}</p>}
                         <button className="px-6 py-2 rounded-md text-sm font-semibold" style={{ backgroundColor: local.button_color, color: local.button_text_color }}>
