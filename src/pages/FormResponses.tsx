@@ -14,7 +14,8 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, BarChart3, CheckCircle2, ClipboardList, Download, Sparkles } from "lucide-react";
+import { ArrowLeft, BarChart3, CheckCircle2, ClipboardList, Download } from "lucide-react";
+import logoPratique from "@/assets/logo-pratique.png";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ScoreDistributionChart } from "@/components/responses/ScoreDistributionChart";
