@@ -1,51 +1,31 @@
 
 
-# Graficos, Exportacao CSV e Drag-and-Drop
+# Integracao Google Sheets em Tempo Real
 
 ## Visao Geral
 
-Tres melhorias complementares: (1) graficos analiticos na pagina de respostas, (2) exportacao CSV, e (3) reordenacao de campos com arrastar e soltar no editor.
+Quando um respondente completar um formulario, a resposta sera automaticamente adicionada como uma nova linha em uma planilha do Google Sheets configurada pelo dono do formulario. O dono tambem podera exportar todas as respostas existentes de uma vez.
 
 ---
 
-## 1. Graficos de Distribuicao (FormResponses)
+## Como Funciona
 
-Adicionar uma secao de graficos abaixo dos cards de resumo, usando a biblioteca `recharts` (ja instalada).
-
-### Graficos planejados:
-- **Distribuicao de Scores** (BarChart): histograma mostrando quantas respostas caem em cada faixa de score (quando scoring habilitado)
-- **Respostas por Campo** (BarChart horizontal): para cada campo de escolha (multiple_choice, dropdown, yes_no, checkbox), exibir a contagem de cada opcao selecionada
-
-### Dados:
-- Scores: extraidos de `responses.meta.score` (ja carregados)
-- Respostas por campo: requer buscar todos os `response_answers` do formulario (novo fetch agrupando por field_key + value)
+1. O dono do formulario vai na pagina de Respostas e clica em "Conectar Google Sheets"
+2. Informa o **ID da planilha** e faz upload de um arquivo JSON de **Service Account** do Google
+3. A partir desse momento, cada nova resposta completada e automaticamente adicionada como linha na planilha
+4. Um botao "Sincronizar Tudo" permite exportar todas as respostas existentes de uma vez
 
 ---
 
-## 2. Exportacao CSV (FormResponses)
+## Passo a Passo para o Usuario
 
-Botao "Exportar CSV" no header da pagina que gera e baixa um arquivo .csv com todas as respostas filtradas.
+Para usar a integracao, o usuario precisara:
 
-### Colunas do CSV:
-- Data, Status, Email, Score, Tags, Outcome + uma coluna por campo do formulario (usando labels do fieldMap)
-
-### Implementacao:
-- Buscar todos os `response_answers` dos responses filtrados
-- Montar matriz de dados em memoria
-- Gerar string CSV e disparar download via `Blob` + `URL.createObjectURL`
-- Sem dependencia externa necessaria
-
----
-
-## 3. Drag-and-Drop para Reordenar Campos (FormEditor)
-
-Permitir arrastar os cards de campo na lista lateral para reordenar, conforme a imagem de referencia (icone de grip ja existe no FieldItem).
-
-### Implementacao:
-- Usar a API nativa HTML5 Drag and Drop (sem nova dependencia)
-- Adicionar handlers `onDragStart`, `onDragOver`, `onDrop` no FieldItem e na lista
-- Ao soltar, reordenar o array `fields` no state do FormEditor
-- Indicador visual de posicao de drop (linha colorida entre items)
+1. Criar um projeto no Google Cloud Console (console.cloud.google.com)
+2. Ativar a API do Google Sheets
+3. Criar uma Service Account e baixar o arquivo JSON de credenciais
+4. Compartilhar a planilha do Google Sheets com o email da Service Account (com permissao de editor)
+5. Copiar o ID da planilha (parte da URL entre `/d/` e `/edit`)
 
 ---
 
@@ -54,43 +34,81 @@ Permitir arrastar os cards de campo na lista lateral para reordenar, conforme a 
 ### Criar
 | Arquivo | Descricao |
 |---------|-----------|
-| `src/components/responses/ScoreDistributionChart.tsx` | Grafico de barras com distribuicao de scores |
-| `src/components/responses/FieldResponsesChart.tsx` | Grafico de respostas por opcao para cada campo de escolha |
+| `supabase/functions/sync-google-sheets/index.ts` | Edge function que recebe dados de resposta e adiciona linha na planilha via Google Sheets API |
+| `src/components/responses/GoogleSheetsIntegration.tsx` | Componente de UI para configurar a integracao (spreadsheet ID, status, botoes) |
 
 ### Modificar
 | Arquivo | Mudanca |
 |---------|---------|
-| `src/pages/FormResponses.tsx` | Adicionar secao de graficos, botao de exportar CSV, fetch adicional de answers para graficos |
-| `src/pages/FormEditor.tsx` | Implementar drag-and-drop na lista de campos com reordenacao do array |
-| `src/components/form-editor/FieldItem.tsx` | Adicionar props e handlers de drag (onDragStart, onDragOver, onDrop, onDragEnd) com feedback visual |
+| `src/pages/FormResponses.tsx` | Adicionar o componente GoogleSheetsIntegration no header ou abaixo dos cards |
+| `src/pages/FormRunner.tsx` | Apos completar resposta, chamar a edge function sync-google-sheets alem do fire-webhooks |
+| `supabase/config.toml` | Adicionar configuracao da nova edge function com verify_jwt = false |
+
+### Banco de Dados
+- Usar a tabela `integrations` ja existente (form_id, type='google_sheets', config JSONB)
+- O campo `config` armazenara: `{ spreadsheet_id: string, sheet_name: string }`
+
+### Secret
+- Sera necessario armazenar a chave da Service Account como um secret (`GOOGLE_SERVICE_ACCOUNT_KEY`)
 
 ---
 
 ## Detalhes Tecnicos
 
-### Graficos (recharts)
+### Edge Function: sync-google-sheets
 
-**ScoreDistributionChart**: Recebe array de scores numericos. Agrupa em faixas (buckets) de 10 pontos e renderiza um `BarChart` com eixo X = faixa, eixo Y = contagem.
-
-**FieldResponsesChart**: Recebe `fieldMap`, `fields` (schema) e `allAnswers` (todos os response_answers). Para cada campo do tipo escolha, conta ocorrencias de cada valor e renderiza um `BarChart` horizontal.
-
-### Exportacao CSV
-
+Recebe via POST:
 ```text
-Fluxo:
-1. Usuario clica "Exportar CSV"
-2. Buscar response_answers para todos os response IDs filtrados
-3. Montar headers: [Data, Status, Email, Score, Tags, Outcome, ...campo labels]
-4. Para cada response, preencher linha com meta + respostas mapeadas
-5. Gerar CSV string, criar Blob, disparar download
+{
+  "form_id": "uuid",
+  "response_id": "uuid",   // para sincronizar uma resposta
+  "sync_all": false         // se true, sincroniza todas as respostas
+}
 ```
 
-Funcao auxiliar para escapar valores CSV (aspas duplas, virgulas, quebras de linha).
+Fluxo:
+1. Buscar integracao google_sheets da tabela `integrations` pelo form_id
+2. Buscar schema do formulario (form_versions) para montar os headers
+3. Buscar a resposta (ou todas, se sync_all) com seus answers
+4. Autenticar na Google Sheets API usando Service Account JWT
+5. Se primeira vez ou sync_all: criar/limpar sheet e adicionar header
+6. Adicionar linha(s) com os dados via `spreadsheets.values.append`
 
-### Drag-and-Drop (HTML5 nativo)
+### Autenticacao Google (Service Account JWT)
 
-- `FieldItem` recebe props: `draggable`, `onDragStart`, `onDragOver`, `onDrop`, `onDragEnd`
-- No `FormEditor`, manter estado `dragIndex` para rastrear o item sendo arrastado
-- No `onDrop`, calcular nova posicao e reordenar o array com splice
-- CSS: adicionar classe `border-t-2 border-primary` no item sobre o qual esta passando o arraste
+A edge function ira:
+1. Ler o secret `GOOGLE_SERVICE_ACCOUNT_KEY` (JSON da service account)
+2. Gerar um JWT assinado com RS256 usando a chave privada
+3. Trocar o JWT por um access_token via `https://oauth2.googleapis.com/token`
+4. Usar o access_token para chamar a API do Google Sheets
+
+### Colunas da Planilha
+
+Mesma estrutura do CSV:
+```text
+Data | Status | Email | Score | Tags | Outcome | Campo1 | Campo2 | ...
+```
+
+### Componente GoogleSheetsIntegration
+
+- Mostra status da integracao (conectado/desconectado)
+- Campo para informar o Spreadsheet ID
+- Campo para nome da aba (sheet name, padrao "Respostas")
+- Botao "Conectar" para salvar na tabela integrations
+- Botao "Sincronizar Tudo" para exportar respostas existentes
+- Indicador visual de sincronizacao em andamento
+
+### Trigger em Tempo Real (FormRunner)
+
+Apos completar a resposta e chamar fire-webhooks, chamar tambem:
+```text
+supabase.functions.invoke("sync-google-sheets", {
+  body: { form_id, response_id }
+})
+```
+Chamada best-effort (nao bloqueia a conclusao do formulario).
+
+### Migracao de Banco
+
+Nenhuma migracao necessaria - a tabela `integrations` ja existe com a estrutura adequada (form_id, type, config).
 
