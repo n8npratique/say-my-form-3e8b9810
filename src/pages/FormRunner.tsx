@@ -244,7 +244,7 @@ const FormRunner = () => {
     return (
       <div className="min-h-screen flex items-center justify-center p-4" style={themeStyle}>
         <div className="text-center space-y-2">
-          <Sparkles className="h-8 w-8 mx-auto" style={{ color: theme.text_secondary_color }} />
+          <img src={logoPratique} alt="" className="h-8 w-8 mx-auto rounded-full" />
           <p style={{ color: theme.text_secondary_color }}>{error}</p>
         </div>
       </div>
