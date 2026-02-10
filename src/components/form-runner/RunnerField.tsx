@@ -223,14 +223,14 @@ export const RunnerField = ({ field, index, total, onAnswer }: RunnerFieldProps)
       <FieldMedia field={field} />
 
       <div className="space-y-2">
-        <p className="text-sm text-muted-foreground">
+      <p className="text-sm" style={{ color: "var(--runner-text-secondary)" }}>
           {index + 1} → {total}
         </p>
         <h2 className="text-2xl font-bold">
           {field.label || `Pergunta ${index + 1}`}
         </h2>
         {field.placeholder && field.type === "statement" && (
-          <p className="text-muted-foreground">{field.placeholder}</p>
+          <p style={{ color: "var(--runner-text-secondary)" }}>{field.placeholder}</p>
         )}
       </div>
 
@@ -239,7 +239,7 @@ export const RunnerField = ({ field, index, total, onAnswer }: RunnerFieldProps)
       <Button
         onClick={submit}
         disabled={!isPassthrough && !canSubmit()}
-        className="gradient-primary text-primary-foreground"
+        style={{ backgroundColor: "var(--runner-btn-bg)", color: "var(--runner-btn-text)" }}
       >
         {isPassthrough ? "Continuar" : "OK"} <Check className="h-4 w-4 ml-1" />
       </Button>

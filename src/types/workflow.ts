@@ -1,4 +1,5 @@
 import type { FieldType } from "@/config/fieldTypes";
+import type { FormTheme } from "@/lib/formTheme";
 
 // ── FormField extended ──
 export interface FormField {
@@ -81,6 +82,7 @@ export interface FormSchema {
   scoring?: ScoringConfig;
   tagging?: TaggingConfig;
   outcomes?: OutcomesConfig;
+  theme?: FormTheme;
 }
 
 // ── Helpers ──
