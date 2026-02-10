@@ -7,7 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mail, Lock, User, ArrowRight, Sparkles, KeyRound } from "lucide-react";
+import { Mail, Lock, User, ArrowRight, KeyRound } from "lucide-react";
+import logoPratique from "@/assets/logo-pratique.png";
 
 type AuthMode = "login" | "signup" | "forgot";
 
