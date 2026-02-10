@@ -98,9 +98,20 @@ const FormEditor = () => {
   const saveSchema = async () => {
     if (!versionId) return;
     setSaving(true);
+
+    // Merge with existing schema to preserve workflow data
+    const { data: current } = await supabase
+      .from("form_versions")
+      .select("schema")
+      .eq("id", versionId)
+      .maybeSingle();
+
+    const existingSchema = (current?.schema as any) || {};
+    const mergedSchema = { ...existingSchema, fields };
+
     const { error } = await supabase
       .from("form_versions")
-      .update({ schema: { fields } as any })
+      .update({ schema: mergedSchema as any })
       .eq("id", versionId);
 
     if (error) {
@@ -115,10 +126,17 @@ const FormEditor = () => {
     if (!versionId || !formId) return;
     setPublishing(true);
 
-    // Save schema first
+    // Save schema first (merge with existing to preserve workflow data)
+    const { data: currentVersion } = await supabase
+      .from("form_versions")
+      .select("schema")
+      .eq("id", versionId)
+      .maybeSingle();
+
+    const existingSchema = (currentVersion?.schema as any) || {};
     await supabase
       .from("form_versions")
-      .update({ schema: { fields } as any })
+      .update({ schema: { ...existingSchema, fields } as any })
       .eq("id", versionId);
 
     // Generate slug if needed
