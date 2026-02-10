@@ -6,6 +6,7 @@ export interface WelcomeScreen {
   image_url?: string;
   image_size?: "cover" | "contain" | "repeat";
   image_overlay?: number;
+  logo_url?: string;
 }
 
 export interface FormTheme {
