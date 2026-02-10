@@ -88,7 +88,7 @@ const Auth = () => {
             transition={{ duration: 0.6 }}
           >
             <div className="flex items-center justify-center gap-3 mb-6">
-              <Sparkles className="h-10 w-10 text-primary-foreground" />
+              <img src={logoPratique} alt="TecForms" className="h-14 w-14 rounded-full" />
                <h1 className="text-5xl font-display font-bold text-primary-foreground">
                 TecForms
               </h1>
