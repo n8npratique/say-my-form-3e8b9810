@@ -4,13 +4,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { Progress } from "@/components/ui/progress";
 import { EmailGate } from "@/components/form-runner/EmailGate";
 import { RunnerField } from "@/components/form-runner/RunnerField";
+import { WelcomeScreen } from "@/components/form-runner/WelcomeScreen";
 import { CheckCircle2, Trophy } from "lucide-react";
 import logoPratique from "@/assets/logo-pratique.png";
 import { AnimatePresence, motion } from "framer-motion";
 import type { FormField } from "@/types/workflow";
 import type { FieldLogic, ScoringConfig, TaggingConfig, OutcomesConfig, FormSchema } from "@/types/workflow";
 import { getNextFieldId, calculateScore, collectTags, determineOutcome } from "@/lib/logicEngine";
-import type { FormTheme } from "@/lib/formTheme";
+import type { FormTheme, WelcomeScreen as WelcomeScreenType } from "@/lib/formTheme";
 import { DEFAULT_THEME, getThemeStyle, loadGoogleFont } from "@/lib/formTheme";
 
 const FormRunner = () => {
@@ -33,6 +34,7 @@ const FormRunner = () => {
   const [responseId, setResponseId] = useState<string | null>(null);
   const [sessionToken, setSessionToken] = useState<string | null>(null);
   const [completed, setCompleted] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(false);
   const [answeredCount, setAnsweredCount] = useState(0);
   const answersRef = useRef<Record<string, any>>({});
 
@@ -91,6 +93,7 @@ const FormRunner = () => {
       if (schema?.tagging?.enabled) setTagging(schema.tagging);
       if (schema?.outcomes?.enabled) setOutcomesConfig(schema.outcomes);
       if (schema?.theme) setTheme(schema.theme);
+      if (schema?.theme?.welcome_screen?.enabled) setShowWelcome(true);
     }
 
     setLoading(false);
@@ -256,6 +259,19 @@ const FormRunner = () => {
 
   if (accessMode === "email_required" && !emailCollected) {
     return <EmailGate formName={formName} onSubmit={handleEmailSubmit} themeStyle={themeStyle} theme={theme} />;
+  }
+
+  if (showWelcome && theme.welcome_screen?.enabled) {
+    return (
+      <AnimatePresence mode="wait">
+        <WelcomeScreen
+          formName={formName}
+          theme={theme}
+          welcome={theme.welcome_screen}
+          onStart={() => setShowWelcome(false)}
+        />
+      </AnimatePresence>
+    );
   }
 
   if (completed) {

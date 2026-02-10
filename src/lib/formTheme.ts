@@ -1,3 +1,13 @@
+export interface WelcomeScreen {
+  enabled: boolean;
+  title?: string;
+  description?: string;
+  button_text?: string;
+  image_url?: string;
+  image_size?: "cover" | "contain" | "repeat";
+  image_overlay?: number;
+}
+
 export interface FormTheme {
   background_color: string;
   text_color: string;
@@ -11,6 +21,7 @@ export interface FormTheme {
   background_image?: string;
   background_size?: "cover" | "contain" | "repeat";
   background_overlay?: number;
+  welcome_screen?: WelcomeScreen;
 }
 
 export const DEFAULT_THEME: FormTheme = {
