@@ -14,8 +14,12 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, BarChart3, CheckCircle2, ClipboardList, Download } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { ArrowLeft, BarChart3, CheckCircle2, ClipboardList, Download, ShieldCheck } from "lucide-react";
 import logoPratique from "@/assets/logo-pratique.png";
+import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ScoreDistributionChart } from "@/components/responses/ScoreDistributionChart";
@@ -61,6 +65,11 @@ const FormResponses = () => {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
+  // Dedup config
+  const [dedupEnabled, setDedupEnabled] = useState(true);
+  const [dedupFields, setDedupFields] = useState<string[]>(["email", "phone", "name"]);
+  const [savingDedup, setSavingDedup] = useState(false);
+
   const [selectedResponse, setSelectedResponse] = useState<ResponseRow | null>(null);
   const [answers, setAnswers] = useState<AnswerRow[]>([]);
   const [loadingAnswers, setLoadingAnswers] = useState(false);
@@ -77,7 +86,7 @@ const FormResponses = () => {
     setLoading(true);
 
     const [formRes, versionRes, responsesRes] = await Promise.all([
-      supabase.from("forms").select("name, published_version_id").eq("id", formId!).maybeSingle(),
+      supabase.from("forms").select("name, published_version_id, settings").eq("id", formId!).maybeSingle(),
       supabase
         .from("form_versions")
         .select("schema")
@@ -92,7 +101,14 @@ const FormResponses = () => {
         .order("started_at", { ascending: false }),
     ]);
 
-    if (formRes.data) setFormName(formRes.data.name);
+    if (formRes.data) {
+      setFormName(formRes.data.name);
+      const settings = formRes.data.settings as any;
+      if (settings?.dedup) {
+        setDedupEnabled(settings.dedup.enabled ?? true);
+        setDedupFields(settings.dedup.fields ?? ["email", "phone", "name"]);
+      }
+    }
 
     let fields: SchemaField[] = [];
     if (versionRes.data) {
@@ -207,6 +223,34 @@ const FormResponses = () => {
     }
   }, [filtered, schemaFields, fieldMap, formName]);
 
+  const saveDedup = useCallback(async (enabled: boolean, fields: string[]) => {
+    if (!formId) return;
+    setSavingDedup(true);
+    try {
+      // Fetch current settings to merge
+      const { data: formData } = await supabase.from("forms").select("settings").eq("id", formId).maybeSingle();
+      const currentSettings = (formData?.settings as any) || {};
+      const newSettings = { ...currentSettings, dedup: { enabled, fields } };
+      await supabase.from("forms").update({ settings: newSettings as any }).eq("id", formId);
+      toast.success("Configuração salva");
+    } catch {
+      toast.error("Erro ao salvar configuração");
+    } finally {
+      setSavingDedup(false);
+    }
+  }, [formId]);
+
+  const toggleDedupEnabled = (checked: boolean) => {
+    setDedupEnabled(checked);
+    saveDedup(checked, dedupFields);
+  };
+
+  const toggleDedupField = (field: string, checked: boolean) => {
+    const newFields = checked ? [...dedupFields, field] : dedupFields.filter((f) => f !== field);
+    setDedupFields(newFields);
+    saveDedup(dedupEnabled, newFields);
+  };
+
   return (
     <div className="h-screen flex flex-col bg-background">
       {/* Header */}
@@ -275,6 +319,40 @@ const FormResponses = () => {
             <FieldResponsesChart fields={schemaFields} fieldMap={fieldMap} allAnswers={allAnswers} />
           </div>
         )}
+
+        {/* Dedup Config */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4" /> Prevenção de Duplicados
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="dedup-switch" className="text-sm">Bloquear respostas duplicadas</Label>
+              <Switch id="dedup-switch" checked={dedupEnabled} onCheckedChange={toggleDedupEnabled} disabled={savingDedup} />
+            </div>
+            {dedupEnabled && (
+              <div className="flex flex-wrap gap-4">
+                {[
+                  { key: "email", label: "Email" },
+                  { key: "phone", label: "Celular" },
+                  { key: "name", label: "Nome" },
+                ].map((f) => (
+                  <div key={f.key} className="flex items-center gap-2">
+                    <Checkbox
+                      id={`dedup-${f.key}`}
+                      checked={dedupFields.includes(f.key)}
+                      onCheckedChange={(checked) => toggleDedupField(f.key, !!checked)}
+                      disabled={savingDedup}
+                    />
+                    <Label htmlFor={`dedup-${f.key}`} className="text-sm">{f.label}</Label>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Filter */}
         <div className="flex items-center gap-3">

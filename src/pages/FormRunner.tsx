@@ -5,7 +5,7 @@ import { Progress } from "@/components/ui/progress";
 import { EmailGate } from "@/components/form-runner/EmailGate";
 import { RunnerField } from "@/components/form-runner/RunnerField";
 import { WelcomeScreen } from "@/components/form-runner/WelcomeScreen";
-import { CheckCircle2, Trophy } from "lucide-react";
+import { CheckCircle2, Trophy, AlertTriangle } from "lucide-react";
 import logoPratique from "@/assets/logo-pratique.png";
 import { AnimatePresence, motion } from "framer-motion";
 import type { FormField } from "@/types/workflow";
@@ -36,6 +36,8 @@ const FormRunner = () => {
   const [completed, setCompleted] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
   const [answeredCount, setAnsweredCount] = useState(0);
+  const [dedupConfig, setDedupConfig] = useState<{ enabled: boolean; fields: string[] } | null>(null);
+  const [duplicateError, setDuplicateError] = useState<string | null>(null);
   const answersRef = useRef<Record<string, any>>({});
 
   // Outcome result
@@ -75,6 +77,7 @@ const FormRunner = () => {
     setVersionId(form.published_version_id);
     const settings = form.settings as any;
     setAccessMode(settings?.access_mode || "public");
+    if (settings?.dedup) setDedupConfig(settings.dedup);
 
     const { data: version } = await supabase
       .from("form_versions")
@@ -140,6 +143,39 @@ const FormRunner = () => {
 
   const completeForm = async () => {
     if (!responseId || !formId) return;
+
+    // Check for duplicates
+    if (dedupConfig?.enabled && dedupConfig.fields.length > 0) {
+      const checks: { field_key: string; value: string }[] = [];
+      for (const [fieldId, value] of Object.entries(answersRef.current)) {
+        const field = fields.find((f) => f.id === fieldId);
+        if (!field || !value) continue;
+        const fieldType = field.type?.toLowerCase();
+        // Match field type to dedup field
+        if (
+          (dedupConfig.fields.includes("email") && (fieldType === "email" || fieldType === "email_input")) ||
+          (dedupConfig.fields.includes("phone") && (fieldType === "phone" || fieldType === "phone_input")) ||
+          (dedupConfig.fields.includes("name") && (fieldType === "short_text" || fieldType === "name" || fieldType === "text_input") && field.label?.toLowerCase().includes("nome"))
+        ) {
+          checks.push({ field_key: fieldId, value: String(value) });
+        }
+      }
+
+      if (checks.length > 0) {
+        try {
+          const { data } = await supabase.functions.invoke("check-duplicate", {
+            body: { form_id: formId, checks },
+          });
+          if (data?.duplicate) {
+            const fieldLabel = fields.find((f) => f.id === data.field)?.label || data.field;
+            setDuplicateError(`Já recebemos uma resposta com este ${fieldLabel}. Não é permitido enviar respostas duplicadas.`);
+            return;
+          }
+        } catch {
+          // If check fails, allow submission
+        }
+      }
+    }
 
     const meta: any = {};
 
@@ -271,6 +307,26 @@ const FormRunner = () => {
           onStart={() => setShowWelcome(false)}
         />
       </AnimatePresence>
+    );
+  }
+
+  if (duplicateError) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="min-h-screen flex items-center justify-center p-4 relative"
+        style={themeStyle}
+      >
+        {hasOverlay && (
+          <div className="absolute inset-0" style={{ backgroundColor: `rgba(0,0,0,${theme.background_overlay})` }} />
+        )}
+        <div className="text-center space-y-4 max-w-md relative z-10">
+          <AlertTriangle className="h-16 w-16 mx-auto text-yellow-500" />
+          <h1 className="text-2xl font-bold">Resposta duplicada</h1>
+          <p style={{ color: theme.text_secondary_color }}>{duplicateError}</p>
+        </div>
+      </motion.div>
     );
   }
 
