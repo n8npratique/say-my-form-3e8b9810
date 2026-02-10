@@ -9,6 +9,9 @@ import { Star, ArrowRight, Check } from "lucide-react";
 import { motion } from "framer-motion";
 import type { FormField, ContactFieldKey } from "@/types/workflow";
 import { FieldMedia } from "./FieldMedia";
+import { PhoneInput } from "./PhoneInput";
+import { ValidatedEmailInput } from "./ValidatedEmailInput";
+import { validateEmail } from "@/lib/countries";
 
 interface RunnerFieldProps {
   field: FormField;
@@ -22,6 +25,8 @@ export const RunnerField = ({ field, index, total, onAnswer }: RunnerFieldProps)
   const [checkboxValues, setCheckboxValues] = useState<string[]>([]);
   const [rating, setRating] = useState(0);
   const [contactValues, setContactValues] = useState<Record<string, string>>({});
+  const [phoneValid, setPhoneValid] = useState(false);
+  const [emailValid, setEmailValid] = useState(false);
 
   const CONTACT_LABELS: Record<ContactFieldKey, string> = {
     first_name: "Nome",
@@ -55,6 +60,8 @@ export const RunnerField = ({ field, index, total, onAnswer }: RunnerFieldProps)
     }
     if (field.type === "checkbox" || field.type === "ranking") return checkboxValues.length > 0;
     if (field.type === "rating") return rating > 0;
+    if (field.type === "phone") return phoneValid;
+    if (field.type === "email") return emailValid;
     return !!value;
   };
 
@@ -69,34 +76,74 @@ export const RunnerField = ({ field, index, total, onAnswer }: RunnerFieldProps)
                 <Label className="text-sm" style={{ color: "var(--runner-text-secondary)" }}>
                   {CONTACT_LABELS[key]}
                 </Label>
-                <Input
-                  type={key === "email" ? "email" : key === "phone" ? "tel" : "text"}
-                  placeholder={CONTACT_LABELS[key]}
-                  value={contactValues[key] || ""}
-                  onChange={(e) => setContactValues(prev => ({ ...prev, [key]: e.target.value }))}
-                  className="text-lg h-12 border-0 border-b-2 rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-primary"
-                />
+                {key === "phone" ? (
+                  <PhoneInput
+                    value={contactValues[key] || ""}
+                    onChange={(v) => setContactValues(prev => ({ ...prev, [key]: v }))}
+                  />
+                ) : key === "email" ? (
+                  <ValidatedEmailInput
+                    value={contactValues[key] || ""}
+                    onChange={(v) => setContactValues(prev => ({ ...prev, [key]: v }))}
+                    placeholder="seunome@provedor.com"
+                  />
+                ) : (
+                  <Input
+                    type="text"
+                    placeholder={CONTACT_LABELS[key]}
+                    value={contactValues[key] || ""}
+                    onChange={(e) => setContactValues(prev => ({ ...prev, [key]: e.target.value }))}
+                    className="text-lg h-12 border-0 border-b-2 rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-primary"
+                  />
+                )}
               </div>
             ))}
           </div>
         );
       }
-      case "short_text":
       case "email":
+        return (
+          <ValidatedEmailInput
+            value={value}
+            onChange={(v, valid) => { setValue(v); setEmailValid(valid); }}
+            onKeyDown={(e) => e.key === "Enter" && canSubmit() && submit()}
+            placeholder={field.placeholder}
+            autoFocus
+          />
+        );
+
       case "phone":
+        return (
+          <PhoneInput
+            value={value}
+            onChange={(v, valid) => { setValue(v); setPhoneValid(valid); }}
+            onKeyDown={(e) => e.key === "Enter" && canSubmit() && submit()}
+            autoFocus
+          />
+        );
+
+      case "short_text":
       case "website":
       case "number":
       case "address":
         return (
-          <Input
-            type={field.type === "email" ? "email" : field.type === "number" ? "number" : field.type === "phone" ? "tel" : "text"}
-            placeholder={field.placeholder || "Digite sua resposta..."}
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && canSubmit() && submit()}
-            className="text-lg h-14 border-0 border-b-2 rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-primary"
-            autoFocus
-          />
+          <div className="space-y-1">
+            <Input
+              type={field.type === "number" ? "number" : "text"}
+              placeholder={field.placeholder || "Digite sua resposta..."}
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && canSubmit() && submit()}
+              className="text-lg h-14 border-0 border-b-2 rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-primary"
+              autoFocus
+            />
+            {field.type === "website" && (
+              <p className="text-xs opacity-40" style={{ color: "var(--runner-text-secondary)" }}>Ex: https://www.seusite.com.br</p>
+            )}
+            {field.type === "number" && (
+              <p className="text-xs opacity-40" style={{ color: "var(--runner-text-secondary)" }}>Ex: 1234</p>
+            )}
+          </div>
         );
 
       case "long_text":
