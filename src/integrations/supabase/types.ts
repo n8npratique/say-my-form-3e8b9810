@@ -246,6 +246,7 @@ export type Database = {
           form_version_id: string
           id: string
           meta: Json | null
+          session_token: string | null
           started_at: string
           status: string
         }
@@ -255,6 +256,7 @@ export type Database = {
           form_version_id: string
           id?: string
           meta?: Json | null
+          session_token?: string | null
           started_at?: string
           status?: string
         }
@@ -264,6 +266,7 @@ export type Database = {
           form_version_id?: string
           id?: string
           meta?: Json | null
+          session_token?: string | null
           started_at?: string
           status?: string
         }
@@ -412,6 +415,10 @@ export type Database = {
         Returns: Database["public"]["Enums"]["app_role"]
       }
       is_workspace_member: { Args: { _workspace_id: string }; Returns: boolean }
+      verify_response_session: {
+        Args: { _response_id: string; _session_token: string }
+        Returns: boolean
+      }
     }
     Enums: {
       app_role: "owner" | "admin" | "editor" | "viewer"

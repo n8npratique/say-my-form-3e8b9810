@@ -21,15 +21,43 @@ async function hmacSign(secret: string, payload: string): Promise<string> {
     .join("");
 }
 
+// UUID v4 format validation
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { form_id, response_id, event = "response.completed" } = await req.json();
-    if (!form_id) {
-      return new Response(JSON.stringify({ error: "Missing form_id" }), {
+    const body = await req.json();
+    const { form_id, response_id, session_token, event = "response.completed" } = body;
+
+    // Input validation
+    if (!form_id || typeof form_id !== "string" || !UUID_RE.test(form_id)) {
+      return new Response(JSON.stringify({ error: "Invalid or missing form_id" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (response_id && (typeof response_id !== "string" || !UUID_RE.test(response_id))) {
+      return new Response(JSON.stringify({ error: "Invalid response_id" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (!session_token || typeof session_token !== "string" || !UUID_RE.test(session_token)) {
+      return new Response(JSON.stringify({ error: "Invalid or missing session_token" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const allowedEvents = ["response.started", "response.completed"];
+    if (!allowedEvents.includes(event)) {
+      return new Response(JSON.stringify({ error: "Invalid event type" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -39,6 +67,24 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
+
+    // Verify ownership: the caller must provide the correct session_token for this response
+    if (response_id) {
+      const { data: validResponse } = await supabase
+        .from("responses")
+        .select("id")
+        .eq("id", response_id)
+        .eq("form_id", form_id)
+        .eq("session_token", session_token)
+        .maybeSingle();
+
+      if (!validResponse) {
+        return new Response(JSON.stringify({ error: "Forbidden" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
 
     // Fetch enabled webhooks that listen to this event
     const { data: webhooks } = await supabase
