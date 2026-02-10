@@ -11,7 +11,7 @@ export type FieldType =
   | "number" | "date" | "multiple_choice" | "dropdown" | "image_choice"
   | "yes_no" | "legal" | "checkbox" | "nps" | "opinion_scale" | "rating"
   | "ranking" | "matrix" | "file_upload" | "statement" | "welcome_screen"
-  | "end_screen" | "question_group" | "redirect_url";
+  | "end_screen" | "question_group" | "redirect_url" | "contact_info";
 
 export interface FieldTypeConfig {
   type: FieldType;
