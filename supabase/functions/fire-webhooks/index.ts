@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 async function hmacSign(secret: string, payload: string): Promise<string> {
@@ -27,9 +27,9 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { form_id, response_id } = await req.json();
-    if (!form_id || !response_id) {
-      return new Response(JSON.stringify({ error: "Missing form_id or response_id" }), {
+    const { form_id, response_id, event = "response.completed" } = await req.json();
+    if (!form_id) {
+      return new Response(JSON.stringify({ error: "Missing form_id" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -40,36 +40,128 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Fetch enabled webhooks
+    // Fetch enabled webhooks that listen to this event
     const { data: webhooks } = await supabase
       .from("webhooks")
-      .select("url, secret")
+      .select("url, secret, events")
       .eq("form_id", form_id)
       .eq("is_enabled", true);
 
-    if (!webhooks || webhooks.length === 0) {
+    // Filter webhooks by event
+    const matched = (webhooks || []).filter((wh: any) => {
+      const events = Array.isArray(wh.events) ? wh.events : ["response.completed"];
+      return events.includes(event);
+    });
+
+    if (matched.length === 0) {
       return new Response(JSON.stringify({ fired: 0 }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Fetch response + answers
-    const { data: response } = await supabase
-      .from("responses")
-      .select("*, response_answers(*)")
-      .eq("id", response_id)
-      .single();
+    // Fetch form name
+    const { data: form } = await supabase
+      .from("forms")
+      .select("name, slug")
+      .eq("id", form_id)
+      .maybeSingle();
 
-    const payload = JSON.stringify({
-      event: "response.completed",
-      form_id,
-      response_id,
-      response,
-    });
+    // Fetch form version schema for field labels
+    const { data: version } = await supabase
+      .from("form_versions")
+      .select("schema")
+      .eq("form_id", form_id)
+      .order("version_number", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-    // Fire all webhooks
+    const schema = (version?.schema as any) || {};
+    const fieldMap: Record<string, { label: string; type: string }> = {};
+    if (schema.fields) {
+      for (const f of schema.fields) {
+        fieldMap[f.id] = { label: f.label || f.id, type: f.type || "unknown" };
+      }
+    }
+
+    // Build payload based on event
+    let responseData: any = null;
+    let structuredAnswers: any = null;
+
+    if (response_id) {
+      const { data: response } = await supabase
+        .from("responses")
+        .select("*, response_answers(*)")
+        .eq("id", response_id)
+        .single();
+
+      if (response) {
+        responseData = {
+          id: response.id,
+          status: response.status,
+          started_at: response.started_at,
+          completed_at: response.completed_at,
+          meta: response.meta,
+        };
+
+        // Build structured answers with field labels
+        if (response.response_answers) {
+          structuredAnswers = {};
+          for (const ans of response.response_answers) {
+            const fieldInfo = fieldMap[ans.field_key];
+            const key = fieldInfo?.label || ans.field_key;
+            structuredAnswers[key] = {
+              field_id: ans.field_key,
+              field_type: fieldInfo?.type || "unknown",
+              value: ans.value,
+              value_text: ans.value_text,
+            };
+          }
+        }
+      }
+    }
+
+    const meta = responseData?.meta || {};
+
+    const payloadObj: any = {
+      event,
+      timestamp: new Date().toISOString(),
+      form: {
+        id: form_id,
+        name: form?.name || null,
+        slug: form?.slug || null,
+      },
+    };
+
+    if (response_id) {
+      payloadObj.response = responseData;
+      payloadObj.answers = structuredAnswers;
+    }
+
+    // Include scoring/tagging/outcome if available
+    if (meta.score !== undefined) {
+      payloadObj.scoring = {
+        score: meta.score,
+        range_label: meta.score_range || null,
+      };
+    }
+    if (meta.tags) {
+      payloadObj.tags = meta.tags;
+    }
+    if (meta.outcome_id) {
+      payloadObj.outcome = {
+        id: meta.outcome_id,
+        label: meta.outcome_label || null,
+      };
+    }
+    if (meta.respondent_email) {
+      payloadObj.respondent_email = meta.respondent_email;
+    }
+
+    const payload = JSON.stringify(payloadObj);
+
+    // Fire all matched webhooks
     const results = await Promise.allSettled(
-      webhooks.map(async (wh) => {
+      matched.map(async (wh: any) => {
         const headers: Record<string, string> = { "Content-Type": "application/json" };
         if (wh.secret) {
           headers["X-Webhook-Signature"] = await hmacSign(wh.secret, payload);
@@ -79,7 +171,7 @@ Deno.serve(async (req) => {
     );
 
     return new Response(
-      JSON.stringify({ fired: webhooks.length, results: results.map((r) => r.status) }),
+      JSON.stringify({ fired: matched.length, results: results.map((r) => r.status) }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
