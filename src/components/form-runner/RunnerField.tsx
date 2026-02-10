@@ -49,6 +49,10 @@ export const RunnerField = ({ field, index, total, onAnswer }: RunnerFieldProps)
 
   const canSubmit = () => {
     if (!field.required) return true;
+    if (field.type === "contact_info") {
+      const activeFields = field.contact_fields || ["first_name", "email"];
+      return activeFields.every(f => !!contactValues[f]?.trim());
+    }
     if (field.type === "checkbox" || field.type === "ranking") return checkboxValues.length > 0;
     if (field.type === "rating") return rating > 0;
     return !!value;
