@@ -3,12 +3,24 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, X, Image, Video } from "lucide-react";
 import { getFieldTypeConfig } from "@/config/fieldTypes";
 import type { FormField } from "./FieldItem";
+import type { ContactFieldKey } from "@/types/workflow";
 import { parseMediaUrl } from "@/lib/mediaUtils";
 
 const OPTION_TYPES = ["multiple_choice", "dropdown", "image_choice", "checkbox", "ranking"];
+
+const ALL_CONTACT_FIELDS: { key: ContactFieldKey; label: string }[] = [
+  { key: "first_name", label: "Nome" },
+  { key: "last_name", label: "Sobrenome" },
+  { key: "email", label: "E-mail" },
+  { key: "phone", label: "Telefone" },
+  { key: "cpf", label: "CPF" },
+  { key: "cep", label: "CEP" },
+  { key: "address", label: "Endereço" },
+];
 
 interface FieldConfigPanelProps {
   field: FormField;
@@ -35,6 +47,14 @@ export const FieldConfigPanel = ({ field, onChange }: FieldConfigPanelProps) => 
   };
 
   const mediaInfo = field.media_url ? parseMediaUrl(field.media_url) : null;
+
+  const toggleContactField = (key: ContactFieldKey) => {
+    const current = field.contact_fields || ["first_name", "email"];
+    const updated = current.includes(key)
+      ? current.filter(k => k !== key)
+      : [...current, key];
+    onChange({ ...field, contact_fields: updated });
+  };
 
   return (
     <div className="space-y-6">
@@ -66,6 +86,28 @@ export const FieldConfigPanel = ({ field, onChange }: FieldConfigPanelProps) => 
             placeholder="Texto de exemplo..."
           />
         </div>
+
+        {/* Contact Info Fields Selector */}
+        {field.type === "contact_info" && (
+          <div className="space-y-2 rounded-lg border p-3">
+            <Label className="text-sm font-medium">Campos visíveis</Label>
+            <p className="text-xs text-muted-foreground mb-2">Escolha quais campos exibir nesta pergunta</p>
+            <div className="space-y-2">
+              {ALL_CONTACT_FIELDS.map(({ key, label }) => {
+                const active = (field.contact_fields || ["first_name", "email"]).includes(key);
+                return (
+                  <label key={key} className="flex items-center gap-2 cursor-pointer">
+                    <Checkbox
+                      checked={active}
+                      onCheckedChange={() => toggleContactField(key)}
+                    />
+                    <span className="text-sm">{label}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {hasOptions && (
           <div className="space-y-2">

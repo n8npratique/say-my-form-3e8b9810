@@ -2,6 +2,8 @@ import type { FieldType } from "@/config/fieldTypes";
 import type { FormTheme } from "@/lib/formTheme";
 
 // ── FormField extended ──
+export type ContactFieldKey = "first_name" | "last_name" | "email" | "phone" | "cpf" | "cep" | "address";
+
 export interface FormField {
   id: string;
   type: FieldType;
@@ -14,6 +16,7 @@ export interface FormField {
   outcome?: Record<string, string>;
   media_url?: string;
   media_type?: "video" | "image";
+  contact_fields?: ContactFieldKey[];
 }
 
 // ── Logic / Branching ──

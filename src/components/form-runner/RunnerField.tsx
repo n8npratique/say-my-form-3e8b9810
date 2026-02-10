@@ -7,7 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Star, ArrowRight, Check } from "lucide-react";
 import { motion } from "framer-motion";
-import type { FormField } from "@/components/form-editor/FieldItem";
+import type { FormField, ContactFieldKey } from "@/types/workflow";
 import { FieldMedia } from "./FieldMedia";
 
 interface RunnerFieldProps {
@@ -21,9 +21,22 @@ export const RunnerField = ({ field, index, total, onAnswer }: RunnerFieldProps)
   const [value, setValue] = useState<any>("");
   const [checkboxValues, setCheckboxValues] = useState<string[]>([]);
   const [rating, setRating] = useState(0);
+  const [contactValues, setContactValues] = useState<Record<string, string>>({});
+
+  const CONTACT_LABELS: Record<ContactFieldKey, string> = {
+    first_name: "Nome",
+    last_name: "Sobrenome",
+    email: "E-mail",
+    phone: "Telefone",
+    cpf: "CPF",
+    cep: "CEP",
+    address: "Endereço",
+  };
 
   const submit = () => {
-    if (field.type === "checkbox" || field.type === "ranking") {
+    if (field.type === "contact_info") {
+      onAnswer(contactValues);
+    } else if (field.type === "checkbox" || field.type === "ranking") {
       onAnswer(checkboxValues);
     } else if (field.type === "rating") {
       onAnswer(rating);
@@ -36,6 +49,10 @@ export const RunnerField = ({ field, index, total, onAnswer }: RunnerFieldProps)
 
   const canSubmit = () => {
     if (!field.required) return true;
+    if (field.type === "contact_info") {
+      const activeFields = field.contact_fields || ["first_name", "email"];
+      return activeFields.every(f => !!contactValues[f]?.trim());
+    }
     if (field.type === "checkbox" || field.type === "ranking") return checkboxValues.length > 0;
     if (field.type === "rating") return rating > 0;
     return !!value;
@@ -43,6 +60,27 @@ export const RunnerField = ({ field, index, total, onAnswer }: RunnerFieldProps)
 
   const renderInput = () => {
     switch (field.type) {
+      case "contact_info": {
+        const activeFields = field.contact_fields || ["first_name", "email"];
+        return (
+          <div className="space-y-4">
+            {activeFields.map((key) => (
+              <div key={key} className="space-y-1">
+                <Label className="text-sm" style={{ color: "var(--runner-text-secondary)" }}>
+                  {CONTACT_LABELS[key]}
+                </Label>
+                <Input
+                  type={key === "email" ? "email" : key === "phone" ? "tel" : "text"}
+                  placeholder={CONTACT_LABELS[key]}
+                  value={contactValues[key] || ""}
+                  onChange={(e) => setContactValues(prev => ({ ...prev, [key]: e.target.value }))}
+                  className="text-lg h-12 border-0 border-b-2 rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-primary"
+                />
+              </div>
+            ))}
+          </div>
+        );
+      }
       case "short_text":
       case "email":
       case "phone":

@@ -11,7 +11,7 @@ export type FieldType =
   | "number" | "date" | "multiple_choice" | "dropdown" | "image_choice"
   | "yes_no" | "legal" | "checkbox" | "nps" | "opinion_scale" | "rating"
   | "ranking" | "matrix" | "file_upload" | "statement" | "welcome_screen"
-  | "end_screen" | "question_group" | "redirect_url";
+  | "end_screen" | "question_group" | "redirect_url" | "contact_info";
 
 export interface FieldTypeConfig {
   type: FieldType;
@@ -31,6 +31,7 @@ export const FIELD_CATEGORIES = [
 
 export const FIELD_TYPES: FieldTypeConfig[] = [
   // Informações de contato
+  { type: "contact_info", label: "Informações de contato", icon: Users, category: "Informações de contato", color: "text-primary" },
   { type: "email", label: "E-mail", icon: Mail, category: "Informações de contato", color: "text-primary" },
   { type: "phone", label: "Número de telefone", icon: Phone, category: "Informações de contato", color: "text-success" },
   { type: "address", label: "Endereço", icon: MapPin, category: "Informações de contato", color: "text-accent" },
