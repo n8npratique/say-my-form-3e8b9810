@@ -157,16 +157,11 @@ const FormRunner = () => {
 
     setCompleted(true);
 
-    // Fire webhooks + sync Google Sheets (best-effort)
+    // Fire webhooks (best-effort)
     try {
-      await Promise.allSettled([
-        supabase.functions.invoke("fire-webhooks", {
-          body: { form_id: formId, response_id: responseId },
-        }),
-        supabase.functions.invoke("sync-google-sheets", {
-          body: { form_id: formId, response_id: responseId },
-        }),
-      ]);
+      await supabase.functions.invoke("fire-webhooks", {
+        body: { form_id: formId, response_id: responseId },
+      });
     } catch {
       // silent fail
     }

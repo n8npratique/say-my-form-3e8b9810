@@ -97,49 +97,12 @@ export type Database = {
           },
         ]
       }
-      google_service_accounts: {
-        Row: {
-          client_email: string
-          created_at: string
-          encrypted_key: string
-          id: string
-          name: string
-          workspace_id: string
-        }
-        Insert: {
-          client_email: string
-          created_at?: string
-          encrypted_key: string
-          id?: string
-          name: string
-          workspace_id: string
-        }
-        Update: {
-          client_email?: string
-          created_at?: string
-          encrypted_key?: string
-          id?: string
-          name?: string
-          workspace_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "google_service_accounts_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "workspaces"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       integrations: {
         Row: {
           config: Json | null
           created_at: string
           form_id: string
           id: string
-          last_synced_at: string | null
-          service_account_id: string | null
           type: string
         }
         Insert: {
@@ -147,8 +110,6 @@ export type Database = {
           created_at?: string
           form_id: string
           id?: string
-          last_synced_at?: string | null
-          service_account_id?: string | null
           type?: string
         }
         Update: {
@@ -156,8 +117,6 @@ export type Database = {
           created_at?: string
           form_id?: string
           id?: string
-          last_synced_at?: string | null
-          service_account_id?: string | null
           type?: string
         }
         Relationships: [
@@ -166,13 +125,6 @@ export type Database = {
             columns: ["form_id"]
             isOneToOne: false
             referencedRelation: "forms"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "integrations_service_account_id_fkey"
-            columns: ["service_account_id"]
-            isOneToOne: false
-            referencedRelation: "google_service_accounts"
             referencedColumns: ["id"]
           },
         ]

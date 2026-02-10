@@ -1,99 +1,114 @@
 
-# Painel de Gerenciamento Google Sheets
 
-## Objetivo
+# Integracao Google Sheets em Tempo Real
 
-Criar um painel completo para gerenciar a integracao com Google Sheets, incluindo:
-1. Cadastro/gerenciamento de Service Accounts do Google
-2. Mapeamento de formularios para planilhas externas
-3. Tabela visual mostrando o estado de sincronizacao de cada formulario
+## Visao Geral
 
-## Mudancas no Banco de Dados
+Quando um respondente completar um formulario, a resposta sera automaticamente adicionada como uma nova linha em uma planilha do Google Sheets configurada pelo dono do formulario. O dono tambem podera exportar todas as respostas existentes de uma vez.
 
-### Nova tabela: `google_service_accounts`
-Armazenar multiplas Service Accounts no nivel do workspace (em vez de depender de um unico secret global).
+---
 
-| Coluna | Tipo | Descricao |
-|--------|------|-----------|
-| id | uuid (PK) | Identificador |
-| workspace_id | uuid (FK -> workspaces) | Workspace dona |
-| name | text | Nome amigavel (ex: "Conta Principal") |
-| client_email | text | Email da service account (extraido do JSON) |
-| encrypted_key | text | JSON completo da chave (armazenado como texto) |
-| created_at | timestamptz | Data de criacao |
+## Como Funciona
 
-RLS: Somente owner/admin do workspace podem gerenciar.
+1. O dono do formulario vai na pagina de Respostas e clica em "Conectar Google Sheets"
+2. Informa o **ID da planilha** e faz upload de um arquivo JSON de **Service Account** do Google
+3. A partir desse momento, cada nova resposta completada e automaticamente adicionada como linha na planilha
+4. Um botao "Sincronizar Tudo" permite exportar todas as respostas existentes de uma vez
 
-### Alteracao na tabela `integrations`
-Adicionar coluna `service_account_id` (uuid, nullable, FK -> google_service_accounts) para vincular cada integracao a uma Service Account especifica. Quando null, usa o secret global como fallback.
+---
 
-Adicionar coluna `last_synced_at` (timestamptz, nullable) para registrar a ultima sincronizacao.
+## Passo a Passo para o Usuario
 
-## Novos Componentes
+Para usar a integracao, o usuario precisara:
 
-### 1. `ServiceAccountManager` (novo componente)
-Painel para cadastrar e listar Service Accounts do workspace:
-- Formulario para colar o JSON da chave e dar um nome amigavel
-- Ao salvar, extrai automaticamente o `client_email` do JSON
-- Lista de contas cadastradas com opcao de remover
-- Indicador visual de qual conta esta sendo usada
+1. Criar um projeto no Google Cloud Console (console.cloud.google.com)
+2. Ativar a API do Google Sheets
+3. Criar uma Service Account e baixar o arquivo JSON de credenciais
+4. Compartilhar a planilha do Google Sheets com o email da Service Account (com permissao de editor)
+5. Copiar o ID da planilha (parte da URL entre `/d/` e `/edit`)
 
-### 2. `GoogleSheetsPanel` (evolucao do GoogleSheetsIntegration)
-Painel expandido que substitui o componente atual, com:
-- Seletor de Service Account (dropdown das contas cadastradas no workspace)
-- Campo do Spreadsheet ID
-- Campo do nome da aba
-- Botao de sincronizar tudo
-- Indicador de ultima sincronizacao (`last_synced_at`)
+---
 
-### 3. `SheetsIntegrationTable` (novo componente)
-Tabela que mostra todos os formularios do workspace com suas integracoes Google Sheets:
-- Colunas: Nome do formulario, Spreadsheet ID, Aba, Ultima sincronizacao, Status, Acoes
-- Permite ver rapidamente quais formularios estao conectados e quais nao
-- Botao de sincronizar individual por linha
+## Arquivos
 
-### 4. Nova pagina: `WorkspaceIntegrations`
-Pagina acessivel a partir do workspace que agrega:
-- `ServiceAccountManager` no topo
-- `SheetsIntegrationTable` abaixo
-- Rota: `/workspace/:workspaceId/integrations`
+### Criar
+| Arquivo | Descricao |
+|---------|-----------|
+| `supabase/functions/sync-google-sheets/index.ts` | Edge function que recebe dados de resposta e adiciona linha na planilha via Google Sheets API |
+| `src/components/responses/GoogleSheetsIntegration.tsx` | Componente de UI para configurar a integracao (spreadsheet ID, status, botoes) |
 
-## Alteracao na Edge Function
+### Modificar
+| Arquivo | Mudanca |
+|---------|---------|
+| `src/pages/FormResponses.tsx` | Adicionar o componente GoogleSheetsIntegration no header ou abaixo dos cards |
+| `src/pages/FormRunner.tsx` | Apos completar resposta, chamar a edge function sync-google-sheets alem do fire-webhooks |
+| `supabase/config.toml` | Adicionar configuracao da nova edge function com verify_jwt = false |
 
-Atualizar `sync-google-sheets` para:
-- Verificar se a integracao tem um `service_account_id` configurado
-- Se sim, buscar a chave da tabela `google_service_accounts`
-- Se nao, usar o secret global `GOOGLE_SERVICE_ACCOUNT_KEY` como fallback
-- Atualizar `last_synced_at` na tabela `integrations` apos sincronizacao bem-sucedida
+### Banco de Dados
+- Usar a tabela `integrations` ja existente (form_id, type='google_sheets', config JSONB)
+- O campo `config` armazenara: `{ spreadsheet_id: string, sheet_name: string }`
 
-## Alteracoes no Router
+### Secret
+- Sera necessario armazenar a chave da Service Account como um secret (`GOOGLE_SERVICE_ACCOUNT_KEY`)
 
-Adicionar nova rota protegida:
-```text
-/workspace/:workspaceId/integrations -> WorkspaceIntegrations
-```
-
-Adicionar link de navegacao no workspace para acessar o painel de integracoes.
+---
 
 ## Detalhes Tecnicos
 
-### Seguranca
-- As chaves das Service Accounts ficam armazenadas na tabela `google_service_accounts` com RLS restrito a owner/admin
-- A edge function usa `SUPABASE_SERVICE_ROLE_KEY` para acessar as chaves, bypassing RLS
-- O componente frontend nunca exibe a chave completa, apenas o `client_email`
+### Edge Function: sync-google-sheets
 
-### Fluxo de dados
+Recebe via POST:
 ```text
-Usuario cadastra SA -> Salva na tabela google_service_accounts
-Usuario configura integracao -> Vincula SA + Spreadsheet ID na tabela integrations  
-Sync dispara -> Edge function busca SA key -> Autentica no Google -> Escreve na planilha
+{
+  "form_id": "uuid",
+  "response_id": "uuid",   // para sincronizar uma resposta
+  "sync_all": false         // se true, sincroniza todas as respostas
+}
 ```
 
-### Arquivos a criar/modificar
-- `src/components/integrations/ServiceAccountManager.tsx` (novo)
-- `src/components/integrations/SheetsIntegrationTable.tsx` (novo)
-- `src/pages/WorkspaceIntegrations.tsx` (novo)
-- `src/components/responses/GoogleSheetsIntegration.tsx` (atualizar)
-- `supabase/functions/sync-google-sheets/index.ts` (atualizar)
-- `src/App.tsx` (adicionar rota)
-- Migracao SQL para nova tabela e colunas
+Fluxo:
+1. Buscar integracao google_sheets da tabela `integrations` pelo form_id
+2. Buscar schema do formulario (form_versions) para montar os headers
+3. Buscar a resposta (ou todas, se sync_all) com seus answers
+4. Autenticar na Google Sheets API usando Service Account JWT
+5. Se primeira vez ou sync_all: criar/limpar sheet e adicionar header
+6. Adicionar linha(s) com os dados via `spreadsheets.values.append`
+
+### Autenticacao Google (Service Account JWT)
+
+A edge function ira:
+1. Ler o secret `GOOGLE_SERVICE_ACCOUNT_KEY` (JSON da service account)
+2. Gerar um JWT assinado com RS256 usando a chave privada
+3. Trocar o JWT por um access_token via `https://oauth2.googleapis.com/token`
+4. Usar o access_token para chamar a API do Google Sheets
+
+### Colunas da Planilha
+
+Mesma estrutura do CSV:
+```text
+Data | Status | Email | Score | Tags | Outcome | Campo1 | Campo2 | ...
+```
+
+### Componente GoogleSheetsIntegration
+
+- Mostra status da integracao (conectado/desconectado)
+- Campo para informar o Spreadsheet ID
+- Campo para nome da aba (sheet name, padrao "Respostas")
+- Botao "Conectar" para salvar na tabela integrations
+- Botao "Sincronizar Tudo" para exportar respostas existentes
+- Indicador visual de sincronizacao em andamento
+
+### Trigger em Tempo Real (FormRunner)
+
+Apos completar a resposta e chamar fire-webhooks, chamar tambem:
+```text
+supabase.functions.invoke("sync-google-sheets", {
+  body: { form_id, response_id }
+})
+```
+Chamada best-effort (nao bloqueia a conclusao do formulario).
+
+### Migracao de Banco
+
+Nenhuma migracao necessaria - a tabela `integrations` ja existe com a estrutura adequada (form_id, type, config).
+

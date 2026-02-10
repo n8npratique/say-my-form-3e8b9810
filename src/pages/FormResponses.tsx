@@ -19,7 +19,6 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ScoreDistributionChart } from "@/components/responses/ScoreDistributionChart";
 import { FieldResponsesChart } from "@/components/responses/FieldResponsesChart";
-import { GoogleSheetsIntegration } from "@/components/responses/GoogleSheetsIntegration";
 
 interface ResponseRow {
   id: string;
@@ -268,12 +267,11 @@ const FormResponses = () => {
           )}
         </div>
 
-        {/* Charts + Google Sheets */}
+        {/* Charts */}
         {!loading && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {hasScoring && <ScoreDistributionChart scores={scores} />}
             <FieldResponsesChart fields={schemaFields} fieldMap={fieldMap} allAnswers={allAnswers} />
-            {formId && <GoogleSheetsIntegration formId={formId} />}
           </div>
         )}
 
