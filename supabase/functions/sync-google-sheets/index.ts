@@ -30,7 +30,6 @@ async function getAccessToken(serviceAccount: any): Promise<string> {
   const payloadB64 = base64url(enc.encode(JSON.stringify(payload)));
   const unsigned = `${headerB64}.${payloadB64}`;
 
-  // Import private key
   const pemContents = serviceAccount.private_key
     .replace(/-----BEGIN PRIVATE KEY-----/, "")
     .replace(/-----END PRIVATE KEY-----/, "")
@@ -60,20 +59,12 @@ async function getAccessToken(serviceAccount: any): Promise<string> {
 
 // --- Sheets helpers ---
 
-async function appendRows(
-  accessToken: string,
-  spreadsheetId: string,
-  sheetName: string,
-  values: string[][]
-) {
+async function appendRows(accessToken: string, spreadsheetId: string, sheetName: string, values: string[][]) {
   const range = encodeURIComponent(`${sheetName}!A1`);
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
   const res = await fetch(url, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
     body: JSON.stringify({ values }),
   });
   if (!res.ok) {
@@ -83,36 +74,42 @@ async function appendRows(
   return res.json();
 }
 
-async function clearAndWrite(
-  accessToken: string,
-  spreadsheetId: string,
-  sheetName: string,
-  values: string[][]
-) {
+async function clearAndWrite(accessToken: string, spreadsheetId: string, sheetName: string, values: string[][]) {
   const range = encodeURIComponent(sheetName);
-  // Clear
   await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}:clear`,
-    {
-      method: "POST",
-      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-      body: "{}",
-    }
+    { method: "POST", headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" }, body: "{}" }
   );
-  // Write
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}?valueInputOption=USER_ENTERED`;
   const res = await fetch(url, {
     method: "PUT",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
     body: JSON.stringify({ values }),
   });
   if (!res.ok) {
     const err = await res.text();
     throw new Error(`Sheets API write error: ${res.status} ${err}`);
   }
+}
+
+// --- Resolve service account ---
+
+async function resolveServiceAccount(supabase: any, integration: any): Promise<any> {
+  // If integration has a service_account_id, fetch from DB
+  if (integration.service_account_id) {
+    const { data } = await supabase
+      .from("google_service_accounts")
+      .select("encrypted_key")
+      .eq("id", integration.service_account_id)
+      .maybeSingle();
+    if (data?.encrypted_key) {
+      return JSON.parse(data.encrypted_key);
+    }
+  }
+  // Fallback to global secret
+  const globalJson = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_KEY");
+  if (!globalJson) throw new Error("No service account configured");
+  return JSON.parse(globalJson);
 }
 
 // --- Main handler ---
@@ -126,19 +123,9 @@ Deno.serve(async (req) => {
     const { form_id, response_id, sync_all } = await req.json();
     if (!form_id) {
       return new Response(JSON.stringify({ error: "Missing form_id" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    const serviceAccountJson = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_KEY");
-    if (!serviceAccountJson) {
-      return new Response(JSON.stringify({ error: "Google Service Account not configured" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    const serviceAccount = JSON.parse(serviceAccountJson);
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -148,21 +135,23 @@ Deno.serve(async (req) => {
     // Get integration config
     const { data: integration } = await supabase
       .from("integrations")
-      .select("config")
+      .select("id, config, service_account_id")
       .eq("form_id", form_id)
       .eq("type", "google_sheets")
       .maybeSingle();
 
     if (!integration?.config) {
       return new Response(JSON.stringify({ error: "Google Sheets integration not configured for this form" }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     const config = integration.config as any;
     const spreadsheetId = config.spreadsheet_id;
-    const sheetName = config.sheet_name || "Respostas";
+    const sheetName = config.sheet_name || "Sheet1";
+
+    // Resolve service account (per-workspace or global)
+    const serviceAccount = await resolveServiceAccount(supabase, integration);
 
     // Get form schema for headers
     const { data: form } = await supabase
@@ -187,11 +176,16 @@ Deno.serve(async (req) => {
     }
 
     const headers = ["Data", "Status", "Email", "Score", "Tags", "Outcome", ...fieldHeaders.map((f) => f.label)];
-
     const accessToken = await getAccessToken(serviceAccount);
 
+    const updateLastSynced = async () => {
+      await supabase
+        .from("integrations")
+        .update({ last_synced_at: new Date().toISOString() })
+        .eq("id", integration.id);
+    };
+
     if (sync_all) {
-      // Fetch all completed responses
       const { data: responses } = await supabase
         .from("responses")
         .select("id, started_at, completed_at, status, meta")
@@ -233,6 +227,7 @@ Deno.serve(async (req) => {
       });
 
       await clearAndWrite(accessToken, spreadsheetId, sheetName, [headers, ...rows]);
+      await updateLastSynced();
 
       return new Response(JSON.stringify({ synced: responses.length }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -242,8 +237,7 @@ Deno.serve(async (req) => {
     // Single response sync
     if (!response_id) {
       return new Response(JSON.stringify({ error: "Missing response_id" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -255,8 +249,7 @@ Deno.serve(async (req) => {
 
     if (!resp) {
       return new Response(JSON.stringify({ error: "Response not found" }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -283,14 +276,14 @@ Deno.serve(async (req) => {
     ];
 
     await appendRows(accessToken, spreadsheetId, sheetName, [row]);
+    await updateLastSynced();
 
     return new Response(JSON.stringify({ synced: 1 }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
     return new Response(JSON.stringify({ error: String(err) }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });

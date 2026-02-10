@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
 import {
   Plus, ArrowLeft, Sparkles, FileText, MoreHorizontal,
-  Eye, Pencil, Trash2, Globe, Settings, Users
+  Eye, Pencil, Trash2, Globe, Settings, Users, Plug
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -126,6 +126,10 @@ const WorkspaceForms = () => {
             <span className="font-medium">{workspaceName}</span>
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => navigate(`/workspace/${workspaceId}/integrations`)}>
+              <Plug className="h-4 w-4 mr-2" />
+              Integrações
+            </Button>
             <Button variant="ghost" size="sm" onClick={() => navigate(`/workspace/${workspaceId}/team`)}>
               <Users className="h-4 w-4 mr-2" />
               Equipe
