@@ -7,7 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mail, Lock, User, ArrowRight, Sparkles, KeyRound } from "lucide-react";
+import { Mail, Lock, User, ArrowRight, KeyRound } from "lucide-react";
+import logoPratique from "@/assets/logo-pratique.png";
 
 type AuthMode = "login" | "signup" | "forgot";
 
@@ -87,7 +88,7 @@ const Auth = () => {
             transition={{ duration: 0.6 }}
           >
             <div className="flex items-center justify-center gap-3 mb-6">
-              <Sparkles className="h-10 w-10 text-primary-foreground" />
+              <img src={logoPratique} alt="TecForms" className="h-14 w-14 rounded-full" />
                <h1 className="text-5xl font-display font-bold text-primary-foreground">
                 TecForms
               </h1>
@@ -108,7 +109,7 @@ const Auth = () => {
           className="w-full max-w-md"
         >
           <div className="lg:hidden flex items-center justify-center gap-2 mb-8">
-            <Sparkles className="h-7 w-7 text-primary" />
+            <img src={logoPratique} alt="TecForms" className="h-10 w-10 rounded-full" />
             <h1 className="text-3xl font-display font-bold gradient-text">TecForms</h1>
           </div>
 

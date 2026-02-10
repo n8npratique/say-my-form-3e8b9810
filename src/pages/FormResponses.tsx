@@ -14,7 +14,8 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, BarChart3, CheckCircle2, ClipboardList, Download, Sparkles } from "lucide-react";
+import { ArrowLeft, BarChart3, CheckCircle2, ClipboardList, Download } from "lucide-react";
+import logoPratique from "@/assets/logo-pratique.png";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ScoreDistributionChart } from "@/components/responses/ScoreDistributionChart";
@@ -214,7 +215,7 @@ const FormResponses = () => {
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <button onClick={() => navigate("/dashboard")} className="flex items-center gap-2 hover:opacity-80 transition">
-          <Sparkles className="h-4 w-4 text-primary" />
+           <img src={logoPratique} alt="TecForms" className="h-6 w-6 rounded-full" />
           <span className="font-display font-bold text-sm gradient-text">TecForms</span>
         </button>
         <span className="text-muted-foreground">/</span>

@@ -11,9 +11,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
 import {
-  Plus, ArrowLeft, Sparkles, FileText, MoreHorizontal,
+  Plus, ArrowLeft, FileText, MoreHorizontal,
   Eye, Pencil, Trash2, Globe, Settings, Users
 } from "lucide-react";
+import logoPratique from "@/assets/logo-pratique.png";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -119,7 +120,7 @@ const WorkspaceForms = () => {
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <button onClick={() => navigate("/dashboard")} className="flex items-center gap-2 hover:opacity-80 transition">
-              <Sparkles className="h-5 w-5 text-primary" />
+              <img src={logoPratique} alt="TecForms" className="h-7 w-7 rounded-full" />
               <span className="font-display font-bold gradient-text">TecForms</span>
             </button>
             <span className="text-muted-foreground">/</span>
@@ -177,7 +178,7 @@ const WorkspaceForms = () => {
 
         {loading ? (
           <div className="flex justify-center py-12">
-            <Sparkles className="h-8 w-8 text-primary animate-pulse" />
+            <img src={logoPratique} alt="Carregando" className="h-8 w-8 rounded-full animate-pulse" />
           </div>
         ) : forms.length === 0 ? (
           <motion.div

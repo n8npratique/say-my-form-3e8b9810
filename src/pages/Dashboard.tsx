@@ -9,7 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
-import { Plus, Sparkles, LogOut, Building2 } from "lucide-react";
+import { Plus, LogOut, Building2 } from "lucide-react";
+import logoPratique from "@/assets/logo-pratique.png";
 
 interface Workspace {
   id: string;
@@ -69,7 +70,7 @@ const Dashboard = () => {
       <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-50">
         <div className="container flex items-center justify-between h-16">
           <div className="flex items-center gap-2">
-            <Sparkles className="h-6 w-6 text-primary" />
+            <img src={logoPratique} alt="TecForms" className="h-8 w-8 rounded-full" />
             <span className="text-xl font-display font-bold gradient-text">TecForms</span>
           </div>
           <div className="flex items-center gap-4">
@@ -121,7 +122,7 @@ const Dashboard = () => {
 
         {loading ? (
           <div className="flex justify-center py-12">
-            <Sparkles className="h-8 w-8 text-primary animate-pulse" />
+            <img src={logoPratique} alt="Carregando" className="h-8 w-8 rounded-full animate-pulse" />
           </div>
         ) : workspaces.length === 0 ? (
           <motion.div

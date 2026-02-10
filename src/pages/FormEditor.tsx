@@ -9,7 +9,8 @@ import { FieldItem, type FormField } from "@/components/form-editor/FieldItem";
 import { FieldConfigPanel } from "@/components/form-editor/FieldConfigPanel";
 import { ShareDialog } from "@/components/form-editor/ShareDialog";
 import { ThemePanel } from "@/components/form-editor/ThemePanel";
-import { ArrowLeft, Plus, Sparkles, Save, Eye, Share2, Rocket, GitBranch, ClipboardList, Palette } from "lucide-react";
+import { ArrowLeft, Plus, Save, Eye, Share2, Rocket, GitBranch, ClipboardList, Palette } from "lucide-react";
+import logoPratique from "@/assets/logo-pratique.png";
 import type { FieldType } from "@/config/fieldTypes";
 import type { FormTheme } from "@/lib/formTheme";
 import { DEFAULT_THEME } from "@/lib/formTheme";
@@ -210,7 +211,7 @@ const FormEditor = () => {
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <button onClick={() => navigate("/dashboard")} className="flex items-center gap-2 hover:opacity-80 transition">
-          <Sparkles className="h-4 w-4 text-primary" />
+          <img src={logoPratique} alt="TecForms" className="h-6 w-6 rounded-full" />
           <span className="font-display font-bold text-sm gradient-text">TecForms</span>
         </button>
         <span className="text-muted-foreground">/</span>
@@ -346,7 +347,7 @@ const FormEditor = () => {
           ) : (
             <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
               <div className="text-center">
-                <Sparkles className="h-10 w-10 mx-auto mb-3 opacity-20" />
+                <img src={logoPratique} alt="" className="h-10 w-10 mx-auto mb-3 opacity-20 rounded-full" />
                 <p>Selecione um campo ou adicione um novo</p>
               </div>
             </div>

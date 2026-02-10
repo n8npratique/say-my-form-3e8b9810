@@ -4,7 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Progress } from "@/components/ui/progress";
 import { EmailGate } from "@/components/form-runner/EmailGate";
 import { RunnerField } from "@/components/form-runner/RunnerField";
-import { Sparkles, CheckCircle2, Trophy } from "lucide-react";
+import { CheckCircle2, Trophy } from "lucide-react";
+import logoPratique from "@/assets/logo-pratique.png";
 import { AnimatePresence, motion } from "framer-motion";
 import type { FormField } from "@/types/workflow";
 import type { FieldLogic, ScoringConfig, TaggingConfig, OutcomesConfig, FormSchema } from "@/types/workflow";
@@ -234,7 +235,7 @@ const FormRunner = () => {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={themeStyle}>
-        <Sparkles className="h-8 w-8 animate-pulse" style={{ color: theme.button_color }} />
+        <img src={logoPratique} alt="Carregando" className="h-8 w-8 rounded-full animate-pulse" />
       </div>
     );
   }
@@ -243,7 +244,7 @@ const FormRunner = () => {
     return (
       <div className="min-h-screen flex items-center justify-center p-4" style={themeStyle}>
         <div className="text-center space-y-2">
-          <Sparkles className="h-8 w-8 mx-auto" style={{ color: theme.text_secondary_color }} />
+          <img src={logoPratique} alt="" className="h-8 w-8 mx-auto rounded-full" />
           <p style={{ color: theme.text_secondary_color }}>{error}</p>
         </div>
       </div>
@@ -320,7 +321,7 @@ const FormRunner = () => {
 
       <footer className="p-4 text-center relative z-10">
         <div className="flex items-center justify-center gap-1 text-xs" style={{ color: theme.text_secondary_color }}>
-          <Sparkles className="h-3 w-3" />
+          <img src={logoPratique} alt="TecForms" className="h-4 w-4 rounded-full" />
           <span>TecForms</span>
         </div>
       </footer>

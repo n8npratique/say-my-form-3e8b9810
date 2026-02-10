@@ -2,7 +2,8 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { Sparkles, ArrowRight, Zap, GitBranch, BarChart3 } from "lucide-react";
+import { ArrowRight, Zap, GitBranch, BarChart3 } from "lucide-react";
+import logoPratique from "@/assets/logo-pratique.png";
 import { useEffect } from "react";
 
 const Index = () => {
@@ -26,7 +27,7 @@ const Index = () => {
       {/* Nav */}
       <nav className="relative z-10 container flex items-center justify-between py-6">
         <div className="flex items-center gap-2">
-          <Sparkles className="h-7 w-7 text-primary" />
+          <img src={logoPratique} alt="TecForms" className="h-9 w-9 rounded-full" />
           <span className="text-2xl font-display font-bold gradient-text">TecForms</span>
         </div>
         <div className="flex items-center gap-3">
