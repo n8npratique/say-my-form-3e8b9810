@@ -49,6 +49,7 @@ export type Database = {
       forms: {
         Row: {
           created_at: string
+          deleted_at: string | null
           id: string
           name: string
           published_version_id: string | null
@@ -60,6 +61,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          deleted_at?: string | null
           id?: string
           name: string
           published_version_id?: string | null
@@ -71,6 +73,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          deleted_at?: string | null
           id?: string
           name?: string
           published_version_id?: string | null
