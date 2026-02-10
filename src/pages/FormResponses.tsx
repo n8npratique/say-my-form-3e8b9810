@@ -213,12 +213,12 @@ const FormResponses = () => {
         <Button variant="ghost" size="icon" onClick={() => navigate(`/workspace/${workspaceId}/form/${formId}/edit`)}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div className="flex items-center gap-2">
+        <button onClick={() => navigate("/dashboard")} className="flex items-center gap-2 hover:opacity-80 transition">
           <Sparkles className="h-4 w-4 text-primary" />
-          <span className="font-display font-bold text-sm gradient-text">Pratique Forms</span>
-        </div>
+          <span className="font-display font-bold text-sm gradient-text">TecForms</span>
+        </button>
         <span className="text-muted-foreground">/</span>
-        <span className="font-medium text-sm truncate max-w-[200px]">{formName}</span>
+        <button onClick={() => navigate(`/workspace/${workspaceId}/form/${formId}/edit`)} className="font-medium text-sm truncate max-w-[200px] hover:text-primary transition cursor-pointer">{formName}</button>
         <span className="text-muted-foreground">/</span>
         <span className="text-sm text-muted-foreground">Respostas</span>
         <div className="ml-auto">

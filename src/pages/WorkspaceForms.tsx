@@ -118,10 +118,10 @@ const WorkspaceForms = () => {
             <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
-            <div className="flex items-center gap-2">
+            <button onClick={() => navigate("/dashboard")} className="flex items-center gap-2 hover:opacity-80 transition">
               <Sparkles className="h-5 w-5 text-primary" />
-              <span className="font-display font-bold gradient-text">Pratique Forms</span>
-            </div>
+              <span className="font-display font-bold gradient-text">TecForms</span>
+            </button>
             <span className="text-muted-foreground">/</span>
             <span className="font-medium">{workspaceName}</span>
           </div>
