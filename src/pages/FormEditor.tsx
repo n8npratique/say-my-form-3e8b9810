@@ -90,6 +90,7 @@ const FormEditor = () => {
       options: ["multiple_choice", "dropdown", "image_choice", "checkbox", "ranking"].includes(type)
         ? ["Opção 1", "Opção 2"]
         : undefined,
+      contact_fields: type === "contact_info" ? ["first_name", "last_name", "email", "phone"] : undefined,
     };
     setFields((prev) => [...prev, newField]);
     setSelectedId(newField.id);
