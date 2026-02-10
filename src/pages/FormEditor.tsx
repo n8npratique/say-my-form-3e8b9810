@@ -347,7 +347,7 @@ const FormEditor = () => {
           ) : (
             <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
               <div className="text-center">
-                <Sparkles className="h-10 w-10 mx-auto mb-3 opacity-20" />
+                <img src={logoPratique} alt="" className="h-10 w-10 mx-auto mb-3 opacity-20 rounded-full" />
                 <p>Selecione um campo ou adicione um novo</p>
               </div>
             </div>

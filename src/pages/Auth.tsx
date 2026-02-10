@@ -109,7 +109,7 @@ const Auth = () => {
           className="w-full max-w-md"
         >
           <div className="lg:hidden flex items-center justify-center gap-2 mb-8">
-            <Sparkles className="h-7 w-7 text-primary" />
+            <img src={logoPratique} alt="TecForms" className="h-10 w-10 rounded-full" />
             <h1 className="text-3xl font-display font-bold gradient-text">TecForms</h1>
           </div>
 

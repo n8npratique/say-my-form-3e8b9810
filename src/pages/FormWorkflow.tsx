@@ -111,7 +111,7 @@ const FormWorkflow = () => {
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <button onClick={() => navigate("/dashboard")} className="flex items-center gap-2 hover:opacity-80 transition">
-          <Sparkles className="h-4 w-4 text-primary" />
+          <img src={logoPratique} alt="TecForms" className="h-6 w-6 rounded-full" />
           <span className="font-display font-bold text-sm gradient-text">TecForms</span>
         </button>
         <span className="text-muted-foreground">/</span>

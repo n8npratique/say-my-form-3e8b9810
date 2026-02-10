@@ -70,7 +70,7 @@ const Dashboard = () => {
       <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-50">
         <div className="container flex items-center justify-between h-16">
           <div className="flex items-center gap-2">
-            <Sparkles className="h-6 w-6 text-primary" />
+            <img src={logoPratique} alt="TecForms" className="h-8 w-8 rounded-full" />
             <span className="text-xl font-display font-bold gradient-text">TecForms</span>
           </div>
           <div className="flex items-center gap-4">

@@ -27,7 +27,7 @@ const Index = () => {
       {/* Nav */}
       <nav className="relative z-10 container flex items-center justify-between py-6">
         <div className="flex items-center gap-2">
-          <Sparkles className="h-7 w-7 text-primary" />
+          <img src={logoPratique} alt="TecForms" className="h-9 w-9 rounded-full" />
           <span className="text-2xl font-display font-bold gradient-text">TecForms</span>
         </div>
         <div className="flex items-center gap-3">

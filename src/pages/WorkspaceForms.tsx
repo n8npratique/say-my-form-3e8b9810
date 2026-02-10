@@ -178,7 +178,7 @@ const WorkspaceForms = () => {
 
         {loading ? (
           <div className="flex justify-center py-12">
-            <Sparkles className="h-8 w-8 text-primary animate-pulse" />
+            <img src={logoPratique} alt="Carregando" className="h-8 w-8 rounded-full animate-pulse" />
           </div>
         ) : forms.length === 0 ? (
           <motion.div
