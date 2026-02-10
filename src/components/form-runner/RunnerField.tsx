@@ -7,7 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Star, ArrowRight, Check } from "lucide-react";
 import { motion } from "framer-motion";
-import type { FormField } from "@/components/form-editor/FieldItem";
+import type { FormField, ContactFieldKey } from "@/types/workflow";
 import { FieldMedia } from "./FieldMedia";
 
 interface RunnerFieldProps {
