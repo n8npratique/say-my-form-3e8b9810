@@ -75,6 +75,20 @@ export interface OutcomesConfig {
   field_outcomes: Record<string, Record<string, string>>; // field_id -> option -> outcome_id
 }
 
+// ── Email Templates ──
+export interface EmailTemplate {
+  id: string;
+  name: string;
+  enabled: boolean;
+  recipient: "respondent" | "owner";
+  subject: string;
+  header_image_url?: string;
+  body: string;
+  cta_text?: string;
+  cta_url?: string;
+  footer?: string;
+}
+
 // ── Full Schema ──
 export interface FormSchema {
   fields: FormField[];
@@ -83,6 +97,7 @@ export interface FormSchema {
   tagging?: TaggingConfig;
   outcomes?: OutcomesConfig;
   theme?: FormTheme;
+  email_templates?: EmailTemplate[];
 }
 
 // ── Helpers ──

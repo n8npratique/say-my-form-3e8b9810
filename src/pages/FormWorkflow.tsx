@@ -12,7 +12,7 @@ import { TaggingPanel } from "@/components/workflow/TaggingPanel";
 import { OutcomePanel } from "@/components/workflow/OutcomePanel";
 import { ActionsPanel } from "@/components/workflow/ActionsPanel";
 import { ArrowLeft, Sparkles, Save, GitBranch, Award, Tag, Trophy } from "lucide-react";
-import type { FormField, FieldLogic, ScoringConfig, TaggingConfig, OutcomesConfig, FormSchema } from "@/types/workflow";
+import type { FormField, FieldLogic, ScoringConfig, TaggingConfig, OutcomesConfig, FormSchema, EmailTemplate } from "@/types/workflow";
 import { DEFAULT_SCORING, DEFAULT_TAGGING, DEFAULT_OUTCOMES } from "@/types/workflow";
 
 const FormWorkflow = () => {
@@ -26,6 +26,7 @@ const FormWorkflow = () => {
   const [scoring, setScoring] = useState<ScoringConfig>(DEFAULT_SCORING);
   const [tagging, setTagging] = useState<TaggingConfig>(DEFAULT_TAGGING);
   const [outcomes, setOutcomes] = useState<OutcomesConfig>(DEFAULT_OUTCOMES);
+  const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>([]);
   const [versionId, setVersionId] = useState<string | null>(null);
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -61,6 +62,7 @@ const FormWorkflow = () => {
       if (schema?.scoring) setScoring({ ...DEFAULT_SCORING, ...schema.scoring });
       if (schema?.tagging) setTagging({ ...DEFAULT_TAGGING, ...schema.tagging });
       if (schema?.outcomes) setOutcomes({ ...DEFAULT_OUTCOMES, ...schema.outcomes });
+      if (schema?.email_templates) setEmailTemplates(schema.email_templates);
       if (schema?.fields?.length > 0) setSelectedFieldId(schema.fields[0].id);
     }
   };
@@ -84,6 +86,7 @@ const FormWorkflow = () => {
       scoring,
       tagging,
       outcomes,
+      email_templates: emailTemplates,
     };
 
     const { error } = await supabase
@@ -192,7 +195,7 @@ const FormWorkflow = () => {
         </div>
 
         {/* Actions sidebar */}
-        <ActionsPanel formId={formId!} />
+        <ActionsPanel formId={formId!} emailTemplates={emailTemplates} onUpdateEmailTemplates={setEmailTemplates} />
       </div>
     </div>
   );
