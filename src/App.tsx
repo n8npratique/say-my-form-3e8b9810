@@ -11,6 +11,7 @@ import WorkspaceForms from "./pages/WorkspaceForms";
 import FormEditor from "./pages/FormEditor";
 import FormRunner from "./pages/FormRunner";
 import FormWorkflow from "./pages/FormWorkflow";
+import FormResponses from "./pages/FormResponses";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -53,6 +54,14 @@ const App = () => (
             element={
               <ProtectedRoute>
                 <FormWorkflow />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/workspace/:workspaceId/form/:formId/responses"
+            element={
+              <ProtectedRoute>
+                <FormResponses />
               </ProtectedRoute>
             }
           />
