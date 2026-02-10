@@ -11,9 +11,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
 import {
-  Plus, ArrowLeft, Sparkles, FileText, MoreHorizontal,
+  Plus, ArrowLeft, FileText, MoreHorizontal,
   Eye, Pencil, Trash2, Globe, Settings, Users
 } from "lucide-react";
+import logoPratique from "@/assets/logo-pratique.png";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
