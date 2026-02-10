@@ -235,7 +235,7 @@ const FormRunner = () => {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={themeStyle}>
-        <Sparkles className="h-8 w-8 animate-pulse" style={{ color: theme.button_color }} />
+        <img src={logoPratique} alt="Carregando" className="h-8 w-8 rounded-full animate-pulse" />
       </div>
     );
   }
