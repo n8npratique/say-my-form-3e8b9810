@@ -11,9 +11,18 @@ interface FieldItemProps {
   selected: boolean;
   onClick: () => void;
   onDelete: () => void;
+  draggable?: boolean;
+  onDragStart?: (e: React.DragEvent) => void;
+  onDragOver?: (e: React.DragEvent) => void;
+  onDrop?: (e: React.DragEvent) => void;
+  onDragEnd?: (e: React.DragEvent) => void;
+  dragOver?: "top" | "bottom" | null;
 }
 
-export const FieldItem = ({ field, index, selected, onClick, onDelete }: FieldItemProps) => {
+export const FieldItem = ({
+  field, index, selected, onClick, onDelete,
+  draggable, onDragStart, onDragOver, onDrop, onDragEnd, dragOver,
+}: FieldItemProps) => {
   const cfg = getFieldTypeConfig(field.type);
   if (!cfg) return null;
   const Icon = cfg.icon;
@@ -21,14 +30,19 @@ export const FieldItem = ({ field, index, selected, onClick, onDelete }: FieldIt
   return (
     <div
       onClick={onClick}
+      draggable={draggable}
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+      onDragEnd={onDragEnd}
       className={`group flex items-center gap-3 px-4 py-3 rounded-lg border cursor-pointer transition-all ${
         selected
           ? "border-primary bg-primary/5 shadow-sm"
           : "border-border hover:border-primary/30 hover:bg-muted/50"
-      }`}
+      } ${dragOver === "top" ? "border-t-2 border-t-primary" : ""} ${dragOver === "bottom" ? "border-b-2 border-b-primary" : ""}`}
     >
       <GripVertical className="h-4 w-4 text-muted-foreground/50 shrink-0 cursor-grab" />
-      <div className={`flex items-center justify-center h-8 w-8 rounded-md bg-muted shrink-0`}>
+      <div className="flex items-center justify-center h-8 w-8 rounded-md bg-muted shrink-0">
         <Icon className={`h-4 w-4 ${cfg.color}`} />
       </div>
       <div className="flex-1 min-w-0">

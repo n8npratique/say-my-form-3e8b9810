@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -36,7 +36,9 @@ const FormEditor = () => {
   const [versionId, setVersionId] = useState<string | null>(null);
   const [slug, setSlug] = useState<string | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
-
+  const dragIndexRef = useRef<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [dragOverPosition, setDragOverPosition] = useState<"top" | "bottom" | null>(null);
   const selectedField = fields.find((f) => f.id === selectedId) || null;
 
   useEffect(() => {
@@ -278,6 +280,42 @@ const FormEditor = () => {
                     selected={selectedId === field.id}
                     onClick={() => setSelectedId(field.id)}
                     onDelete={() => deleteField(field.id)}
+                    draggable
+                    onDragStart={(e) => {
+                      dragIndexRef.current = i;
+                      e.dataTransfer.effectAllowed = "move";
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = "move";
+                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                      const mid = rect.top + rect.height / 2;
+                      setDragOverIndex(i);
+                      setDragOverPosition(e.clientY < mid ? "top" : "bottom");
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const from = dragIndexRef.current;
+                      if (from == null || from === i) return;
+                      setFields((prev) => {
+                        const copy = [...prev];
+                        const [moved] = copy.splice(from, 1);
+                        const to = e.clientY < (e.currentTarget as HTMLElement).getBoundingClientRect().top + (e.currentTarget as HTMLElement).getBoundingClientRect().height / 2
+                          ? (from < i ? i - 1 : i)
+                          : (from < i ? i : i + 1);
+                        copy.splice(to, 0, moved);
+                        return copy;
+                      });
+                      dragIndexRef.current = null;
+                      setDragOverIndex(null);
+                      setDragOverPosition(null);
+                    }}
+                    onDragEnd={() => {
+                      dragIndexRef.current = null;
+                      setDragOverIndex(null);
+                      setDragOverPosition(null);
+                    }}
+                    dragOver={dragOverIndex === i ? dragOverPosition : null}
                   />
                 ))
               )}
