@@ -11,6 +11,8 @@ export interface FormField {
   scores?: Record<string, number>;
   tags?: Record<string, string[]>;
   outcome?: Record<string, string>;
+  media_url?: string;
+  media_type?: "video" | "image";
 }
 
 // ── Logic / Branching ──

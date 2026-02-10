@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Star, ArrowRight, Check } from "lucide-react";
 import { motion } from "framer-motion";
 import type { FormField } from "@/components/form-editor/FieldItem";
+import { FieldMedia } from "./FieldMedia";
 
 interface RunnerFieldProps {
   field: FormField;
@@ -219,6 +220,8 @@ export const RunnerField = ({ field, index, total, onAnswer }: RunnerFieldProps)
       transition={{ duration: 0.3 }}
       className="w-full max-w-xl mx-auto space-y-8"
     >
+      <FieldMedia field={field} />
+
       <div className="space-y-2">
         <p className="text-sm text-muted-foreground">
           {index + 1} → {total}
