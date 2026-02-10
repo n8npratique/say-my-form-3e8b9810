@@ -9,7 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
-import { Plus, Sparkles, LogOut, Building2 } from "lucide-react";
+import { Plus, LogOut, Building2 } from "lucide-react";
+import logoPratique from "@/assets/logo-pratique.png";
 
 interface Workspace {
   id: string;
