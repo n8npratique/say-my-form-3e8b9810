@@ -11,7 +11,8 @@ import { ScoringPanel } from "@/components/workflow/ScoringPanel";
 import { TaggingPanel } from "@/components/workflow/TaggingPanel";
 import { OutcomePanel } from "@/components/workflow/OutcomePanel";
 import { ActionsPanel } from "@/components/workflow/ActionsPanel";
-import { ArrowLeft, Sparkles, Save, GitBranch, Award, Tag, Trophy } from "lucide-react";
+import { ArrowLeft, Save, GitBranch, Award, Tag, Trophy } from "lucide-react";
+import logoPratique from "@/assets/logo-pratique.png";
 import type { FormField, FieldLogic, ScoringConfig, TaggingConfig, OutcomesConfig, FormSchema, EmailTemplate } from "@/types/workflow";
 import { DEFAULT_SCORING, DEFAULT_TAGGING, DEFAULT_OUTCOMES } from "@/types/workflow";
 
