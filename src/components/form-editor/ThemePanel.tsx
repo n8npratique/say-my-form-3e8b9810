@@ -108,6 +108,39 @@ export const ThemePanel = ({ open, onOpenChange, theme, onChange }: ThemePanelPr
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Tamanho da fonte ({local.font_size || 16}px)</Label>
+                  <Slider
+                    value={[local.font_size || 16]}
+                    min={12}
+                    max={24}
+                    step={1}
+                    onValueChange={([v]) => update({ font_size: v })}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Estilo</Label>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant={local.font_weight === "bold" ? "default" : "outline"}
+                      size="sm"
+                      className="h-9 w-9 font-bold text-base"
+                      onClick={() => update({ font_weight: local.font_weight === "bold" ? "normal" : "bold" })}
+                    >
+                      B
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={local.font_style === "italic" ? "default" : "outline"}
+                      size="sm"
+                      className="h-9 w-9 italic text-base"
+                      onClick={() => update({ font_style: local.font_style === "italic" ? "normal" : "italic" })}
+                    >
+                      I
+                    </Button>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -209,7 +242,7 @@ export const ThemePanel = ({ open, onOpenChange, theme, onChange }: ThemePanelPr
                 )}
                 <div className="relative z-10 text-center space-y-2">
                   <p style={{ color: local.text_secondary_color }} className="text-xs">1 → 5</p>
-                  <p className="font-bold">Como você avalia nosso serviço?</p>
+                  <p className="font-bold" style={{ fontSize: local.font_size ? `${local.font_size}px` : undefined, fontWeight: local.font_weight || undefined, fontStyle: local.font_style || undefined }}>Como você avalia nosso serviço?</p>
                   <button
                     className="px-4 py-1.5 rounded-md text-sm font-medium"
                     style={{ backgroundColor: local.button_color, color: local.button_text_color }}

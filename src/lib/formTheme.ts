@@ -5,6 +5,9 @@ export interface FormTheme {
   button_color: string;
   button_text_color: string;
   font_family: string;
+  font_size?: number; // px, default 16
+  font_weight?: "normal" | "bold";
+  font_style?: "normal" | "italic";
   background_image?: string;
   background_size?: "cover" | "contain" | "repeat";
   background_overlay?: number;
@@ -135,6 +138,9 @@ export function getThemeStyle(theme: FormTheme): React.CSSProperties {
   };
   const style: React.CSSProperties = {
     fontFamily: `"${theme.font_family}", sans-serif`,
+    fontSize: theme.font_size ? `${theme.font_size}px` : undefined,
+    fontWeight: theme.font_weight || undefined,
+    fontStyle: theme.font_style || undefined,
     ...(isGradient
       ? { background: theme.background_color }
       : { backgroundColor: theme.background_color }),
