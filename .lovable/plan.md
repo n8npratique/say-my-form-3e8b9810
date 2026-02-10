@@ -1,47 +1,58 @@
 
-# Renomear "Pratique Forms" para "TecForms" e Tornar Breadcrumbs Clicaveis
 
-## O que sera feito
+# Prevenção de Cadastros Duplicados
 
-1. **Renomear** todas as ocorrencias de "Pratique Forms" para "TecForms" em 5 arquivos
-2. **Tornar os itens do breadcrumb clicaveis** para navegacao correta:
-   - Clicar em **"TecForms"** leva ao Dashboard (`/dashboard`)
-   - Clicar no **nome do formulario** leva ao editor do formulario
-   - O item da pagina atual (ex: "Workflow", "Respostas") permanece como texto sem link
+## Resumo
+Adicionar na tela de Respostas uma configuracao para bloquear respostas duplicadas com base em nome, celular ou email. Por padrao, duplicados NAO serao aceitos. A validacao sera feita no momento do envio do formulario (FormRunner).
 
-## Arquivos a Modificar
+## Como funciona
 
-| Arquivo | Mudancas |
-|---------|----------|
-| `src/pages/FormWorkflow.tsx` | Renomear para "TecForms", tornar "TecForms" clicavel (vai para `/dashboard`), tornar nome do form clicavel (vai para `/workspace/.../form/.../edit`) |
-| `src/pages/FormEditor.tsx` | Renomear para "TecForms", tornar "TecForms" clicavel (vai para `/dashboard`) |
-| `src/pages/FormResponses.tsx` | Renomear para "TecForms", tornar "TecForms" clicavel (vai para `/dashboard`), tornar nome do form clicavel (vai para `/workspace/.../form/.../edit`) |
-| `src/pages/WorkspaceForms.tsx` | Renomear para "TecForms", tornar "TecForms" clicavel (vai para `/dashboard`) |
-| `src/pages/FormRunner.tsx` | Renomear para "TecForms" no rodape |
+1. **Configuracao na tela de Respostas**: Um card/secao com toggles para ativar/desativar a prevencao de duplicados e escolher por quais campos validar (nome, celular, email). Por padrao, todos marcados e prevencao ativada.
+
+2. **Armazenamento**: A configuracao sera salva no campo `settings` (JSONB) da tabela `forms`, sem necessidade de migracoes. Exemplo:
+   ```json
+   {
+     "dedup": {
+       "enabled": true,
+       "fields": ["email", "phone", "name"]
+     }
+   }
+   ```
+
+3. **Validacao no FormRunner**: Antes de criar a resposta (ou ao completar), o sistema consulta respostas anteriores do mesmo formulario para verificar se ja existe um registro com o mesmo email, telefone ou nome, conforme configurado.
 
 ## Detalhes Tecnicos
 
-Os `<span>` estaticos serao substituidos por botoes estilizados com `cursor-pointer` e `onClick` usando `navigate()`:
+### Arquivo 1: `src/pages/FormResponses.tsx`
+- Adicionar um card entre os filtros e a tabela com:
+  - Switch "Bloquear respostas duplicadas" (ligado por padrao)
+  - Checkboxes para selecionar quais campos validar: Email, Celular, Nome
+  - Salvar automaticamente no `forms.settings.dedup` ao alterar
+- Carregar a configuracao atual no `fetchData` (ja busca `settings` via `forms`)
 
-```text
-// Antes (estatico)
-<span className="...gradient-text">Pratique Forms</span>
+### Arquivo 2: `src/pages/FormRunner.tsx`
+- Ao carregar o formulario, ler `settings.dedup` 
+- Criar uma edge function `check-duplicate` (ou fazer a verificacao client-side via query nas `response_answers`) que:
+  - Recebe `form_id` + campo (email/phone/name) + valor
+  - Consulta `responses` + `response_answers` para verificar se ja existe resposta completada com o mesmo valor
+  - Retorna `{ isDuplicate: true/false }`
+- No fluxo de `completeForm`, antes de marcar como completado, verificar duplicidade
+- Se duplicado encontrado, exibir mensagem de erro ao usuario ("Ja recebemos uma resposta com este email/telefone/nome")
 
-// Depois (clicavel)
-<button onClick={() => navigate("/dashboard")} className="...gradient-text hover:opacity-80 transition">
-  TecForms
-</button>
-```
+### Abordagem de verificacao (client-side via Supabase query)
+- Como as `response_answers` ja possuem RLS permitindo leitura para membros do workspace, a verificacao de duplicidade sera feita via uma edge function com service role key para evitar problemas de permissao (respondentes anonimos nao tem acesso de leitura)
+- A edge function `check-duplicate` recebera `form_id`, `field_key`, `value` e consultara se existe resposta completada com aquele valor
 
-Para o nome do formulario nas paginas de Workflow e Respostas:
+### Arquivo 3: `supabase/functions/check-duplicate/index.ts` (novo)
+- Edge function que:
+  - Recebe `{ form_id, checks: [{ field_key, value }] }`
+  - Usa service role para consultar `response_answers` + `responses` (status = completed)
+  - Retorna `{ duplicate: true, field: "email" }` ou `{ duplicate: false }`
 
-```text
-// Antes
-<span className="font-medium...">{formName}</span>
+### Arquivos modificados:
+| Arquivo | Alteracao |
+|---------|-----------|
+| `src/pages/FormResponses.tsx` | Card de configuracao de duplicados |
+| `src/pages/FormRunner.tsx` | Verificacao antes de completar |
+| `supabase/functions/check-duplicate/index.ts` | Nova edge function |
 
-// Depois
-<button onClick={() => navigate(`/workspace/${workspaceId}/form/${formId}/edit`)}
-  className="font-medium... hover:text-primary transition cursor-pointer">
-  {formName}
-</button>
-```
