@@ -8,8 +8,11 @@ import { AddFieldDialog } from "@/components/form-editor/AddFieldDialog";
 import { FieldItem, type FormField } from "@/components/form-editor/FieldItem";
 import { FieldConfigPanel } from "@/components/form-editor/FieldConfigPanel";
 import { ShareDialog } from "@/components/form-editor/ShareDialog";
-import { ArrowLeft, Plus, Sparkles, Save, Eye, Share2, Rocket, GitBranch, ClipboardList } from "lucide-react";
+import { ThemePanel } from "@/components/form-editor/ThemePanel";
+import { ArrowLeft, Plus, Sparkles, Save, Eye, Share2, Rocket, GitBranch, ClipboardList, Palette } from "lucide-react";
 import type { FieldType } from "@/config/fieldTypes";
+import type { FormTheme } from "@/lib/formTheme";
+import { DEFAULT_THEME } from "@/lib/formTheme";
 
 const generateSlug = (name: string) => {
   const base = name
@@ -39,6 +42,8 @@ const FormEditor = () => {
   const dragIndexRef = useRef<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [dragOverPosition, setDragOverPosition] = useState<"top" | "bottom" | null>(null);
+  const [theme, setTheme] = useState<FormTheme>(DEFAULT_THEME);
+  const [themeOpen, setThemeOpen] = useState(false);
   const selectedField = fields.find((f) => f.id === selectedId) || null;
 
   useEffect(() => {
@@ -71,6 +76,7 @@ const FormEditor = () => {
         setFields(schema.fields);
         if (schema.fields.length > 0) setSelectedId(schema.fields[0].id);
       }
+      if (schema?.theme) setTheme(schema.theme);
     }
   };
 
@@ -109,7 +115,7 @@ const FormEditor = () => {
       .maybeSingle();
 
     const existingSchema = (current?.schema as any) || {};
-    const mergedSchema = { ...existingSchema, fields };
+    const mergedSchema = { ...existingSchema, fields, theme };
 
     const { error } = await supabase
       .from("form_versions")
@@ -138,7 +144,7 @@ const FormEditor = () => {
     const existingSchema = (currentVersion?.schema as any) || {};
     await supabase
       .from("form_versions")
-      .update({ schema: { ...existingSchema, fields } as any })
+      .update({ schema: { ...existingSchema, fields, theme } as any })
       .eq("id", versionId);
 
     // Generate slug if needed
@@ -226,6 +232,9 @@ const FormEditor = () => {
           </Button>
           <Button variant="outline" size="sm" onClick={handlePreview}>
             <Eye className="h-4 w-4 mr-1" /> Preview
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setThemeOpen(true)}>
+            <Palette className="h-4 w-4 mr-1" /> Aparência
           </Button>
           {slug && (
             <Button variant="outline" size="sm" onClick={() => setShareOpen(true)}>
@@ -342,6 +351,7 @@ const FormEditor = () => {
 
       <AddFieldDialog open={dialogOpen} onOpenChange={setDialogOpen} onAddField={addField} />
       <ShareDialog open={shareOpen} onOpenChange={setShareOpen} formId={formId!} slug={slug} />
+      <ThemePanel open={themeOpen} onOpenChange={setThemeOpen} theme={theme} onChange={setTheme} />
     </div>
   );
 };

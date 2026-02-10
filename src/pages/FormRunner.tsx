@@ -9,6 +9,8 @@ import { AnimatePresence, motion } from "framer-motion";
 import type { FormField } from "@/types/workflow";
 import type { FieldLogic, ScoringConfig, TaggingConfig, OutcomesConfig, FormSchema } from "@/types/workflow";
 import { getNextFieldId, calculateScore, collectTags, determineOutcome } from "@/lib/logicEngine";
+import type { FormTheme } from "@/lib/formTheme";
+import { DEFAULT_THEME, getThemeStyle, loadGoogleFont } from "@/lib/formTheme";
 
 const FormRunner = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -20,6 +22,7 @@ const FormRunner = () => {
   const [scoring, setScoring] = useState<ScoringConfig | null>(null);
   const [tagging, setTagging] = useState<TaggingConfig | null>(null);
   const [outcomesConfig, setOutcomesConfig] = useState<OutcomesConfig | null>(null);
+  const [theme, setTheme] = useState<FormTheme>(DEFAULT_THEME);
   const [formId, setFormId] = useState<string | null>(null);
   const [versionId, setVersionId] = useState<string | null>(null);
   const [accessMode, setAccessMode] = useState<"public" | "email_required">("public");
@@ -39,6 +42,10 @@ const FormRunner = () => {
   useEffect(() => {
     if (slug) loadForm();
   }, [slug]);
+
+  useEffect(() => {
+    loadGoogleFont(theme.font_family);
+  }, [theme.font_family]);
 
   const loadForm = async () => {
     const { data: form, error: formErr } = await supabase
@@ -81,6 +88,7 @@ const FormRunner = () => {
       if (schema?.scoring?.enabled) setScoring(schema.scoring);
       if (schema?.tagging?.enabled) setTagging(schema.tagging);
       if (schema?.outcomes?.enabled) setOutcomesConfig(schema.outcomes);
+      if (schema?.theme) setTheme(schema.theme);
     }
 
     setLoading(false);
@@ -210,27 +218,30 @@ const FormRunner = () => {
     }
   };
 
+  const themeStyle = getThemeStyle(theme);
+  const hasOverlay = theme.background_image && theme.background_overlay && theme.background_overlay > 0;
+
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Sparkles className="h-8 w-8 animate-pulse text-primary" />
+      <div className="min-h-screen flex items-center justify-center" style={themeStyle}>
+        <Sparkles className="h-8 w-8 animate-pulse" style={{ color: theme.button_color }} />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="min-h-screen flex items-center justify-center p-4" style={themeStyle}>
         <div className="text-center space-y-2">
-          <Sparkles className="h-8 w-8 mx-auto text-muted-foreground" />
-          <p className="text-muted-foreground">{error}</p>
+          <Sparkles className="h-8 w-8 mx-auto" style={{ color: theme.text_secondary_color }} />
+          <p style={{ color: theme.text_secondary_color }}>{error}</p>
         </div>
       </div>
     );
   }
 
   if (accessMode === "email_required" && !emailCollected) {
-    return <EmailGate formName={formName} onSubmit={handleEmailSubmit} />;
+    return <EmailGate formName={formName} onSubmit={handleEmailSubmit} themeStyle={themeStyle} theme={theme} />;
   }
 
   if (completed) {
@@ -238,27 +249,31 @@ const FormRunner = () => {
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="min-h-screen flex items-center justify-center bg-background p-4"
+        className="min-h-screen flex items-center justify-center p-4 relative"
+        style={themeStyle}
       >
-        <div className="text-center space-y-4 max-w-md">
+        {hasOverlay && (
+          <div className="absolute inset-0" style={{ backgroundColor: `rgba(0,0,0,${theme.background_overlay})` }} />
+        )}
+        <div className="text-center space-y-4 max-w-md relative z-10">
           {outcomeLabel ? (
             <>
-              <Trophy className="h-16 w-16 mx-auto text-primary" />
+              <Trophy className="h-16 w-16 mx-auto" style={{ color: theme.button_color }} />
               <h1 className="text-2xl font-bold">{outcomeLabel}</h1>
-              {outcomeDesc && <p className="text-muted-foreground">{outcomeDesc}</p>}
+              {outcomeDesc && <p style={{ color: theme.text_secondary_color }}>{outcomeDesc}</p>}
             </>
           ) : (
             <>
-              <CheckCircle2 className="h-16 w-16 mx-auto text-primary" />
+              <CheckCircle2 className="h-16 w-16 mx-auto" style={{ color: theme.button_color }} />
               <h1 className="text-2xl font-bold">Obrigado!</h1>
-              <p className="text-muted-foreground">Suas respostas foram enviadas com sucesso.</p>
+              <p style={{ color: theme.text_secondary_color }}>Suas respostas foram enviadas com sucesso.</p>
             </>
           )}
           {scoreResult && (
-            <div className="mt-4 p-4 rounded-xl bg-primary/10 border border-primary/20">
-              <p className="text-sm text-muted-foreground">Sua pontuação</p>
-              <p className="text-3xl font-bold text-primary">{scoreResult.score}</p>
-              {scoreResult.label && <p className="text-sm text-muted-foreground">{scoreResult.label}</p>}
+            <div className="mt-4 p-4 rounded-xl" style={{ backgroundColor: `${theme.button_color}15`, border: `1px solid ${theme.button_color}30` }}>
+              <p className="text-sm" style={{ color: theme.text_secondary_color }}>Sua pontuação</p>
+              <p className="text-3xl font-bold" style={{ color: theme.button_color }}>{scoreResult.score}</p>
+              {scoreResult.label && <p className="text-sm" style={{ color: theme.text_secondary_color }}>{scoreResult.label}</p>}
             </div>
           )}
         </div>
@@ -271,12 +286,15 @@ const FormRunner = () => {
   const progress = fields.length > 0 ? (answeredCount / fields.length) * 100 : 0;
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
-      <div className="sticky top-0 z-50 bg-background/80 backdrop-blur-sm">
+    <div className="min-h-screen flex flex-col relative" style={themeStyle}>
+      {hasOverlay && (
+        <div className="absolute inset-0 z-0" style={{ backgroundColor: `rgba(0,0,0,${theme.background_overlay})` }} />
+      )}
+      <div className="sticky top-0 z-50 backdrop-blur-sm" style={{ backgroundColor: `${theme.background_color}CC` }}>
         <Progress value={progress} className="h-1 rounded-none" />
       </div>
 
-      <div className="flex-1 flex items-center justify-center p-6">
+      <div className="flex-1 flex items-center justify-center p-6 relative z-10">
         <AnimatePresence mode="wait">
           {currentField && (
             <RunnerField
@@ -290,8 +308,8 @@ const FormRunner = () => {
         </AnimatePresence>
       </div>
 
-      <footer className="p-4 text-center">
-        <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground">
+      <footer className="p-4 text-center relative z-10">
+        <div className="flex items-center justify-center gap-1 text-xs" style={{ color: theme.text_secondary_color }}>
           <Sparkles className="h-3 w-3" />
           <span>Pratique Forms</span>
         </div>
