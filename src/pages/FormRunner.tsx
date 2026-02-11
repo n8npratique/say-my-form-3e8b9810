@@ -254,6 +254,7 @@ const FormRunner = () => {
     }
 
     if (nextId) {
+      // Jump to specific field
       const idx = fields.findIndex((f) => f.id === nextId);
       if (idx >= 0) {
         setCurrentFieldId(nextId);
