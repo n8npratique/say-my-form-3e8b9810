@@ -270,6 +270,15 @@ const FormRunner = () => {
       // silent fail
     }
 
+    // Send WhatsApp via WAHA (best-effort)
+    try {
+      await supabase.functions.invoke("send-whatsapp", {
+        body: { form_id: formId, response_id: responseId },
+      });
+    } catch {
+      // silent fail
+    }
+
     // Sync to Unnichat (best-effort)
     try {
       await supabase.functions.invoke("sync-unnichat", {
