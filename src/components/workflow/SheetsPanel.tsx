@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -26,6 +26,15 @@ export const SheetsPanel = ({ formId }: SheetsPanelProps) => {
   useEffect(() => {
     fetchData();
   }, [formId]);
+
+  // Polling: quando a integração está ativa mas sem spreadsheet_id,
+  // verifica a cada 5s se a edge function já criou a planilha
+  useEffect(() => {
+    const config = (integration?.config as any) ?? {};
+    if (!integration || config.spreadsheet_id || !config.enabled) return;
+    const interval = setInterval(fetchData, 5000);
+    return () => clearInterval(interval);
+  }, [integration]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -192,6 +201,13 @@ export const SheetsPanel = ({ formId }: SheetsPanelProps) => {
       <div className="flex items-center gap-2">
         <FileSpreadsheet className="h-5 w-5 text-green-600" />
         <h3 className="font-semibold text-sm">Google Sheets</h3>
+        <button
+          onClick={fetchData}
+          className="ml-auto text-muted-foreground hover:text-foreground transition"
+          title="Atualizar"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+        </button>
       </div>
 
       {/* Aviso de service account */}
