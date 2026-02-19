@@ -98,15 +98,12 @@ const WorkspaceSettings = () => {
       if (s.timezone) setTimezone(s.timezone);
     }
 
-    // Fetch service account via edge function (bypasses RLS)
-    try {
-      const { data: saResult } = await supabase.functions.invoke("manage-service-account", {
-        body: { action: "get", workspace_id: workspaceId },
-      });
-      if (saResult?.service_account) setServiceAccount(saResult.service_account);
-    } catch {
-      // silent fail
-    }
+    const { data: sa } = await supabase
+      .from("google_service_accounts")
+      .select("id, client_email, name")
+      .eq("workspace_id", workspaceId!)
+      .maybeSingle();
+    if (sa) setServiceAccount(sa);
   };
 
   // ── Google Service Account ──────────────────────────────────────────────────
@@ -126,42 +123,32 @@ const WorkspaceSettings = () => {
       const privateKey: string = parsed.private_key;
       if (!clientEmail || !privateKey) throw new Error("JSON inválido: campos client_email ou private_key ausentes");
 
-      const { data, error } = await supabase.functions.invoke("manage-service-account", {
-        body: {
-          action: "save",
-          workspace_id: workspaceId,
-          client_email: clientEmail,
-          private_key: privateKey,
-        },
-      });
+      if (serviceAccount) {
+        await supabase.from("google_service_accounts").delete().eq("id", serviceAccount.id);
+      }
+
+      const { data, error } = await supabase.from("google_service_accounts").insert({
+        workspace_id: workspaceId!,
+        name: clientEmail,
+        client_email: clientEmail,
+        encrypted_key: privateKey,
+      }).select("id, client_email, name").single();
       if (error) throw error;
-      if (data?.error) throw new Error(data.error);
       toast({ title: "Service Account salva!" });
       setSaJson("");
-      if (data?.service_account) setServiceAccount(data.service_account);
+      if (data) setServiceAccount(data);
       else fetchAll();
     } catch (err: unknown) {
-      toast({ title: "Erro", description: err instanceof Error ? err.message : "Erro desconhecido", variant: "destructive" });
+      toast({ title: "Erro ao salvar", description: err instanceof Error ? err.message : "Erro desconhecido", variant: "destructive" });
     }
     setSavingSA(false);
   };
 
   const removeServiceAccount = async () => {
     if (!serviceAccount) return;
-    try {
-      const { data, error } = await supabase.functions.invoke("manage-service-account", {
-        body: {
-          action: "delete",
-          workspace_id: workspaceId,
-          service_account_id: serviceAccount.id,
-        },
-      });
-      if (error) throw error;
-      setServiceAccount(null);
-      toast({ title: "Service Account removida" });
-    } catch {
-      toast({ title: "Erro ao remover", variant: "destructive" });
-    }
+    await supabase.from("google_service_accounts").delete().eq("id", serviceAccount.id);
+    setServiceAccount(null);
+    toast({ title: "Service Account removida" });
   };
 
   // ── WAHA ───────────────────────────────────────────────────────────────────
