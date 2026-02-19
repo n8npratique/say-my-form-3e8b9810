@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { FileSpreadsheet, ExternalLink, AlertTriangle, RefreshCw, Trash2, Plus, Clock } from "lucide-react";
+import { FileSpreadsheet, ExternalLink, AlertTriangle, RefreshCw, Trash2, Plus, Clock, History } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -19,6 +19,7 @@ export const SheetsPanel = ({ formId }: SheetsPanelProps) => {
   const [hasServiceAccount, setHasServiceAccount] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
@@ -109,6 +110,30 @@ export const SheetsPanel = ({ formId }: SheetsPanelProps) => {
     if (data) setIntegration(data);
     toast({ title: "Planilha será recriada", description: "Na próxima resposta, uma nova planilha será criada." });
     setSaving(false);
+  };
+
+  const syncPreviousResponses = async () => {
+    if (!integration) return;
+    setSyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("sync-google-sheets", {
+        body: { form_id: formId, batch_sync: true },
+      });
+      if (error) throw error;
+      if (data?.count === 0) {
+        toast({ title: "Nenhuma resposta encontrada", description: "Não há respostas completas para sincronizar." });
+      } else {
+        toast({
+          title: "Sincronização concluída!",
+          description: `${data?.count ?? 0} resposta(s) sincronizada(s) com sucesso.`,
+        });
+        // Atualizar integração para refletir last_synced_at
+        await fetchData();
+      }
+    } catch (err: any) {
+      toast({ title: "Erro ao sincronizar", description: err.message, variant: "destructive" });
+    }
+    setSyncing(false);
   };
 
   const deleteIntegration = async () => {
@@ -230,6 +255,27 @@ export const SheetsPanel = ({ formId }: SheetsPanelProps) => {
               {format(new Date(integration.last_synced_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
             </div>
           )}
+
+          {/* Sincronizar respostas anteriores */}
+          <div className="pt-2 border-t">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full text-xs"
+              onClick={syncPreviousResponses}
+              disabled={syncing || saving}
+            >
+              {syncing ? (
+                <RefreshCw className="h-3.5 w-3.5 mr-1 animate-spin" />
+              ) : (
+                <History className="h-3.5 w-3.5 mr-1" />
+              )}
+              {syncing ? "Sincronizando..." : "Sincronizar respostas anteriores"}
+            </Button>
+            <p className="text-xs text-muted-foreground mt-1.5 text-center leading-tight">
+              Reprocessa todas as respostas já existentes no formulário
+            </p>
+          </div>
 
           {/* Remover integração */}
           <div className="pt-2 border-t">

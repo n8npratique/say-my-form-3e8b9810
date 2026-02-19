@@ -89,8 +89,10 @@ Deno.serve(async (req) => {
   );
 
   try {
-    const { form_id, response_id } = await req.json();
-    if (!form_id || !response_id) {
+    const body = await req.json();
+    const { form_id, response_id, batch_sync } = body;
+
+    if (!form_id || (!response_id && !batch_sync)) {
       return new Response(
         JSON.stringify({ synced: false, reason: "missing_params" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -139,19 +141,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 3. Buscar resposta completa
-    const { data: response } = await supabase
-      .from("responses")
-      .select("*")
-      .eq("id", response_id)
-      .maybeSingle();
-
-    const { data: answers } = await supabase
-      .from("response_answers")
-      .select("*")
-      .eq("response_id", response_id);
-
-    // 4. Buscar schema para labels dos campos
+    // 3. Buscar schema para labels dos campos
     const { data: version } = await supabase
       .from("form_versions")
       .select("schema")
@@ -163,7 +153,7 @@ Deno.serve(async (req) => {
     const schema = (version?.schema as any) || {};
     const fields: any[] = schema.fields || [];
 
-    // 5. Autenticar com Google
+    // 4. Autenticar com Google
     const scope =
       "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive";
     const accessToken = await getGoogleAccessToken(
@@ -172,142 +162,165 @@ Deno.serve(async (req) => {
       scope
     );
 
-    const meta = (response?.meta as any) || {};
     const config = (integration.config as any) || {};
 
-    // 6. Criar planilha se não existir
-    let spreadsheetId = config.spreadsheet_id;
+    // ── Helper: montar uma linha de dados ──
+    function buildRow(resp: any, ans: any[]): string[] {
+      const meta = (resp?.meta as any) || {};
+      const answerMap: Record<string, any> = {};
+      for (const a of ans) {
+        answerMap[a.field_key] = a.value_text ?? a.value;
+      }
+      const fieldValues = fields.map((f: any) => {
+        const val = answerMap[f.id];
+        if (val === null || val === undefined) return "";
+        if (typeof val === "object") return JSON.stringify(val);
+        return String(val);
+      });
+      return [
+        formatDateBR(resp?.started_at || new Date().toISOString()),
+        resp?.status || "completed",
+        meta.respondent_email || "",
+        meta.score !== undefined ? String(meta.score) : "",
+        meta.score_range || "",
+        Array.isArray(meta.tags) ? meta.tags.join(", ") : "",
+        meta.outcome_label || "",
+        ...fieldValues,
+      ];
+    }
 
-    if (!spreadsheetId) {
-      // Criar headers
+    // ── Helper: criar planilha se não existir ──
+    async function ensureSpreadsheet(currentSpreadsheetId: string | undefined): Promise<string> {
+      if (currentSpreadsheetId) return currentSpreadsheetId;
+
       const fieldHeaders = fields.map((f: any) => f.label || f.id);
       const headers = [
-        "Data/Hora",
-        "Status",
-        "Email Respondente",
-        "Score",
-        "Score Range",
-        "Tags",
-        "Outcome",
+        "Data/Hora", "Status", "Email Respondente",
+        "Score", "Score Range", "Tags", "Outcome",
         ...fieldHeaders,
       ];
 
-      const createRes = await fetch(
-        "https://sheets.googleapis.com/v4/spreadsheets",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            properties: { title: `TecForms — ${form.name}` },
-            sheets: [
-              {
-                properties: { title: "Respostas" },
-                data: [
-                  {
-                    startRow: 0,
-                    startColumn: 0,
-                    rowData: [
-                      {
-                        values: headers.map((h) => ({
-                          userEnteredValue: { stringValue: h },
-                          userEnteredFormat: {
-                            backgroundColor: { red: 0.23, green: 0.47, blue: 0.85 },
-                            textFormat: { foregroundColor: { red: 1, green: 1, blue: 1 }, bold: true },
-                          },
-                        })),
-                      },
-                    ],
+      const createRes = await fetch("https://sheets.googleapis.com/v4/spreadsheets", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          properties: { title: `TecForms — ${form.name}` },
+          sheets: [{
+            properties: { title: "Respostas" },
+            data: [{
+              startRow: 0, startColumn: 0,
+              rowData: [{
+                values: headers.map((h) => ({
+                  userEnteredValue: { stringValue: h },
+                  userEnteredFormat: {
+                    backgroundColor: { red: 0.23, green: 0.47, blue: 0.85 },
+                    textFormat: { foregroundColor: { red: 1, green: 1, blue: 1 }, bold: true },
                   },
-                ],
-              },
-            ],
-          }),
-        }
-      );
+                })),
+              }],
+            }],
+          }],
+        }),
+      });
       const createData = await createRes.json();
-      spreadsheetId = createData.spreadsheetId;
+      const newId = createData.spreadsheetId;
 
-      // Salvar spreadsheet_id na integração
-      await supabase
-        .from("integrations")
-        .update({ config: { ...config, spreadsheet_id: spreadsheetId } })
+      await supabase.from("integrations")
+        .update({ config: { ...config, spreadsheet_id: newId } })
         .eq("id", integration.id);
 
-      // Compartilhar com o workspace owner (buscar email)
-      const { data: workspace } = await supabase
-        .from("workspaces")
-        .select("owner_id")
-        .eq("id", form.workspace_id)
-        .maybeSingle();
+      // Compartilhar (acesso público de escrita)
+      await fetch(`https://www.googleapis.com/drive/v3/files/${newId}/permissions`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "anyone", role: "writer" }),
+      });
 
-      if (workspace?.owner_id) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("user_id", workspace.owner_id)
-          .maybeSingle();
+      return newId;
+    }
 
-        // Compartilhar usando Drive API
-        await fetch(
-          `https://www.googleapis.com/drive/v3/files/${spreadsheetId}/permissions`,
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              type: "anyone",
-              role: "writer",
-            }),
-          }
+    // ── MODO BATCH: sincronizar todas as respostas ──
+    if (batch_sync) {
+      const { data: allResponses } = await supabase
+        .from("responses")
+        .select("*")
+        .eq("form_id", form_id)
+        .eq("status", "completed")
+        .order("started_at", { ascending: true });
+
+      if (!allResponses || allResponses.length === 0) {
+        return new Response(
+          JSON.stringify({ synced: true, count: 0, reason: "no_completed_responses" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
+
+      const spreadsheetId = await ensureSpreadsheet(config.spreadsheet_id);
+
+      // Buscar todas as respostas de uma vez
+      const responseIds = allResponses.map((r: any) => r.id);
+      const { data: allAnswers } = await supabase
+        .from("response_answers")
+        .select("*")
+        .in("response_id", responseIds);
+
+      // Agrupar respostas por response_id
+      const answersByResponse: Record<string, any[]> = {};
+      for (const ans of allAnswers || []) {
+        if (!answersByResponse[ans.response_id]) answersByResponse[ans.response_id] = [];
+        answersByResponse[ans.response_id].push(ans);
+      }
+
+      // Montar todas as linhas
+      const rows = allResponses.map((resp: any) =>
+        buildRow(resp, answersByResponse[resp.id] || [])
+      );
+
+      // Limpar planilha (manter apenas o cabeçalho) e reescrever tudo
+      await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Respostas!A2:ZZ?valueInputOption=USER_ENTERED`,
+        {
+          method: "PUT",
+          headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ values: rows }),
+        }
+      );
+
+      await supabase.from("integrations")
+        .update({ last_synced_at: new Date().toISOString() })
+        .eq("id", integration.id);
+
+      return new Response(
+        JSON.stringify({ synced: true, count: rows.length, spreadsheet_id: spreadsheetId }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    // 7. Montar linha de dados
-    const answerMap: Record<string, any> = {};
-    for (const ans of answers || []) {
-      answerMap[ans.field_key] = ans.value_text || ans.value;
-    }
+    // ── MODO SINGLE: sincronizar uma resposta ──
+    const { data: response } = await supabase
+      .from("responses")
+      .select("*")
+      .eq("id", response_id)
+      .maybeSingle();
 
-    const fieldValues = fields.map((f: any) => {
-      const val = answerMap[f.id];
-      if (val === null || val === undefined) return "";
-      if (typeof val === "object") return JSON.stringify(val);
-      return String(val);
-    });
+    const { data: answers } = await supabase
+      .from("response_answers")
+      .select("*")
+      .eq("response_id", response_id);
 
-    const row = [
-      formatDateBR(response?.started_at || new Date().toISOString()),
-      response?.status || "completed",
-      meta.respondent_email || "",
-      meta.score !== undefined ? String(meta.score) : "",
-      meta.score_range || "",
-      Array.isArray(meta.tags) ? meta.tags.join(", ") : "",
-      meta.outcome_label || "",
-      ...fieldValues,
-    ];
+    const spreadsheetId = await ensureSpreadsheet(config.spreadsheet_id);
+    const row = buildRow(response, answers || []);
 
-    // 8. Append na planilha
     await fetch(
       `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Respostas!A:ZZ:append?valueInputOption=USER_ENTERED`,
       {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
         body: JSON.stringify({ values: [row] }),
       }
     );
 
-    // 9. Atualizar last_synced_at
-    await supabase
-      .from("integrations")
+    await supabase.from("integrations")
       .update({ last_synced_at: new Date().toISOString() })
       .eq("id", integration.id);
 
@@ -319,10 +332,7 @@ Deno.serve(async (req) => {
     console.error("sync-google-sheets error:", err);
     return new Response(
       JSON.stringify({ synced: false, reason: "error", error: err.message }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });
