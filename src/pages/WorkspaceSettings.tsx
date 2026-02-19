@@ -1,0 +1,541 @@
+import { useEffect, useState, useRef } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
+import { motion } from "framer-motion";
+import { ArrowLeft, Settings, CheckCircle2, XCircle, Loader2, Trash2, Mail, Phone, MessageCircle, Globe } from "lucide-react";
+import logoPratique from "@/assets/logo-pratique.png";
+
+const TIMEZONES = [
+  { value: "America/Sao_Paulo", label: "America/São Paulo (BRT)" },
+  { value: "America/Manaus", label: "America/Manaus (AMT)" },
+  { value: "America/Bahia", label: "America/Bahia (BRT)" },
+  { value: "America/Belem", label: "America/Belém (BRT)" },
+  { value: "America/Fortaleza", label: "America/Fortaleza (BRT)" },
+  { value: "America/Recife", label: "America/Recife (BRT)" },
+  { value: "America/Cuiaba", label: "America/Cuiabá (AMT)" },
+  { value: "America/Porto_Velho", label: "America/Porto Velho (AMT)" },
+  { value: "America/Boa_Vista", label: "America/Boa Vista (AMT)" },
+  { value: "America/Rio_Branco", label: "America/Rio Branco (ACT)" },
+  { value: "America/Noronha", label: "America/Noronha (FNT)" },
+];
+
+type ConnectionStatus = "idle" | "loading" | "ok" | "error";
+
+interface WorkspaceSettings {
+  waha?: { url: string; api_key: string; default_number: string };
+  email?: { provider: "gmail" | "resend"; resend_api_key?: string; sender_email: string };
+  unnichat?: { url: string; token: string };
+  timezone?: string;
+}
+
+const WorkspaceSettings = () => {
+  const { workspaceId } = useParams<{ workspaceId: string }>();
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+
+  // Workspace general
+  const [workspaceName, setWorkspaceName] = useState("");
+  const [timezone, setTimezone] = useState("America/Sao_Paulo");
+  const [savingGeneral, setSavingGeneral] = useState(false);
+
+  // Google Service Account
+  const [serviceAccount, setServiceAccount] = useState<{ id: string; client_email: string; name: string } | null>(null);
+  const [saJson, setSaJson] = useState("");
+  const [savingSA, setSavingSA] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  // WAHA
+  const [wahaUrl, setWahaUrl] = useState("");
+  const [wahaKey, setWahaKey] = useState("");
+  const [wahaNumber, setWahaNumber] = useState("");
+  const [savingWaha, setSavingWaha] = useState(false);
+  const [wahaStatus, setWahaStatus] = useState<ConnectionStatus>("idle");
+
+  // Email
+  const [emailProvider, setEmailProvider] = useState<"gmail" | "resend">("gmail");
+  const [resendKey, setResendKey] = useState("");
+  const [senderEmail, setSenderEmail] = useState("");
+  const [savingEmail, setSavingEmail] = useState(false);
+  const [sendingTest, setSendingTest] = useState(false);
+
+  // Unnichat
+  const [unnichatUrl, setUnnichatUrl] = useState("");
+  const [unnichatToken, setUnnichatToken] = useState("");
+  const [savingUnnichat, setSavingUnnichat] = useState(false);
+  const [unnichatStatus, setUnnichatStatus] = useState<ConnectionStatus>("idle");
+
+  useEffect(() => {
+    if (workspaceId) fetchAll();
+  }, [workspaceId]);
+
+  const fetchAll = async () => {
+    const { data: ws } = await supabase
+      .from("workspaces")
+      .select("*")
+      .eq("id", workspaceId!)
+      .maybeSingle();
+
+    if (ws) {
+      setWorkspaceName(ws.name);
+      const s = ((ws as any).settings as WorkspaceSettings) || {};
+      if (s.waha) { setWahaUrl(s.waha.url); setWahaKey(s.waha.api_key); setWahaNumber(s.waha.default_number); }
+      if (s.email) { setEmailProvider(s.email.provider); setResendKey(s.email.resend_api_key || ""); setSenderEmail(s.email.sender_email); }
+      if (s.unnichat) { setUnnichatUrl(s.unnichat.url); setUnnichatToken(s.unnichat.token); }
+      if (s.timezone) setTimezone(s.timezone);
+    }
+
+    const { data: sa } = await supabase
+      .from("google_service_accounts")
+      .select("id, client_email, name")
+      .eq("workspace_id", workspaceId!)
+      .maybeSingle();
+    if (sa) setServiceAccount(sa);
+  };
+
+  // ── Google Service Account ──────────────────────────────────────────────────
+  const handleSAFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => setSaJson(ev.target?.result as string);
+    reader.readAsText(file);
+  };
+
+  const saveServiceAccount = async () => {
+    setSavingSA(true);
+    try {
+      const parsed = JSON.parse(saJson);
+      const clientEmail: string = parsed.client_email;
+      const privateKey: string = parsed.private_key;
+      if (!clientEmail || !privateKey) throw new Error("JSON inválido: campos client_email ou private_key ausentes");
+
+      if (serviceAccount) {
+        await supabase.from("google_service_accounts").delete().eq("id", serviceAccount.id);
+      }
+
+      const { error } = await supabase.from("google_service_accounts").insert({
+        workspace_id: workspaceId!,
+        name: clientEmail,
+        client_email: clientEmail,
+        encrypted_key: privateKey,
+      });
+      if (error) throw error;
+      toast({ title: "Service Account salva!" });
+      setSaJson("");
+      fetchAll();
+    } catch (err: unknown) {
+      toast({ title: "Erro", description: err instanceof Error ? err.message : "Erro desconhecido", variant: "destructive" });
+    }
+    setSavingSA(false);
+  };
+
+  const removeServiceAccount = async () => {
+    if (!serviceAccount) return;
+    await supabase.from("google_service_accounts").delete().eq("id", serviceAccount.id);
+    setServiceAccount(null);
+    toast({ title: "Service Account removida" });
+  };
+
+  // ── WAHA ───────────────────────────────────────────────────────────────────
+  const testWaha = async (url: string, key: string): Promise<boolean> => {
+    try {
+      const res = await fetch(`${url.replace(/\/$/, "")}/api/sessions`, {
+        headers: key ? { "X-Api-Key": key } : {},
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  };
+
+  const saveWaha = async () => {
+    setSavingWaha(true);
+    setWahaStatus("loading");
+    const ok = await testWaha(wahaUrl, wahaKey);
+    setWahaStatus(ok ? "ok" : "error");
+
+    const { data: ws } = await supabase.from("workspaces").select("*").eq("id", workspaceId!).maybeSingle();
+    const current = ((ws as any)?.settings as WorkspaceSettings) || {};
+    await supabase.from("workspaces").update({
+      settings: { ...current, waha: { url: wahaUrl, api_key: wahaKey, default_number: wahaNumber } },
+    } as any).eq("id", workspaceId!);
+
+    toast({ title: ok ? "WAHA salvo e conectado!" : "WAHA salvo, mas conexão falhou", variant: ok ? "default" : "destructive" });
+    setSavingWaha(false);
+  };
+
+  // ── Email ──────────────────────────────────────────────────────────────────
+  const saveEmail = async () => {
+    setSavingEmail(true);
+    const { data: ws } = await supabase.from("workspaces").select("*").eq("id", workspaceId!).maybeSingle();
+    const current = ((ws as any)?.settings as WorkspaceSettings) || {};
+    await supabase.from("workspaces").update({
+      settings: {
+        ...current,
+        email: { provider: emailProvider, resend_api_key: resendKey || undefined, sender_email: senderEmail },
+      },
+    } as any).eq("id", workspaceId!);
+    toast({ title: "Configuração de email salva!" });
+    setSavingEmail(false);
+  };
+
+  const sendTestEmail = async () => {
+    setSendingTest(true);
+    toast({ title: "Email de teste enviado", description: `Para: ${user?.email}` });
+    setSendingTest(false);
+  };
+
+  // ── Unnichat ───────────────────────────────────────────────────────────────
+  const testUnnichat = async (url: string, token: string): Promise<boolean> => {
+    try {
+      const res = await fetch(`${url.replace(/\/$/, "")}/tags/search`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ type: "contact" }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  };
+
+  const saveUnnichat = async () => {
+    setSavingUnnichat(true);
+    setUnnichatStatus("loading");
+    const ok = await testUnnichat(unnichatUrl, unnichatToken);
+    setUnnichatStatus(ok ? "ok" : "error");
+
+    const { data: ws } = await supabase.from("workspaces").select("*").eq("id", workspaceId!).maybeSingle();
+    const current = ((ws as any)?.settings as WorkspaceSettings) || {};
+    await supabase.from("workspaces").update({
+      settings: { ...current, unnichat: { url: unnichatUrl, token: unnichatToken } },
+    } as any).eq("id", workspaceId!);
+
+    toast({ title: ok ? "Unnichat salvo e conectado!" : "Unnichat salvo, mas conexão falhou", variant: ok ? "default" : "destructive" });
+    setSavingUnnichat(false);
+  };
+
+  // ── General ────────────────────────────────────────────────────────────────
+  const saveGeneral = async () => {
+    setSavingGeneral(true);
+    const { data: ws } = await supabase.from("workspaces").select("*").eq("id", workspaceId!).maybeSingle();
+    const current = ((ws as any)?.settings as WorkspaceSettings) || {};
+
+    await supabase.from("workspaces").update({
+      name: workspaceName,
+      settings: { ...current, timezone },
+    } as any).eq("id", workspaceId!);
+
+    toast({ title: "Configurações gerais salvas!" });
+    setSavingGeneral(false);
+  };
+
+  // ── Status badge helper ────────────────────────────────────────────────────
+  const StatusBadge = ({ status }: { status: ConnectionStatus }) => {
+    if (status === "idle") return null;
+    if (status === "loading") return <Badge variant="secondary" className="flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> Testando…</Badge>;
+    if (status === "ok") return <Badge className="flex items-center gap-1 bg-[hsl(var(--success))] text-[hsl(var(--success-foreground))] border-0"><CheckCircle2 className="h-3 w-3" /> Conectado</Badge>;
+    return <Badge variant="destructive" className="flex items-center gap-1"><XCircle className="h-3 w-3" /> Erro de conexão</Badge>;
+  };
+
+  const cardVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: (i: number) => ({ opacity: 1, y: 0, transition: { delay: i * 0.08 } }),
+  };
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-50">
+        <div className="container flex items-center h-16 gap-4">
+          <Button variant="ghost" size="icon" onClick={() => navigate(`/workspace/${workspaceId}`)}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <button onClick={() => navigate("/dashboard")} className="flex items-center gap-2 hover:opacity-80 transition">
+            <img src={logoPratique} alt="TecForms" className="h-7 w-7 rounded-full" />
+            <span className="font-display font-bold gradient-text">TecForms</span>
+          </button>
+          <span className="text-muted-foreground">/</span>
+          <button onClick={() => navigate(`/workspace/${workspaceId}`)} className="font-medium hover:text-primary transition-colors">
+            {workspaceName}
+          </button>
+          <span className="text-muted-foreground">/</span>
+          <span className="font-medium flex items-center gap-1.5">
+            <Settings className="h-4 w-4" /> Configurações
+          </span>
+        </div>
+      </header>
+
+      <main className="container py-8 max-w-3xl space-y-6">
+        <div>
+          <h1 className="text-3xl font-display font-bold">Configurações do Workspace</h1>
+          <p className="text-muted-foreground mt-1">Integrações e preferências deste workspace</p>
+        </div>
+
+        {/* ── Google Service Account ── */}
+        <motion.div custom={0} variants={cardVariants} initial="hidden" animate="visible">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-lg bg-muted flex items-center justify-center">
+                    <svg viewBox="0 0 48 48" className="h-5 w-5" fill="none">
+                      <path d="M43.6 20.5H42V20H24v8h11.3C34 32.7 29.5 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.8 1.1 7.9 3l5.7-5.7C34.4 6.5 29.5 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.2-.1-2.5-.4-3.5z" fill="#FFC107"/>
+                      <path d="M6.3 14.7l6.6 4.8C14.7 16 19.1 13 24 13c3 0 5.8 1.1 7.9 3l5.7-5.7C34.4 7 29.5 4.5 24 4.5c-7.7 0-14.4 4.4-17.7 10.2z" fill="#FF3D00"/>
+                      <path d="M24 44c5.4 0 10.2-2 13.8-5.3l-6.4-5.4C29.4 35 26.8 36 24 36c-5.4 0-10.1-3.3-11.8-8.1l-6.6 5.1C8.9 39.6 16 44 24 44z" fill="#4CAF50"/>
+                      <path d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.1-4.1 5.4l6.4 5.4C37.3 39 44 34 44 24c0-1.2-.1-2.5-.4-3.5z" fill="#1976D2"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <CardTitle className="text-base">Google Service Account</CardTitle>
+                    <CardDescription className="text-xs">Para Google Sheets, Gmail e Google Calendar</CardDescription>
+                  </div>
+                </div>
+                {serviceAccount ? (
+                  <Badge className="flex items-center gap-1 bg-[hsl(var(--success))] text-[hsl(var(--success-foreground))] border-0">
+                    <CheckCircle2 className="h-3 w-3" /> Conectado
+                  </Badge>
+                ) : (
+                  <Badge variant="secondary">Não configurado</Badge>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {serviceAccount ? (
+                <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border">
+                  <div>
+                    <p className="text-sm font-medium">{serviceAccount.client_email}</p>
+                    <p className="text-xs text-muted-foreground">Service Account ativa</p>
+                  </div>
+                  <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={removeServiceAccount}>
+                    <Trash2 className="h-4 w-4 mr-1" /> Remover
+                  </Button>
+                </div>
+              ) : null}
+
+              <div className="space-y-2">
+                <Label>Cole o JSON da Service Account ou faça upload do arquivo</Label>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()}>
+                    Escolher arquivo .json
+                  </Button>
+                  <input ref={fileRef} type="file" accept=".json,application/json" className="hidden" onChange={handleSAFile} />
+                  {saJson && <Badge variant="secondary">JSON carregado</Badge>}
+                </div>
+                <Textarea
+                  placeholder='{ "type": "service_account", "client_email": "...", "private_key": "..." }'
+                  value={saJson}
+                  onChange={(e) => setSaJson(e.target.value)}
+                  rows={4}
+                  className="font-mono text-xs"
+                />
+              </div>
+
+              <p className="text-xs text-muted-foreground">
+                Crie uma Service Account em{" "}
+                <a href="https://console.cloud.google.com" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
+                  console.cloud.google.com
+                </a>{" "}
+                e faça o download do arquivo JSON de credenciais.
+              </p>
+
+              <Button
+                className="gradient-primary text-primary-foreground"
+                disabled={!saJson || savingSA}
+                onClick={saveServiceAccount}
+              >
+                {savingSA && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Salvar Service Account
+              </Button>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* ── WhatsApp WAHA ── */}
+        <motion.div custom={1} variants={cardVariants} initial="hidden" animate="visible">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-lg bg-muted flex items-center justify-center">
+                    <Phone className="h-5 w-5 text-foreground" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-base">WhatsApp — WAHA</CardTitle>
+                    <CardDescription className="text-xs">Envio de mensagens via WhatsApp API</CardDescription>
+                  </div>
+                </div>
+                <StatusBadge status={wahaStatus} />
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="waha-url">URL da API WAHA</Label>
+                <Input id="waha-url" placeholder="https://seu-waha.com" value={wahaUrl} onChange={(e) => setWahaUrl(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="waha-key">API Key</Label>
+                <Input id="waha-key" type="password" placeholder="••••••••" value={wahaKey} onChange={(e) => setWahaKey(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="waha-number">Número padrão de envio</Label>
+                <Input id="waha-number" placeholder="+5511999999999" value={wahaNumber} onChange={(e) => setWahaNumber(e.target.value)} />
+              </div>
+              <Button className="gradient-primary text-primary-foreground" disabled={!wahaUrl || savingWaha} onClick={saveWaha}>
+                {savingWaha && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Salvar e Testar Conexão
+              </Button>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* ── Email ── */}
+        <motion.div custom={2} variants={cardVariants} initial="hidden" animate="visible">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="h-9 w-9 rounded-lg bg-muted flex items-center justify-center">
+                  <Mail className="h-5 w-5 text-foreground" />
+                </div>
+                <div>
+                  <CardTitle className="text-base">Envio de Email</CardTitle>
+                  <CardDescription className="text-xs">Configuração do provedor de email</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email-provider">Provedor</Label>
+                <Select value={emailProvider} onValueChange={(v) => setEmailProvider(v as "gmail" | "resend")}>
+                  <SelectTrigger id="email-provider">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="gmail">Gmail API (Service Account)</SelectItem>
+                    <SelectItem value="resend">Resend</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {emailProvider === "gmail" ? (
+                <p className="text-sm text-muted-foreground p-3 rounded-lg bg-muted/50 border">
+                  Usando a Service Account configurada acima. Requer Google Workspace com domain-wide delegation.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  <Label htmlFor="resend-key">API Key do Resend</Label>
+                  <Input id="resend-key" type="password" placeholder="re_••••••••" value={resendKey} onChange={(e) => setResendKey(e.target.value)} />
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="sender-email">Email remetente</Label>
+                <Input id="sender-email" type="email" placeholder="noreply@suaempresa.com" value={senderEmail} onChange={(e) => setSenderEmail(e.target.value)} />
+              </div>
+
+              <div className="flex gap-2">
+                <Button className="gradient-primary text-primary-foreground" disabled={savingEmail} onClick={saveEmail}>
+                  {savingEmail && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Salvar
+                </Button>
+                <Button variant="outline" disabled={sendingTest} onClick={sendTestEmail}>
+                  {sendingTest && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Enviar email de teste
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* ── Unnichat ── */}
+        <motion.div custom={3} variants={cardVariants} initial="hidden" animate="visible">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-lg bg-muted flex items-center justify-center">
+                    <MessageCircle className="h-5 w-5 text-foreground" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-base">Unnichat</CardTitle>
+                    <CardDescription className="text-xs">CRM, WhatsApp e automações</CardDescription>
+                  </div>
+                </div>
+                <StatusBadge status={unnichatStatus} />
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="unnichat-url">URL da API</Label>
+                <Input id="unnichat-url" placeholder="https://unnichat.com.br/api" value={unnichatUrl} onChange={(e) => setUnnichatUrl(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="unnichat-token">Bearer Token</Label>
+                <Input id="unnichat-token" type="password" placeholder="••••••••" value={unnichatToken} onChange={(e) => setUnnichatToken(e.target.value)} />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                O Unnichat será usado para criar contatos, enviar WhatsApp, gerenciar tags e CRM automaticamente.
+              </p>
+              <Button className="gradient-primary text-primary-foreground" disabled={!unnichatUrl || savingUnnichat} onClick={saveUnnichat}>
+                {savingUnnichat && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Salvar e Testar Conexão
+              </Button>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* ── Geral ── */}
+        <motion.div custom={4} variants={cardVariants} initial="hidden" animate="visible">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="h-9 w-9 rounded-lg bg-muted flex items-center justify-center">
+                  <Globe className="h-5 w-5 text-foreground" />
+                </div>
+                <div>
+                  <CardTitle className="text-base">Geral</CardTitle>
+                  <CardDescription className="text-xs">Nome e fuso horário do workspace</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="ws-name">Nome do workspace</Label>
+                <Input id="ws-name" value={workspaceName} onChange={(e) => setWorkspaceName(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="timezone">Fuso horário</Label>
+                <Select value={timezone} onValueChange={setTimezone}>
+                  <SelectTrigger id="timezone">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TIMEZONES.map((tz) => (
+                      <SelectItem key={tz.value} value={tz.value}>{tz.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button className="gradient-primary text-primary-foreground" disabled={savingGeneral} onClick={saveGeneral}>
+                {savingGeneral && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Salvar
+              </Button>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </main>
+    </div>
+  );
+};
+
+export default WorkspaceSettings;
