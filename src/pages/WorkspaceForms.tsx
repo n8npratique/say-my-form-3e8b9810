@@ -213,7 +213,7 @@ const WorkspaceForms = () => {
               <Users className="h-4 w-4 mr-2" />
               Equipe
             </Button>
-            <Button variant="ghost" size="sm">
+            <Button variant="ghost" size="sm" onClick={() => navigate(`/workspace/${workspaceId}/settings`)}>
               <Settings className="h-4 w-4 mr-2" />
               Configurações
             </Button>
