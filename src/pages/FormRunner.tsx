@@ -279,6 +279,15 @@ const FormRunner = () => {
       // silent fail
     }
 
+    // Create Google Calendar event (best-effort)
+    try {
+      await supabase.functions.invoke("create-calendar-event", {
+        body: { form_id: formId, response_id: responseId },
+      });
+    } catch {
+      // silent fail
+    }
+
     // Sync to Unnichat (best-effort)
     try {
       await supabase.functions.invoke("sync-unnichat", {
