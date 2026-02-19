@@ -418,8 +418,9 @@ const WorkspaceSettings = () => {
                 <p className="text-xs text-muted-foreground">Nome da session no WAHA. Use &quot;default&quot; se tiver apenas uma.</p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="waha-number">Número padrão de envio</Label>
+                <Label htmlFor="waha-number">Número padrão de envio <span className="text-muted-foreground font-normal">(opcional)</span></Label>
                 <Input id="waha-number" placeholder="+5511999999999" value={wahaNumber} onChange={(e) => setWahaNumber(e.target.value)} />
+                <p className="text-xs text-muted-foreground">Opcional. Número que receberá notificações quando alguém responder um formulário.</p>
               </div>
               <Button className="gradient-primary text-primary-foreground" disabled={!wahaUrl || savingWaha} onClick={saveWaha}>
                 {savingWaha && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
