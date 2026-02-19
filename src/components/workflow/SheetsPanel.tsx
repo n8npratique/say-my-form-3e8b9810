@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { FileSpreadsheet, ExternalLink, AlertTriangle, RefreshCw, Trash2, Plus, Clock, History } from "lucide-react";
+import { FileSpreadsheet, ExternalLink, AlertTriangle, RefreshCw, Trash2, Plus, Clock, History, Zap } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -20,6 +20,7 @@ export const SheetsPanel = ({ formId }: SheetsPanelProps) => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
@@ -123,6 +124,25 @@ export const SheetsPanel = ({ formId }: SheetsPanelProps) => {
     if (data) setIntegration(data);
     toast({ title: "Planilha será recriada", description: "Na próxima resposta, uma nova planilha será criada." });
     setSaving(false);
+  };
+
+  const createSpreadsheetNow = async () => {
+    if (!integration) return;
+    setCreating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("sync-google-sheets", {
+        body: { form_id: formId, create_only: true },
+      });
+      if (error) throw error;
+      toast({
+        title: "Planilha criada!",
+        description: "A planilha foi criada com sucesso no Google Drive.",
+      });
+      await fetchData();
+    } catch (err: any) {
+      toast({ title: "Erro ao criar planilha", description: err.message, variant: "destructive" });
+    }
+    setCreating(false);
   };
 
   const syncPreviousResponses = async () => {
@@ -250,9 +270,24 @@ export const SheetsPanel = ({ formId }: SheetsPanelProps) => {
               </Button>
             </div>
           ) : (integration.config as any)?.enabled ? (
-            <div className="text-xs text-muted-foreground flex items-center gap-1.5">
-              <FileSpreadsheet className="h-3.5 w-3.5" />
-              A planilha será criada na próxima resposta
+            <div className="space-y-2">
+              <div className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <FileSpreadsheet className="h-3.5 w-3.5" />
+                Nenhuma planilha vinculada ainda
+              </div>
+              <Button
+                size="sm"
+                className="w-full gradient-primary text-primary-foreground text-xs"
+                onClick={createSpreadsheetNow}
+                disabled={creating || saving}
+              >
+                {creating ? (
+                  <RefreshCw className="h-3.5 w-3.5 mr-1 animate-spin" />
+                ) : (
+                  <Zap className="h-3.5 w-3.5 mr-1" />
+                )}
+                {creating ? "Criando planilha..." : "Criar planilha agora"}
+              </Button>
             </div>
           ) : (
             <p className="text-xs text-muted-foreground bg-muted/50 rounded-md p-3">

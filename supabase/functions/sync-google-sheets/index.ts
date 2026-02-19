@@ -90,9 +90,9 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { form_id, response_id, batch_sync } = body;
+    const { form_id, response_id, batch_sync, create_only } = body;
 
-    if (!form_id || (!response_id && !batch_sync)) {
+    if (!form_id || (!response_id && !batch_sync && !create_only)) {
       return new Response(
         JSON.stringify({ synced: false, reason: "missing_params" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -239,6 +239,21 @@ Deno.serve(async (req) => {
       return newId;
     }
 
+    // ── MODO CREATE ONLY: criar planilha sem sincronizar respostas ──
+    if (create_only) {
+      if (config.spreadsheet_id) {
+        return new Response(
+          JSON.stringify({ synced: true, spreadsheet_id: config.spreadsheet_id, reason: "already_exists" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      const spreadsheetId = await ensureSpreadsheet(undefined);
+      return new Response(
+        JSON.stringify({ synced: true, spreadsheet_id: spreadsheetId }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // ── MODO BATCH: sincronizar todas as respostas ──
     if (batch_sync) {
       const { data: allResponses } = await supabase
@@ -248,14 +263,17 @@ Deno.serve(async (req) => {
         .eq("status", "completed")
         .order("started_at", { ascending: true });
 
+      const spreadsheetId = await ensureSpreadsheet(config.spreadsheet_id);
+
       if (!allResponses || allResponses.length === 0) {
+        await supabase.from("integrations")
+          .update({ last_synced_at: new Date().toISOString() })
+          .eq("id", integration.id);
         return new Response(
-          JSON.stringify({ synced: true, count: 0, reason: "no_completed_responses" }),
+          JSON.stringify({ synced: true, count: 0, spreadsheet_id: spreadsheetId, reason: "no_completed_responses" }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-
-      const spreadsheetId = await ensureSpreadsheet(config.spreadsheet_id);
 
       // Buscar todas as respostas de uma vez
       const responseIds = allResponses.map((r: any) => r.id);
