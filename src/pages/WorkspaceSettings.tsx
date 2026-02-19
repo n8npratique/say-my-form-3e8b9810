@@ -31,7 +31,7 @@ const TIMEZONES = [
 type ConnectionStatus = "idle" | "loading" | "ok" | "error";
 
 interface WorkspaceSettings {
-  waha?: { url: string; api_key: string; default_number: string };
+  waha?: { url: string; api_key: string; session: string; default_number: string };
   email?: { provider: "gmail" | "resend"; resend_api_key?: string; sender_email: string };
   unnichat?: { url: string; token: string };
   timezone?: string;
@@ -57,9 +57,11 @@ const WorkspaceSettings = () => {
   // WAHA
   const [wahaUrl, setWahaUrl] = useState("");
   const [wahaKey, setWahaKey] = useState("");
+  const [wahaSession, setWahaSession] = useState("default");
   const [wahaNumber, setWahaNumber] = useState("");
   const [savingWaha, setSavingWaha] = useState(false);
   const [wahaStatus, setWahaStatus] = useState<ConnectionStatus>("idle");
+  const [wahaStatusLabel, setWahaStatusLabel] = useState("");
 
   // Email
   const [emailProvider, setEmailProvider] = useState<"gmail" | "resend">("gmail");
@@ -88,7 +90,7 @@ const WorkspaceSettings = () => {
     if (ws) {
       setWorkspaceName(ws.name);
       const s = ((ws as any).settings as WorkspaceSettings) || {};
-      if (s.waha) { setWahaUrl(s.waha.url); setWahaKey(s.waha.api_key); setWahaNumber(s.waha.default_number); }
+      if (s.waha) { setWahaUrl(s.waha.url); setWahaKey(s.waha.api_key); setWahaSession(s.waha.session || "default"); setWahaNumber(s.waha.default_number); }
       if (s.email) { setEmailProvider(s.email.provider); setResendKey(s.email.resend_api_key || ""); setSenderEmail(s.email.sender_email); }
       if (s.unnichat) { setUnnichatUrl(s.unnichat.url); setUnnichatToken(s.unnichat.token); }
       if (s.timezone) setTimezone(s.timezone);
@@ -147,30 +149,51 @@ const WorkspaceSettings = () => {
   };
 
   // ── WAHA ───────────────────────────────────────────────────────────────────
-  const testWaha = async (url: string, key: string): Promise<boolean> => {
+  const testWaha = async (url: string, key: string, session: string): Promise<"ok" | "session_not_found" | "error"> => {
     try {
       const res = await fetch(`${url.replace(/\/$/, "")}/api/sessions`, {
         headers: key ? { "X-Api-Key": key } : {},
       });
-      return res.ok;
+      if (!res.ok) return "error";
+      const data = await res.json();
+      // WAHA returns an array of sessions
+      const sessions: { name?: string }[] = Array.isArray(data) ? data : (data.sessions ?? []);
+      const found = sessions.some((s) => s.name === session);
+      return found ? "ok" : "session_not_found";
     } catch {
-      return false;
+      return "error";
     }
   };
 
   const saveWaha = async () => {
     setSavingWaha(true);
     setWahaStatus("loading");
-    const ok = await testWaha(wahaUrl, wahaKey);
-    setWahaStatus(ok ? "ok" : "error");
+    setWahaStatusLabel("");
+    const result = await testWaha(wahaUrl, wahaKey, wahaSession);
+
+    if (result === "ok") {
+      setWahaStatus("ok");
+      setWahaStatusLabel(`Conectado — session: ${wahaSession}`);
+    } else if (result === "session_not_found") {
+      setWahaStatus("idle"); // use idle to show yellow badge separately
+      setWahaStatusLabel(`Session não encontrada: ${wahaSession}`);
+    } else {
+      setWahaStatus("error");
+      setWahaStatusLabel("Erro de conexão");
+    }
 
     const { data: ws } = await supabase.from("workspaces").select("*").eq("id", workspaceId!).maybeSingle();
     const current = ((ws as any)?.settings as WorkspaceSettings) || {};
     await supabase.from("workspaces").update({
-      settings: { ...current, waha: { url: wahaUrl, api_key: wahaKey, default_number: wahaNumber } },
+      settings: { ...current, waha: { url: wahaUrl, api_key: wahaKey, session: wahaSession, default_number: wahaNumber } },
     } as any).eq("id", workspaceId!);
 
-    toast({ title: ok ? "WAHA salvo e conectado!" : "WAHA salvo, mas conexão falhou", variant: ok ? "default" : "destructive" });
+    const toastMsg = result === "ok"
+      ? "WAHA salvo e conectado!"
+      : result === "session_not_found"
+      ? "WAHA salvo, mas session não encontrada"
+      : "WAHA salvo, mas conexão falhou";
+    toast({ title: toastMsg, variant: result === "ok" ? "default" : "destructive" });
     setSavingWaha(false);
   };
 
@@ -241,11 +264,13 @@ const WorkspaceSettings = () => {
   };
 
   // ── Status badge helper ────────────────────────────────────────────────────
-  const StatusBadge = ({ status }: { status: ConnectionStatus }) => {
-    if (status === "idle") return null;
+  const StatusBadge = ({ status, label }: { status: ConnectionStatus; label?: string }) => {
     if (status === "loading") return <Badge variant="secondary" className="flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> Testando…</Badge>;
-    if (status === "ok") return <Badge className="flex items-center gap-1 bg-[hsl(var(--success))] text-[hsl(var(--success-foreground))] border-0"><CheckCircle2 className="h-3 w-3" /> Conectado</Badge>;
-    return <Badge variant="destructive" className="flex items-center gap-1"><XCircle className="h-3 w-3" /> Erro de conexão</Badge>;
+    if (status === "ok") return <Badge className="flex items-center gap-1 bg-[hsl(var(--success,142_71%_45%))] text-white border-0"><CheckCircle2 className="h-3 w-3" /> {label || "Conectado"}</Badge>;
+    if (status === "error") return <Badge variant="destructive" className="flex items-center gap-1"><XCircle className="h-3 w-3" /> {label || "Erro de conexão"}</Badge>;
+    // idle but with label = session not found — use warning tone via CSS var
+    if (status === "idle" && label) return <Badge variant="outline" className="flex items-center gap-1 border-[hsl(var(--warning,45_93%_47%))] text-[hsl(var(--warning,45_93%_47%))]"><XCircle className="h-3 w-3" /> {label}</Badge>;
+    return null;
   };
 
   const cardVariants = {
@@ -375,7 +400,7 @@ const WorkspaceSettings = () => {
                     <CardDescription className="text-xs">Envio de mensagens via WhatsApp API</CardDescription>
                   </div>
                 </div>
-                <StatusBadge status={wahaStatus} />
+                <StatusBadge status={wahaStatus} label={wahaStatusLabel} />
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -386,6 +411,11 @@ const WorkspaceSettings = () => {
               <div className="space-y-2">
                 <Label htmlFor="waha-key">API Key</Label>
                 <Input id="waha-key" type="password" placeholder="••••••••" value={wahaKey} onChange={(e) => setWahaKey(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="waha-session">Session</Label>
+                <Input id="waha-session" placeholder="default" value={wahaSession} onChange={(e) => setWahaSession(e.target.value)} />
+                <p className="text-xs text-muted-foreground">Nome da session no WAHA. Use &quot;default&quot; se tiver apenas uma.</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="waha-number">Número padrão de envio</Label>
