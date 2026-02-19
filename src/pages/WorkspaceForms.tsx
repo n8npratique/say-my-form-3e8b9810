@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -13,13 +13,15 @@ import { motion } from "framer-motion";
 import { useRealtimeResponses } from "@/hooks/useRealtimeResponses";
 import {
   Plus, ArrowLeft, FileText, MoreHorizontal,
-  Eye, Pencil, Trash2, Globe, Settings, Users, Copy, ArchiveRestore
+  Eye, Pencil, Trash2, Globe, Settings, Users, Copy, ArchiveRestore,
+  Star, ThumbsUp, GraduationCap, UserPlus, MessageSquare, CalendarDays, Check,
 } from "lucide-react";
 import logoPratique from "@/assets/logo-pratique.png";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { FORM_TEMPLATES, type FormTemplate } from "@/config/formTemplates";
 
 interface Form {
   id: string;
@@ -45,6 +47,10 @@ function FormNewBadge({ formId, isPublished }: { formId: string; isPublished: bo
   );
 }
 
+const TEMPLATE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  Star, ThumbsUp, GraduationCap, UserPlus, MessageSquare, CalendarDays,
+};
+
 const WorkspaceForms = () => {
   const { workspaceId } = useParams<{ workspaceId: string }>();
   const { user } = useAuth();
@@ -54,6 +60,8 @@ const WorkspaceForms = () => {
   const [loading, setLoading] = useState(true);
   const [newFormName, setNewFormName] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogMode, setDialogMode] = useState<"blank" | "template">("blank");
+  const [selectedTemplate, setSelectedTemplate] = useState<FormTemplate | null>(null);
   const [activeTab, setActiveTab] = useState("active");
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -105,30 +113,39 @@ const WorkspaceForms = () => {
     e.preventDefault();
     if (!newFormName.trim()) return;
 
-    const slug = newFormName
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/(^-|-$)/g, "") + "-" + Math.random().toString(36).substring(2, 8);
+    const slug =
+      newFormName.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") +
+      "-" + Math.random().toString(36).substring(2, 8);
 
-    const { data, error } = await supabase.from("forms").insert({
-      name: newFormName.trim(),
-      workspace_id: workspaceId!,
-      slug,
-    }).select().single();
+    const { data, error } = await supabase
+      .from("forms")
+      .insert({ name: newFormName.trim(), workspace_id: workspaceId!, slug })
+      .select()
+      .single();
 
     if (error) {
       toast({ title: "Erro", description: error.message, variant: "destructive" });
-    } else {
-      await supabase.from("form_versions").insert({
-        form_id: data.id,
-        version_number: 1,
-      });
-      toast({ title: "Formulário criado!" });
-      setNewFormName("");
-      setDialogOpen(false);
-      fetchForms();
+      return;
     }
+
+    // Build schema: blank or from template (generate fresh UUIDs)
+    const schema = selectedTemplate ? selectedTemplate.buildSchema() : { fields: [] };
+
+    await supabase.from("form_versions").insert({
+      form_id: data.id,
+      version_number: 1,
+      schema: schema as any,
+    });
+
+    toast({ title: "Formulário criado!" });
+    setNewFormName("");
+    setDialogOpen(false);
+    setSelectedTemplate(null);
+    setDialogMode("blank");
+    fetchForms();
+
+    // Navigate straight to editor
+    navigate(`/workspace/${workspaceId}/form/${data.id}/edit`);
   };
 
   const softDeleteForm = async (formId: string) => {
@@ -243,17 +260,96 @@ const WorkspaceForms = () => {
             <p className="text-muted-foreground mt-1">Gerencie os formulários deste workspace</p>
           </div>
 
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <Dialog open={dialogOpen} onOpenChange={(open) => {
+            setDialogOpen(open);
+            if (!open) { setDialogMode("blank"); setSelectedTemplate(null); setNewFormName(""); }
+          }}>
             <DialogTrigger asChild>
               <Button className="gradient-primary text-primary-foreground">
                 <Plus className="h-4 w-4 mr-2" />
                 Novo Formulário
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle className="font-display">Criar Formulário</DialogTitle>
+                <DialogTitle className="font-display text-xl">Criar Formulário</DialogTitle>
               </DialogHeader>
+
+              {/* Mode toggle */}
+              <div className="flex gap-2 mb-4">
+                <Button
+                  variant={dialogMode === "blank" ? "default" : "outline"}
+                  size="sm"
+                  className={dialogMode === "blank" ? "gradient-primary text-primary-foreground" : ""}
+                  onClick={() => { setDialogMode("blank"); setSelectedTemplate(null); }}
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  Em branco
+                </Button>
+                <Button
+                  variant={dialogMode === "template" ? "default" : "outline"}
+                  size="sm"
+                  className={dialogMode === "template" ? "gradient-primary text-primary-foreground" : ""}
+                  onClick={() => setDialogMode("template")}
+                >
+                  <Star className="h-4 w-4 mr-2" />
+                  Usar template
+                </Button>
+              </div>
+
+              {/* Template gallery */}
+              {dialogMode === "template" && (
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  {FORM_TEMPLATES.map((tpl) => {
+                    const Icon = TEMPLATE_ICONS[tpl.icon] ?? FileText;
+                    const isSelected = selectedTemplate?.id === tpl.id;
+                    return (
+                      <motion.div
+                        key={tpl.id}
+                        whileHover={{ y: -2 }}
+                        transition={{ duration: 0.15 }}
+                      >
+                        <Card
+                          className={`cursor-pointer transition-all relative ${
+                            isSelected
+                              ? "border-primary shadow-lg ring-2 ring-primary/30"
+                              : "hover:shadow-lg hover:border-primary/30"
+                          }`}
+                          onClick={() => {
+                            setSelectedTemplate(tpl);
+                            setNewFormName(tpl.name);
+                          }}
+                        >
+                          {isSelected && (
+                            <span className="absolute top-2 right-2 h-5 w-5 rounded-full gradient-primary flex items-center justify-center">
+                              <Check className="h-3 w-3 text-primary-foreground" />
+                            </span>
+                          )}
+                          <CardHeader className="p-4 space-y-2">
+                            <div className="flex items-center gap-2">
+                              <div className="h-8 w-8 rounded-md bg-primary/10 flex items-center justify-center">
+                                <Icon className="h-4 w-4 text-primary" />
+                              </div>
+                              <CardTitle className="text-sm font-semibold leading-tight">{tpl.name}</CardTitle>
+                            </div>
+                            <CardDescription className="text-xs leading-relaxed">{tpl.description}</CardDescription>
+                            <div className="flex items-center gap-2">
+                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{tpl.category}</Badge>
+                              <div className="flex gap-1 ml-auto">
+                                {tpl.themeColors.map((c, i) => (
+                                  <span key={i} className="h-3 w-3 rounded-full border border-border/50" style={{ background: c }} />
+                                ))}
+                              </div>
+                            </div>
+                          </CardHeader>
+                        </Card>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Name + submit */}
               <form onSubmit={createForm} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="form-name">Nome do formulário</Label>
@@ -265,8 +361,14 @@ const WorkspaceForms = () => {
                     required
                   />
                 </div>
-                <Button type="submit" className="w-full gradient-primary text-primary-foreground">
-                  Criar
+                <Button
+                  type="submit"
+                  className="w-full gradient-primary text-primary-foreground"
+                  disabled={dialogMode === "template" && !selectedTemplate}
+                >
+                  {dialogMode === "template" && selectedTemplate
+                    ? `Criar com template "${selectedTemplate.name}"`
+                    : "Criar formulário em branco"}
                 </Button>
               </form>
             </DialogContent>
