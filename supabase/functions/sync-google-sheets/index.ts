@@ -275,6 +275,20 @@ Deno.serve(async (req) => {
         console.warn(`Attempt ${attempt + 1} to set permissions failed:`, JSON.stringify(permData));
       }
 
+      // Compartilhar com emails específicos configurados pelo usuário
+      const shareEmails: string[] = freshConfig.share_emails || config.share_emails || [];
+      for (const email of shareEmails) {
+        try {
+          await fetch(`https://www.googleapis.com/drive/v3/files/${newId}/permissions`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ type: "user", role: "writer", emailAddress: email }),
+          });
+        } catch (e) {
+          console.warn(`Failed to share with ${email}:`, e);
+        }
+      }
+
       return newId;
     }
 

@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { FileSpreadsheet, ExternalLink, AlertTriangle, RefreshCw, Trash2, Plus, Clock, History, Zap } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { FileSpreadsheet, ExternalLink, AlertTriangle, RefreshCw, Trash2, Plus, Clock, History, Zap, UserPlus, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -22,6 +23,8 @@ export const SheetsPanel = ({ formId }: SheetsPanelProps) => {
   const [syncing, setSyncing] = useState(false);
   const [creating, setCreating] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [shareEmail, setShareEmail] = useState("");
+  const [shareEmails, setShareEmails] = useState<string[]>([]);
 
   useEffect(() => {
     fetchData();
@@ -41,6 +44,7 @@ export const SheetsPanel = ({ formId }: SheetsPanelProps) => {
       .maybeSingle();
 
     setIntegration(integ);
+    setShareEmails((integ?.config as any)?.share_emails || []);
 
     // Verificar se tem service account configurada
     if (integ || !integ) {
@@ -190,6 +194,52 @@ export const SheetsPanel = ({ formId }: SheetsPanelProps) => {
     setSyncing(false);
   };
 
+  const addShareEmail = async () => {
+    const email = shareEmail.trim().toLowerCase();
+    if (!email || !email.includes("@") || !integration) return;
+    if (shareEmails.includes(email)) {
+      setShareEmail("");
+      return;
+    }
+    const updated = [...shareEmails, email];
+    setShareEmails(updated);
+    setShareEmail("");
+    // Salvar no config
+    const { data: fresh } = await supabase
+      .from("integrations")
+      .select("config")
+      .eq("id", integration.id)
+      .maybeSingle();
+    const latestConfig = (fresh?.config as any) ?? (integration.config as any) ?? {};
+    const { data } = await supabase
+      .from("integrations")
+      .update({ config: { ...latestConfig, share_emails: updated } } as any)
+      .eq("id", integration.id)
+      .select()
+      .single();
+    if (data) setIntegration(data);
+    toast({ title: "Email adicionado", description: `${email} receberá acesso à planilha.` });
+  };
+
+  const removeShareEmail = async (email: string) => {
+    if (!integration) return;
+    const updated = shareEmails.filter((e) => e !== email);
+    setShareEmails(updated);
+    const { data: fresh } = await supabase
+      .from("integrations")
+      .select("config")
+      .eq("id", integration.id)
+      .maybeSingle();
+    const latestConfig = (fresh?.config as any) ?? (integration.config as any) ?? {};
+    const { data } = await supabase
+      .from("integrations")
+      .update({ config: { ...latestConfig, share_emails: updated } } as any)
+      .eq("id", integration.id)
+      .select()
+      .single();
+    if (data) setIntegration(data);
+  };
+
   const deleteIntegration = async () => {
     if (!integration) return;
     setSaving(true);
@@ -307,6 +357,42 @@ export const SheetsPanel = ({ formId }: SheetsPanelProps) => {
                 >
                   <RefreshCw className="h-3.5 w-3.5 mr-1" /> Recriar
                 </Button>
+              </div>
+
+              {/* Compartilhar com emails */}
+              <div className="pt-2 border-t space-y-2">
+                <div className="flex items-center gap-1.5">
+                  <UserPlus className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="text-xs font-medium">Compartilhar com</span>
+                </div>
+                <div className="flex gap-1.5">
+                  <Input
+                    type="email"
+                    placeholder="email@exemplo.com"
+                    className="h-7 text-xs"
+                    value={shareEmail}
+                    onChange={(e) => setShareEmail(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && addShareEmail()}
+                  />
+                  <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={addShareEmail}>
+                    <Plus className="h-3 w-3" />
+                  </Button>
+                </div>
+                {shareEmails.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {shareEmails.map((email) => (
+                      <Badge key={email} variant="secondary" className="text-[10px] gap-1 pr-1">
+                        {email}
+                        <button onClick={() => removeShareEmail(email)} className="hover:text-destructive">
+                          <X className="h-2.5 w-2.5" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+                <p className="text-[10px] text-muted-foreground leading-tight">
+                  Esses emails terão acesso de edição na planilha quando ela for criada/recriada.
+                </p>
               </div>
             </div>
           ) : (integration.config as any)?.enabled ? (
