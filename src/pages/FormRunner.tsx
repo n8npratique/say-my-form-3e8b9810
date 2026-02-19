@@ -188,6 +188,18 @@ const FormRunner = () => {
 
     const meta: any = {};
 
+    // Extract respondent email from answers (find first email field)
+    for (const field of fields) {
+      const ft = field.type?.toLowerCase();
+      if (ft === "email" || ft === "email_input") {
+        const val = answersRef.current[field.id];
+        if (val && typeof val === "string" && val.includes("@")) {
+          meta.respondent_email = val;
+          break;
+        }
+      }
+    }
+
     // Calculate scoring
     if (scoring) {
       const score = calculateScore(answersRef.current, scoring.field_scores);
