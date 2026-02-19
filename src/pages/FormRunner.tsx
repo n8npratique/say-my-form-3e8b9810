@@ -226,6 +226,24 @@ const FormRunner = () => {
     } catch {
       // silent fail
     }
+
+    // Sync to Google Sheets (best-effort, only fires if integration is active)
+    try {
+      await supabase.functions.invoke("sync-google-sheets", {
+        body: { form_id: formId, response_id: responseId },
+      });
+    } catch {
+      // silent fail
+    }
+
+    // Send emails (best-effort, only if templates are configured and enabled)
+    try {
+      await supabase.functions.invoke("send-email", {
+        body: { form_id: formId, response_id: responseId },
+      });
+    } catch {
+      // silent fail
+    }
   };
 
   const handleAnswer = async (value: any) => {
