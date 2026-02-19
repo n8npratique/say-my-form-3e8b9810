@@ -188,6 +188,37 @@ Deno.serve(async (req) => {
     if (hasTagging) metaCols.push({ header: "Tags", getValue: (_, m) => Array.isArray(m.tags) ? m.tags.join(", ") : "" });
     if (hasOutcomes) metaCols.push({ header: "Resultado", getValue: (_, m) => m.outcome_label || "" });
 
+    // ── Detect active integrations for status columns ──
+    const { data: activeIntegrations } = await supabase
+      .from("integrations")
+      .select("type, config")
+      .eq("form_id", form_id)
+      .neq("type", "google_sheets");
+
+    // Map DB integration type → display label + meta key
+    const integrationMap: Record<string, { label: string; metaKey: string }> = {
+      email: { label: "Email Enviado", metaKey: "email" },
+      whatsapp: { label: "WhatsApp Enviado", metaKey: "whatsapp" },
+      google_calendar: { label: "Agenda Criada", metaKey: "calendar" },
+      unnichat: { label: "Unnichat Enviado", metaKey: "unnichat" },
+    };
+
+    // Only add status columns for integrations that are enabled
+    const statusCols: { header: string; metaKey: string }[] = [];
+
+    // Email is stored in schema.email_templates, not in integrations table
+    const emailTemplates: any[] = schema.email_templates || [];
+    if (emailTemplates.length > 0) {
+      statusCols.push({ header: "Email Enviado", metaKey: "email" });
+    }
+
+    for (const integ of activeIntegrations || []) {
+      const cfg = (integ.config as any) || {};
+      if (cfg.enabled === false) continue;
+      const mapped = integrationMap[integ.type];
+      if (mapped) statusCols.push({ header: mapped.label, metaKey: mapped.metaKey });
+    }
+
     // ── Sanitizar valores para o Sheets não interpretar como fórmula ──
     function sanitize(v: string): string {
       if (v && /^[+=\-@]/.test(v)) return `'${v}`;
@@ -207,9 +238,19 @@ Deno.serve(async (req) => {
         if (typeof val === "object") return JSON.stringify(val);
         return sanitize(String(val));
       });
+      // Integration status columns
+      const integStatus = meta.integration_status || {};
+      const statusValues = statusCols.map((col) => {
+        const st = integStatus[col.metaKey];
+        if (st === "ok") return "Sim";
+        if (st === "erro") return "Erro";
+        return "";
+      });
+
       return [
         ...metaCols.map((col) => sanitize(col.getValue(resp, meta))),
         ...fieldValues,
+        ...statusValues,
       ];
     }
 
@@ -221,6 +262,7 @@ Deno.serve(async (req) => {
       const headers = [
         ...metaCols.map((col) => col.header),
         ...fieldHeaders,
+        ...statusCols.map((col) => col.header),
       ];
 
       const createRes = await fetch("https://sheets.googleapis.com/v4/spreadsheets", {

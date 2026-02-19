@@ -255,14 +255,13 @@ const FormRunner = () => {
 
     setCompleted(true);
 
-    // Fire all integrations in parallel (best-effort, non-blocking)
-    Promise.allSettled([
-      supabase.functions.invoke("fire-webhooks", {
-        body: { form_id: formId, response_id: responseId, session_token: sessionToken, event: "response.completed" },
-      }),
-      supabase.functions.invoke("sync-google-sheets", {
-        body: { form_id: formId, response_id: responseId },
-      }),
+    // 1) Fire webhooks (fire-and-forget, independent)
+    supabase.functions.invoke("fire-webhooks", {
+      body: { form_id: formId, response_id: responseId, session_token: sessionToken, event: "response.completed" },
+    }).catch(() => {});
+
+    // 2) Fire delivery integrations first, collect results
+    const integrationResults = await Promise.allSettled([
       supabase.functions.invoke("send-email", {
         body: { form_id: formId, response_id: responseId },
       }),
@@ -275,9 +274,47 @@ const FormRunner = () => {
       supabase.functions.invoke("sync-unnichat", {
         body: { form_id: formId, response_id: responseId },
       }),
-    ]).catch(() => {
-      // silent fail — all integrations are best-effort
-    });
+    ]).catch(() => []) as PromiseSettledResult<any>[] | [];
+
+    // 3) Parse integration statuses for the Sheets log
+    const integrationNames = ["email", "whatsapp", "calendar", "unnichat"];
+    const integrationStatus: Record<string, string> = {};
+    for (let i = 0; i < integrationNames.length; i++) {
+      const result = (integrationResults as any[])?.[i];
+      if (!result) continue;
+      if (result.status === "fulfilled") {
+        const d = result.value?.data;
+        if (d?.sent || d?.synced || d?.created || d?.success) {
+          integrationStatus[integrationNames[i]] = "ok";
+        } else if (d?.reason === "not_configured" || d?.reason === "no_templates" || d?.reason === "no_phone") {
+          // Not configured = skip, don't log
+        } else {
+          integrationStatus[integrationNames[i]] = "erro";
+        }
+      } else {
+        integrationStatus[integrationNames[i]] = "erro";
+      }
+    }
+
+    // 4) Save integration status to response meta
+    if (Object.keys(integrationStatus).length > 0) {
+      const { data: freshResp } = await supabase
+        .from("responses")
+        .select("meta")
+        .eq("id", responseId)
+        .maybeSingle();
+      const freshMeta = (freshResp?.meta as any) || {};
+      await supabase
+        .from("responses")
+        .update({ meta: { ...freshMeta, integration_status: integrationStatus } as any })
+        .eq("id", responseId)
+        .eq("session_token", sessionToken);
+    }
+
+    // 5) Sync to Google Sheets LAST (so it captures integration status)
+    supabase.functions.invoke("sync-google-sheets", {
+      body: { form_id: formId, response_id: responseId },
+    }).catch(() => {});
   };
 
   const formatValueText = (val: any): string => {
