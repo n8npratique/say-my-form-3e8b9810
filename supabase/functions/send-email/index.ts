@@ -148,50 +148,31 @@ async function sendViaResend(
   return await res.json();
 }
 
-// ── Enviar via Gmail API (Service Account) ──
-async function sendViaGmail(
-  clientEmail: string,
-  privateKey: string,
-  from: string,
+// ── Enviar via Gmail SMTP (App Password) ──
+async function sendViaGmailSMTP(
+  gmailEmail: string,
+  appPassword: string,
   to: string,
   subject: string,
   html: string
 ) {
-  const accessToken = await getGoogleAccessToken(
-    clientEmail,
-    privateKey,
-    "https://www.googleapis.com/auth/gmail.send"
-  );
-
-  // Montar MIME
-  const mime = [
-    `From: ${from}`,
-    `To: ${to}`,
-    `Subject: =?UTF-8?B?${btoa(unescape(encodeURIComponent(subject)))}?=`,
-    "MIME-Version: 1.0",
-    "Content-Type: text/html; charset=UTF-8",
-    "",
+  const { SMTPClient } = await import("https://deno.land/x/denomailer@1.6.0/mod.ts");
+  const client = new SMTPClient({
+    connection: {
+      hostname: "smtp.gmail.com",
+      port: 465,
+      tls: true,
+      auth: { username: gmailEmail, password: appPassword },
+    },
+  });
+  await client.send({
+    from: gmailEmail,
+    to,
+    subject,
+    content: "auto",
     html,
-  ].join("\r\n");
-
-  const raw = base64url(mime);
-
-  const res = await fetch(
-    "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ raw }),
-    }
-  );
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Gmail error: ${err}`);
-  }
-  return await res.json();
+  });
+  await client.close();
 }
 
 Deno.serve(async (req) => {
@@ -267,18 +248,11 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 3. Buscar service account se Gmail
-    let serviceAccount: any = null;
+    // 3. Validar config Gmail se necessário
     if (emailConfig.provider === "gmail") {
-      const { data: sa } = await supabase
-        .from("google_service_accounts")
-        .select("*")
-        .eq("workspace_id", form.workspace_id)
-        .maybeSingle();
-      serviceAccount = sa;
-      if (!serviceAccount) {
+      if (!emailConfig.gmail_email || !emailConfig.gmail_app_password) {
         return new Response(
-          JSON.stringify({ sent: false, reason: "no_service_account" }),
+          JSON.stringify({ sent: false, reason: "gmail_not_configured" }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
@@ -374,13 +348,13 @@ Deno.serve(async (req) => {
 
       const html = buildEmailHtml(template, vars);
       const subject = replaceVars(template.subject || form.name, vars);
-      const senderEmail = emailConfig.sender_email || "noreply@tecforms.com";
+      const senderEmail = emailConfig.provider === "gmail" ? emailConfig.gmail_email : (emailConfig.sender_email || "noreply@tecforms.com");
 
       try {
         if (emailConfig.provider === "resend") {
           await sendViaResend(emailConfig.resend_api_key, senderEmail, recipientEmail, subject, html);
-        } else if (emailConfig.provider === "gmail" && serviceAccount) {
-          await sendViaGmail(serviceAccount.client_email, serviceAccount.encrypted_key, senderEmail, recipientEmail, subject, html);
+        } else if (emailConfig.provider === "gmail") {
+          await sendViaGmailSMTP(emailConfig.gmail_email, emailConfig.gmail_app_password, recipientEmail, subject, html);
         }
         details.push({ template_id: template.id, recipient: recipientEmail, status: "sent" });
       } catch (err: any) {
