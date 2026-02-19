@@ -90,9 +90,9 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { form_id, response_id, batch_sync, create_only } = body;
+    const { form_id, response_id, batch_sync, create_only, fix_permissions } = body;
 
-    if (!form_id || (!response_id && !batch_sync && !create_only)) {
+    if (!form_id || (!response_id && !batch_sync && !create_only && !fix_permissions)) {
       return new Response(
         JSON.stringify({ synced: false, reason: "missing_params" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -238,17 +238,53 @@ Deno.serve(async (req) => {
         .update({ config: { ...freshConfig, spreadsheet_id: newId } })
         .eq("id", integration.id);
 
-      // Compartilhar publicamente com permissão de escrita
-      await fetch(`https://www.googleapis.com/drive/v3/files/${newId}/permissions`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "anyone", role: "writer" }),
-      });
+      // Compartilhar publicamente com permissão de leitura/escrita
+      // Tenta 3 vezes com pequeno delay para garantir propagação pelo Google
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (attempt > 0) await new Promise((r) => setTimeout(r, 1500));
+        const permRes = await fetch(`https://www.googleapis.com/drive/v3/files/${newId}/permissions`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "anyone", role: "writer" }),
+        });
+        const permData = await permRes.json();
+        if (permRes.ok) break;
+        console.warn(`Attempt ${attempt + 1} to set permissions failed:`, JSON.stringify(permData));
+      }
 
       return newId;
     }
 
+    // ── MODO FIX PERMISSIONS: reaplicar permissões numa planilha já existente ──
+    if (fix_permissions) {
+      const spreadsheetId = config.spreadsheet_id;
+      if (!spreadsheetId) {
+        return new Response(
+          JSON.stringify({ fixed: false, reason: "no_spreadsheet_id" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      let lastError = "";
+      let fixed = false;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (attempt > 0) await new Promise((r) => setTimeout(r, 1500));
+        const permRes = await fetch(`https://www.googleapis.com/drive/v3/files/${spreadsheetId}/permissions`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "anyone", role: "writer" }),
+        });
+        const permData = await permRes.json();
+        if (permRes.ok) { fixed = true; break; }
+        lastError = JSON.stringify(permData);
+      }
+      return new Response(
+        JSON.stringify({ fixed, spreadsheet_id: spreadsheetId, error: fixed ? undefined : lastError }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // ── MODO CREATE ONLY: criar planilha sem sincronizar respostas ──
+
     if (create_only) {
       if (config.spreadsheet_id) {
         return new Response(

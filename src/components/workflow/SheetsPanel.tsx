@@ -154,6 +154,25 @@ export const SheetsPanel = ({ formId }: SheetsPanelProps) => {
     setCreating(false);
   };
 
+  const fixPermissions = async () => {
+    if (!integration) return;
+    setSaving(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("sync-google-sheets", {
+        body: { form_id: formId, fix_permissions: true },
+      });
+      if (error) throw error;
+      if (data?.fixed) {
+        toast({ title: "Permissões corrigidas!", description: "Tente abrir a planilha novamente." });
+      } else {
+        toast({ title: "Erro ao corrigir", description: data?.error ?? "Tente novamente.", variant: "destructive" });
+      }
+    } catch (err: any) {
+      toast({ title: "Erro ao corrigir", description: err.message, variant: "destructive" });
+    }
+    setSaving(false);
+  };
+
   const syncPreviousResponses = async () => {
     if (!integration) return;
     setSyncing(true);
@@ -275,15 +294,27 @@ export const SheetsPanel = ({ formId }: SheetsPanelProps) => {
                 <ExternalLink className="h-3.5 w-3.5" />
                 Abrir planilha no Google Sheets
               </a>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full text-xs text-muted-foreground hover:text-foreground"
-                onClick={recreateSpreadsheet}
-                disabled={saving}
-              >
-                <RefreshCw className="h-3.5 w-3.5 mr-1" /> Recriar planilha
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="flex-1 text-xs text-muted-foreground hover:text-foreground"
+                  onClick={fixPermissions}
+                  disabled={saving}
+                  title="Reaplicar permissão pública na planilha (use se receber 'Acesso negado')"
+                >
+                  <AlertTriangle className="h-3.5 w-3.5 mr-1" /> Corrigir acesso
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="flex-1 text-xs text-muted-foreground hover:text-foreground"
+                  onClick={recreateSpreadsheet}
+                  disabled={saving}
+                >
+                  <RefreshCw className="h-3.5 w-3.5 mr-1" /> Recriar
+                </Button>
+              </div>
             </div>
           ) : (integration.config as any)?.enabled ? (
             <div className="space-y-2">
