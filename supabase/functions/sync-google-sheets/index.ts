@@ -167,6 +167,27 @@ Deno.serve(async (req) => {
 
     const config = (integration.config as any) || {};
 
+    // ── Detect which meta columns are relevant ──
+    const hasEmailField = fields.some((f: any) => {
+      const t = (f.type || "").toLowerCase();
+      return t === "email" || t === "email_input";
+    });
+    const hasScoring = !!schema.scoring?.enabled;
+    const hasTagging = !!schema.tagging?.enabled;
+    const hasOutcomes = !!schema.outcomes?.enabled;
+
+    // Build dynamic meta columns: always Data/Hora, then only what's configured
+    const metaCols: { header: string; getValue: (resp: any, meta: any) => string }[] = [
+      { header: "Data/Hora", getValue: (resp) => formatDateBR(resp?.started_at || new Date().toISOString()) },
+    ];
+    if (hasEmailField) metaCols.push({ header: "Email", getValue: (_, m) => m.respondent_email || "" });
+    if (hasScoring) {
+      metaCols.push({ header: "Score", getValue: (_, m) => m.score !== undefined ? String(m.score) : "" });
+      metaCols.push({ header: "Faixa", getValue: (_, m) => m.score_range || "" });
+    }
+    if (hasTagging) metaCols.push({ header: "Tags", getValue: (_, m) => Array.isArray(m.tags) ? m.tags.join(", ") : "" });
+    if (hasOutcomes) metaCols.push({ header: "Resultado", getValue: (_, m) => m.outcome_label || "" });
+
     // ── Helper: montar uma linha de dados ──
     function buildRow(resp: any, ans: any[]): string[] {
       const meta = (resp?.meta as any) || {};
@@ -181,13 +202,7 @@ Deno.serve(async (req) => {
         return String(val);
       });
       return [
-        formatDateBR(resp?.started_at || new Date().toISOString()),
-        resp?.status || "completed",
-        meta.respondent_email || "",
-        meta.score !== undefined ? String(meta.score) : "",
-        meta.score_range || "",
-        Array.isArray(meta.tags) ? meta.tags.join(", ") : "",
-        meta.outcome_label || "",
+        ...metaCols.map((col) => col.getValue(resp, meta)),
         ...fieldValues,
       ];
     }
@@ -198,8 +213,7 @@ Deno.serve(async (req) => {
 
       const fieldHeaders = fields.map((f: any) => f.label || f.id);
       const headers = [
-        "Data/Hora", "Status", "Email Respondente",
-        "Score", "Score Range", "Tags", "Outcome",
+        ...metaCols.map((col) => col.header),
         ...fieldHeaders,
       ];
 
