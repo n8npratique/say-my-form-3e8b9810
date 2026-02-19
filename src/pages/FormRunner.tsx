@@ -280,6 +280,31 @@ const FormRunner = () => {
     });
   };
 
+  const formatValueText = (val: any): string => {
+    if (val == null) return "";
+    if (typeof val === "string") return val;
+    if (typeof val === "number" || typeof val === "boolean") return String(val);
+    if (Array.isArray(val)) return val.join(", ");
+    if (typeof val === "object") {
+      // Name-like fields: {first_name, last_name, phone, ...}
+      if (val.first_name || val.last_name) {
+        const name = [val.first_name, val.last_name].filter(Boolean).join(" ");
+        const extra = Object.entries(val)
+          .filter(([k]) => !["first_name", "last_name"].includes(k))
+          .map(([, v]) => v)
+          .filter(Boolean);
+        return extra.length > 0 ? `${name} | ${extra.join(" | ")}` : name;
+      }
+      // Address-like: {street, city, state, zip, ...}
+      if (val.street || val.city) {
+        return Object.values(val).filter(Boolean).join(", ");
+      }
+      // Generic object: join values with separator
+      return Object.values(val).filter(Boolean).join(" | ");
+    }
+    return String(val);
+  };
+
   const handleAnswer = async (value: any) => {
     if (!responseId || !currentFieldId) return;
     const field = fields.find((f) => f.id === currentFieldId);
@@ -292,7 +317,7 @@ const FormRunner = () => {
       response_id: responseId,
       field_key: field.id,
       value: value as any,
-      value_text: typeof value === "string" ? value : JSON.stringify(value),
+      value_text: formatValueText(value),
     });
 
     setAnsweredCount((prev) => prev + 1);
