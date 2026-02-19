@@ -27,14 +27,7 @@ export const SheetsPanel = ({ formId }: SheetsPanelProps) => {
     fetchData();
   }, [formId]);
 
-  // Polling: quando a integração está ativa mas sem spreadsheet_id,
-  // verifica a cada 5s se a edge function já criou a planilha
-  useEffect(() => {
-    const config = (integration?.config as any) ?? {};
-    if (!integration || config.spreadsheet_id || !config.enabled) return;
-    const interval = setInterval(fetchData, 5000);
-    return () => clearInterval(interval);
-  }, [integration]);
+  // Polling removido - usar botão "Criar planilha agora" para criar manualmente
 
   const fetchData = async () => {
     setLoading(true);
