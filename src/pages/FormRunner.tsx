@@ -243,59 +243,29 @@ const FormRunner = () => {
 
     setCompleted(true);
 
-    // Fire webhooks for response.completed (best-effort)
-    try {
-      await supabase.functions.invoke("fire-webhooks", {
+    // Fire all integrations in parallel (best-effort, non-blocking)
+    Promise.allSettled([
+      supabase.functions.invoke("fire-webhooks", {
         body: { form_id: formId, response_id: responseId, session_token: sessionToken, event: "response.completed" },
-      });
-    } catch {
-      // silent fail
-    }
-
-    // Sync to Google Sheets (best-effort, only fires if integration is active)
-    try {
-      await supabase.functions.invoke("sync-google-sheets", {
+      }),
+      supabase.functions.invoke("sync-google-sheets", {
         body: { form_id: formId, response_id: responseId },
-      });
-    } catch {
-      // silent fail
-    }
-
-    // Send emails (best-effort, only if templates are configured and enabled)
-    try {
-      await supabase.functions.invoke("send-email", {
+      }),
+      supabase.functions.invoke("send-email", {
         body: { form_id: formId, response_id: responseId },
-      });
-    } catch {
-      // silent fail
-    }
-
-    // Send WhatsApp via WAHA (best-effort)
-    try {
-      await supabase.functions.invoke("send-whatsapp", {
+      }),
+      supabase.functions.invoke("send-whatsapp", {
         body: { form_id: formId, response_id: responseId },
-      });
-    } catch {
-      // silent fail
-    }
-
-    // Create Google Calendar event (best-effort)
-    try {
-      await supabase.functions.invoke("create-calendar-event", {
+      }),
+      supabase.functions.invoke("create-calendar-event", {
         body: { form_id: formId, response_id: responseId },
-      });
-    } catch {
-      // silent fail
-    }
-
-    // Sync to Unnichat (best-effort)
-    try {
-      await supabase.functions.invoke("sync-unnichat", {
+      }),
+      supabase.functions.invoke("sync-unnichat", {
         body: { form_id: formId, response_id: responseId },
-      });
-    } catch {
-      // silent fail
-    }
+      }),
+    ]).catch(() => {
+      // silent fail — all integrations are best-effort
+    });
   };
 
   const handleAnswer = async (value: any) => {

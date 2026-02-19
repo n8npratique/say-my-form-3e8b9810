@@ -16,14 +16,15 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
   );
 
-  const body = await req.json();
-  const { form_id, response_id, test_mode, test_template } = body;
-
   const respond = (obj: object, status = 200) =>
     new Response(JSON.stringify(obj), {
       status,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
+
+  try {
+  const body = await req.json();
+  const { form_id, response_id, test_mode, test_template } = body;
 
   // ── 1. Fetch WhatsApp integration ──
   const { data: integ } = await supabase
@@ -232,4 +233,8 @@ Deno.serve(async (req) => {
   }
 
   return respond({ sent: sentCount > 0, count: sentCount });
+  } catch (err: any) {
+    console.error("send-whatsapp error:", err);
+    return respond({ sent: false, reason: "error", error: err.message }, 500);
+  }
 });

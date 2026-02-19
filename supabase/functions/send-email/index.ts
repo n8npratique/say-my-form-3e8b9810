@@ -11,7 +11,10 @@ async function importPrivateKey(pem: string): Promise<CryptoKey> {
   const pemContents = pem
     .replace(/-----BEGIN PRIVATE KEY-----/, "")
     .replace(/-----END PRIVATE KEY-----/, "")
-    .replace(/\n/g, "");
+    .replace(/\\n/g, "")
+    .replace(/\n/g, "")
+    .replace(/\r/g, "")
+    .trim();
   const binaryDer = Uint8Array.from(atob(pemContents), (c) => c.charCodeAt(0));
   return crypto.subtle.importKey(
     "pkcs8",

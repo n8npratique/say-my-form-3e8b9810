@@ -11,7 +11,10 @@ async function importPrivateKey(pem: string): Promise<CryptoKey> {
   const pemContents = pem
     .replace(/-----BEGIN PRIVATE KEY-----/, "")
     .replace(/-----END PRIVATE KEY-----/, "")
-    .replace(/\n/g, "");
+    .replace(/\\n/g, "")
+    .replace(/\n/g, "")
+    .replace(/\r/g, "")
+    .trim();
   const binaryDer = Uint8Array.from(atob(pemContents), (c) => c.charCodeAt(0));
   return crypto.subtle.importKey(
     "pkcs8",
@@ -375,7 +378,7 @@ Deno.serve(async (req) => {
     const row = buildRow(response, answers || []);
 
     await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Respostas!A:ZZ:append?valueInputOption=USER_ENTERED`,
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Respostas!A:ZZ:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
       {
         method: "POST",
         headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
