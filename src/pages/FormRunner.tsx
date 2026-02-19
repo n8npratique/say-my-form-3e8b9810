@@ -19,7 +19,8 @@ const FormRunner = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [formName, setFormName] = useState("");
-  const [fields, setFields] = useState<FormField[]>([]);
+  const [allFields, setAllFields] = useState<FormField[]>([]);   // ALL fields incl. end_screen
+  const [fields, setFields] = useState<FormField[]>([]);         // answerable fields only
   const [logic, setLogic] = useState<FieldLogic[]>([]);
   const [scoring, setScoring] = useState<ScoringConfig | null>(null);
   const [tagging, setTagging] = useState<TaggingConfig | null>(null);
@@ -44,6 +45,8 @@ const FormRunner = () => {
   const [outcomeLabel, setOutcomeLabel] = useState<string | null>(null);
   const [outcomeDesc, setOutcomeDesc] = useState<string | null>(null);
   const [scoreResult, setScoreResult] = useState<{ score: number; label?: string } | null>(null);
+  // Conditional end screen
+  const [endScreen, setEndScreen] = useState<FormField | null>(null);
 
   useEffect(() => {
     if (slug) loadForm();
@@ -88,8 +91,14 @@ const FormRunner = () => {
     if (version) {
       const schema = version.schema as any as FormSchema;
       if (schema?.fields) {
-        setFields(schema.fields);
-        setCurrentFieldId(schema.fields[0]?.id || null);
+        const allF: FormField[] = schema.fields;
+        setAllFields(allF);
+        // Answerable fields: exclude end_screen and welcome_screen types
+        const answerable = allF.filter(
+          (f) => f.type !== "end_screen" && f.type !== "welcome_screen"
+        );
+        setFields(answerable);
+        setCurrentFieldId(answerable[0]?.id || null);
       }
       if (schema?.logic) setLogic(schema.logic);
       if (schema?.scoring?.enabled) setScoring(schema.scoring);
@@ -203,6 +212,22 @@ const FormRunner = () => {
         meta.outcome_label = def?.label;
         setOutcomeLabel(def?.label || null);
         setOutcomeDesc(def?.description || null);
+
+        // Resolve end screen from outcome (priority 1)
+        if (def?.end_screen_id) {
+          const es = allFields.find((f) => f.id === def.end_screen_id);
+          if (es) setEndScreen(es);
+        }
+      }
+    }
+
+    // Resolve end screen from score range (priority 2, only if not set by outcome)
+    if (scoring) {
+      const score = meta.score ?? 0;
+      const range = scoring.ranges.find((r) => score >= r.min && score <= r.max);
+      if (range?.end_screen_id) {
+        const es = allFields.find((f) => f.id === range.end_screen_id);
+        if (es) setEndScreen((prev) => prev ?? es); // don't override outcome's end screen
       }
     }
 
@@ -360,19 +385,50 @@ const FormRunner = () => {
           <div className="absolute inset-0" style={{ backgroundColor: `rgba(0,0,0,${theme.background_overlay})` }} />
         )}
         <div className="text-center space-y-4 max-w-md relative z-10">
-          {outcomeLabel ? (
+          {endScreen ? (
+            /* ── Conditional End Screen ── */
+            <>
+              {endScreen.media_url && (
+                <img
+                  src={endScreen.media_url}
+                  alt=""
+                  className="w-full max-h-48 object-contain rounded-xl mb-2"
+                />
+              )}
+              <CheckCircle2 className="h-14 w-14 mx-auto" style={{ color: theme.button_color }} />
+              <h1 className="text-2xl font-bold">{endScreen.label || "Obrigado!"}</h1>
+              {endScreen.placeholder && (
+                <p style={{ color: theme.text_secondary_color }}>{endScreen.placeholder}</p>
+              )}
+              {(endScreen as any).button_text && (endScreen as any).button_url && (
+                <a
+                  href={(endScreen as any).button_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block mt-2 px-6 py-2 rounded-lg font-medium transition-opacity hover:opacity-80"
+                  style={{ backgroundColor: theme.button_color, color: theme.button_text_color }}
+                >
+                  {(endScreen as any).button_text}
+                </a>
+              )}
+            </>
+          ) : outcomeLabel ? (
+            /* ── Outcome (no specific end screen) ── */
             <>
               <Trophy className="h-16 w-16 mx-auto" style={{ color: theme.button_color }} />
               <h1 className="text-2xl font-bold">{outcomeLabel}</h1>
               {outcomeDesc && <p style={{ color: theme.text_secondary_color }}>{outcomeDesc}</p>}
             </>
           ) : (
+            /* ── Default thank-you screen ── */
             <>
               <CheckCircle2 className="h-16 w-16 mx-auto" style={{ color: theme.button_color }} />
               <h1 className="text-2xl font-bold">Obrigado!</h1>
               <p style={{ color: theme.text_secondary_color }}>Suas respostas foram enviadas com sucesso.</p>
             </>
           )}
+
+          {/* Score card — always shown when scoring is active */}
           {scoreResult && (
             <div className="mt-4 p-4 rounded-xl" style={{ backgroundColor: `${theme.button_color}15`, border: `1px solid ${theme.button_color}30` }}>
               <p className="text-sm" style={{ color: theme.text_secondary_color }}>Sua pontuação</p>
