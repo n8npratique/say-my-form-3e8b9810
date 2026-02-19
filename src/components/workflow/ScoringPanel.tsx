@@ -2,7 +2,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, Award } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Plus, Trash2, Award, PanelBottom } from "lucide-react";
 import type { FormField, ScoringConfig } from "@/types/workflow";
 
 interface ScoringPanelProps {
@@ -15,6 +16,7 @@ const CHOICE_TYPES = ["multiple_choice", "dropdown", "image_choice", "yes_no", "
 
 export const ScoringPanel = ({ fields, scoring, onUpdateScoring }: ScoringPanelProps) => {
   const choiceFields = fields.filter((f) => CHOICE_TYPES.includes(f.type) && f.options?.length);
+  const endScreenFields = fields.filter((f) => f.type === "end_screen");
 
   const setScore = (fieldId: string, option: string, score: number) => {
     const fieldScores = { ...scoring.field_scores };
@@ -82,31 +84,53 @@ export const ScoringPanel = ({ fields, scoring, onUpdateScoring }: ScoringPanelP
           <div className="space-y-3">
             <h4 className="text-xs font-medium text-muted-foreground uppercase">Faixas de resultado</h4>
             {scoring.ranges.map((range, i) => (
-              <div key={i} className="flex items-center gap-2 border rounded-lg p-2">
-                <Input
-                  type="number"
-                  className="h-7 w-16 text-xs"
-                  placeholder="Min"
-                  value={range.min}
-                  onChange={(e) => updateRange(i, "min", Number(e.target.value))}
-                />
-                <span className="text-xs">—</span>
-                <Input
-                  type="number"
-                  className="h-7 w-16 text-xs"
-                  placeholder="Max"
-                  value={range.max}
-                  onChange={(e) => updateRange(i, "max", Number(e.target.value))}
-                />
-                <Input
-                  className="h-7 flex-1 text-xs"
-                  placeholder="Rótulo"
-                  value={range.label ?? ""}
-                  onChange={(e) => updateRange(i, "label", e.target.value)}
-                />
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeRange(i)}>
-                  <Trash2 className="h-3 w-3 text-destructive" />
-                </Button>
+              <div key={i} className="border rounded-lg p-2 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    className="h-7 w-16 text-xs"
+                    placeholder="Min"
+                    value={range.min}
+                    onChange={(e) => updateRange(i, "min", Number(e.target.value))}
+                  />
+                  <span className="text-xs">—</span>
+                  <Input
+                    type="number"
+                    className="h-7 w-16 text-xs"
+                    placeholder="Max"
+                    value={range.max}
+                    onChange={(e) => updateRange(i, "max", Number(e.target.value))}
+                  />
+                  <Input
+                    className="h-7 flex-1 text-xs"
+                    placeholder="Rótulo"
+                    value={range.label ?? ""}
+                    onChange={(e) => updateRange(i, "label", e.target.value)}
+                  />
+                  <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => removeRange(i)}>
+                    <Trash2 className="h-3 w-3 text-destructive" />
+                  </Button>
+                </div>
+                {endScreenFields.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <PanelBottom className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <Label className="text-xs text-muted-foreground shrink-0">Tela final:</Label>
+                    <Select
+                      value={range.end_screen_id || "__default__"}
+                      onValueChange={(v) => updateRange(i, "end_screen_id", v === "__default__" ? "" : v)}
+                    >
+                      <SelectTrigger className="h-6 text-xs flex-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__default__">Padrão (genérica)</SelectItem>
+                        {endScreenFields.map((f) => (
+                          <SelectItem key={f.id} value={f.id}>{f.label || "Tela final"}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
             ))}
             <Button variant="outline" size="sm" className="w-full" onClick={addRange}>
