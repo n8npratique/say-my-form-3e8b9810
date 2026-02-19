@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.sync-unnichat]
 verify_jwt = false
+
+[functions.send-whatsapp]
+verify_jwt = false
