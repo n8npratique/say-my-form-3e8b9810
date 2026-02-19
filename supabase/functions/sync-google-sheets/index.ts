@@ -224,12 +224,21 @@ Deno.serve(async (req) => {
       });
       const createData = await createRes.json();
       const newId = createData.spreadsheetId;
+      if (!newId) throw new Error(`Sheets create failed: ${JSON.stringify(createData)}`);
+
+      // Busca config mais recente do banco antes de salvar para não perder campos
+      const { data: freshInteg } = await supabase
+        .from("integrations")
+        .select("config")
+        .eq("id", integration.id)
+        .maybeSingle();
+      const freshConfig = (freshInteg?.config as any) ?? config;
 
       await supabase.from("integrations")
-        .update({ config: { ...config, spreadsheet_id: newId } })
+        .update({ config: { ...freshConfig, spreadsheet_id: newId } })
         .eq("id", integration.id);
 
-      // Compartilhar (acesso público de escrita)
+      // Compartilhar publicamente com permissão de escrita
       await fetch(`https://www.googleapis.com/drive/v3/files/${newId}/permissions`, {
         method: "POST",
         headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
