@@ -188,6 +188,12 @@ Deno.serve(async (req) => {
     if (hasTagging) metaCols.push({ header: "Tags", getValue: (_, m) => Array.isArray(m.tags) ? m.tags.join(", ") : "" });
     if (hasOutcomes) metaCols.push({ header: "Resultado", getValue: (_, m) => m.outcome_label || "" });
 
+    // ── Sanitizar valores para o Sheets não interpretar como fórmula ──
+    function sanitize(v: string): string {
+      if (v && /^[+=\-@]/.test(v)) return `'${v}`;
+      return v;
+    }
+
     // ── Helper: montar uma linha de dados ──
     function buildRow(resp: any, ans: any[]): string[] {
       const meta = (resp?.meta as any) || {};
@@ -199,10 +205,10 @@ Deno.serve(async (req) => {
         const val = answerMap[f.id];
         if (val === null || val === undefined) return "";
         if (typeof val === "object") return JSON.stringify(val);
-        return String(val);
+        return sanitize(String(val));
       });
       return [
-        ...metaCols.map((col) => col.getValue(resp, meta)),
+        ...metaCols.map((col) => sanitize(col.getValue(resp, meta))),
         ...fieldValues,
       ];
     }
