@@ -84,10 +84,17 @@ export const SheetsPanel = ({ formId }: SheetsPanelProps) => {
   const toggleEnabled = async (enabled: boolean) => {
     if (!integration) return;
     setSaving(true);
-    const config = (integration.config as any) || {};
+    // ⚠️ Sempre busca o config mais recente do banco antes de salvar
+    // para não sobrescrever campos escritos pela edge function (ex: spreadsheet_id)
+    const { data: fresh } = await supabase
+      .from("integrations")
+      .select("config")
+      .eq("id", integration.id)
+      .maybeSingle();
+    const latestConfig = (fresh?.config as any) ?? (integration.config as any) ?? {};
     const { data } = await supabase
       .from("integrations")
-      .update({ config: { ...config, enabled } } as any)
+      .update({ config: { ...latestConfig, enabled } } as any)
       .eq("id", integration.id)
       .select()
       .single();
@@ -99,8 +106,14 @@ export const SheetsPanel = ({ formId }: SheetsPanelProps) => {
   const recreateSpreadsheet = async () => {
     if (!integration) return;
     setSaving(true);
-    const config = (integration.config as any) || {};
-    const { spreadsheet_id: _, ...rest } = config;
+    // ⚠️ Busca config mais recente antes de remover spreadsheet_id
+    const { data: fresh } = await supabase
+      .from("integrations")
+      .select("config")
+      .eq("id", integration.id)
+      .maybeSingle();
+    const latestConfig = (fresh?.config as any) ?? (integration.config as any) ?? {};
+    const { spreadsheet_id: _, ...rest } = latestConfig;
     const { data } = await supabase
       .from("integrations")
       .update({ config: { ...rest } } as any)
@@ -127,12 +140,12 @@ export const SheetsPanel = ({ formId }: SheetsPanelProps) => {
           title: "Sincronização concluída!",
           description: `${data?.count ?? 0} resposta(s) sincronizada(s) com sucesso.`,
         });
-        // Atualizar integração para refletir last_synced_at
-        await fetchData();
       }
     } catch (err: any) {
       toast({ title: "Erro ao sincronizar", description: err.message, variant: "destructive" });
     }
+    // Sempre atualiza o painel após sincronizar (captura spreadsheet_id criado pela edge fn)
+    await fetchData();
     setSyncing(false);
   };
 
