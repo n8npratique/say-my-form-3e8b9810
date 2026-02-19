@@ -28,6 +28,29 @@ export const ActionsPanel = ({
   tagging = null,
   outcomes = null,
 }: ActionsPanelProps) => {
+  const hasEmailField = fields.some((f) => {
+    const t = f.type?.toLowerCase();
+    return t === "email" || t === "email_input";
+  });
+  const hasPhoneField = fields.some((f) => {
+    const t = f.type?.toLowerCase();
+    return t === "phone" || t === "phone_input";
+  });
+
+  const MissingFieldWarning = ({ fieldType, integration }: { fieldType: string; integration: string }) => (
+    <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-4 text-center space-y-2">
+      <div className="w-10 h-10 rounded-full bg-yellow-500/20 flex items-center justify-center mx-auto">
+        <Mail className="h-5 w-5 text-yellow-600" />
+      </div>
+      <p className="text-sm font-medium text-yellow-700 dark:text-yellow-400">
+        Campo de {fieldType} não encontrado
+      </p>
+      <p className="text-xs text-muted-foreground">
+        Adicione um campo de <strong>{fieldType}</strong> ao formulário para habilitar a integração com {integration}.
+      </p>
+    </div>
+  );
+
   return (
     <div className="border-l w-80 bg-card/30 p-4 overflow-y-auto">
       <h3 className="font-display font-semibold text-sm mb-4">Actions</h3>
@@ -42,16 +65,16 @@ export const ActionsPanel = ({
           <TabsTrigger value="sheets" className="gap-1 text-xs px-0.5">
             <FileSpreadsheet className="h-3 w-3" />
           </TabsTrigger>
-          <TabsTrigger value="messages" className="gap-1 text-xs px-0.5">
+          <TabsTrigger value="messages" className={`gap-1 text-xs px-0.5 ${!hasEmailField ? "opacity-50" : ""}`}>
             <Mail className="h-3 w-3" />
           </TabsTrigger>
-          <TabsTrigger value="whatsapp" className="gap-1 text-xs px-0.5">
+          <TabsTrigger value="whatsapp" className={`gap-1 text-xs px-0.5 ${!hasPhoneField ? "opacity-50" : ""}`}>
             <Phone className="h-3 w-3" />
           </TabsTrigger>
           <TabsTrigger value="calendar" className="gap-1 text-xs px-0.5">
             <Calendar className="h-3 w-3" />
           </TabsTrigger>
-          <TabsTrigger value="unnichat" className="gap-1 text-xs px-0.5">
+          <TabsTrigger value="unnichat" className={`gap-1 text-xs px-0.5 ${!hasPhoneField ? "opacity-50" : ""}`}>
             <MessageCircle className="h-3 w-3" />
           </TabsTrigger>
         </TabsList>
@@ -74,22 +97,34 @@ export const ActionsPanel = ({
           <SheetsPanel formId={formId} />
         </TabsContent>
         <TabsContent value="messages" className="mt-0">
-          <MessagesPanel templates={emailTemplates} onUpdateTemplates={onUpdateEmailTemplates} formId={formId} />
+          {hasEmailField ? (
+            <MessagesPanel templates={emailTemplates} onUpdateTemplates={onUpdateEmailTemplates} formId={formId} />
+          ) : (
+            <MissingFieldWarning fieldType="email" integration="Email" />
+          )}
         </TabsContent>
         <TabsContent value="whatsapp" className="mt-0">
-          <WhatsAppPanel formId={formId} />
+          {hasPhoneField ? (
+            <WhatsAppPanel formId={formId} />
+          ) : (
+            <MissingFieldWarning fieldType="telefone" integration="WhatsApp" />
+          )}
         </TabsContent>
         <TabsContent value="calendar" className="mt-0">
           <CalendarPanel formId={formId} fields={fields} />
         </TabsContent>
         <TabsContent value="unnichat" className="mt-0">
-          <UnnichatPanel
-            formId={formId}
-            fields={fields}
-            scoring={scoring}
-            tagging={tagging}
-            outcomes={outcomes}
-          />
+          {hasPhoneField ? (
+            <UnnichatPanel
+              formId={formId}
+              fields={fields}
+              scoring={scoring}
+              tagging={tagging}
+              outcomes={outcomes}
+            />
+          ) : (
+            <MissingFieldWarning fieldType="telefone" integration="Unnichat" />
+          )}
         </TabsContent>
       </Tabs>
     </div>
