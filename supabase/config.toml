@@ -15,5 +15,8 @@ verify_jwt = false
 [functions.send-whatsapp]
 verify_jwt = false
 
+[functions.manage-service-account]
+verify_jwt = false
+
 [functions.create-calendar-event]
 verify_jwt = false
