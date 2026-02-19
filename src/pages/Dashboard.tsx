@@ -3,14 +3,19 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
-import { Plus, LogOut, Building2 } from "lucide-react";
+import { Plus, LogOut, Building2, Bell } from "lucide-react";
 import logoPratique from "@/assets/logo-pratique.png";
+import { useRealtimeResponses } from "@/hooks/useRealtimeResponses";
+import { formatDistanceToNow } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 interface Workspace {
   id: string;
@@ -24,8 +29,12 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [newWorkspaceName, setNewWorkspaceName] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [allFormIds, setAllFormIds] = useState<string[]>([]);
+  const [formNames, setFormNames] = useState<Record<string, string>>({});
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  const { newCount, recentResponses, resetCount } = useRealtimeResponses({ formIds: allFormIds });
 
   useEffect(() => {
     fetchWorkspaces();
@@ -43,6 +52,18 @@ const Dashboard = () => {
       setWorkspaces(data || []);
     }
     setLoading(false);
+
+    // Buscar todos os form_ids para o canal Realtime global
+    const { data: forms } = await supabase
+      .from("forms")
+      .select("id, name")
+      .is("deleted_at", null);
+    if (forms) {
+      setAllFormIds(forms.map((f) => f.id));
+      const names: Record<string, string> = {};
+      forms.forEach((f) => { names[f.id] = f.name; });
+      setFormNames(names);
+    }
   };
 
   const createWorkspace = async (e: React.FormEvent) => {
@@ -73,8 +94,62 @@ const Dashboard = () => {
             <img src={logoPratique} alt="TecForms" className="h-8 w-8 rounded-full" />
             <span className="text-xl font-display font-bold gradient-text">TecForms</span>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <span className="text-sm text-muted-foreground">{user?.email}</span>
+
+            {/* Sino de notificações */}
+            <Popover onOpenChange={(open) => { if (open) resetCount(); }}>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" size="icon" className="relative">
+                  <Bell className="h-4 w-4" />
+                  {newCount > 0 && (
+                    <Badge
+                      variant="destructive"
+                      className="absolute -top-1 -right-1 h-4 min-w-4 px-1 text-[10px] animate-pulse"
+                    >
+                      {newCount}
+                    </Badge>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-80 p-0">
+                <div className="p-3 border-b">
+                  <p className="text-sm font-semibold">Notificações</p>
+                </div>
+                {recentResponses.length === 0 ? (
+                  <div className="p-6 text-center text-sm text-muted-foreground">
+                    Nenhuma notificação recente
+                  </div>
+                ) : (
+                  <div className="divide-y">
+                    {recentResponses.slice(0, 5).map((r) => (
+                      <button
+                        key={r.id}
+                        className="w-full text-left px-4 py-3 hover:bg-muted/50 transition-colors"
+                        onClick={() => {
+                          const ws = workspaces[0];
+                          if (ws) navigate(`/workspace/${ws.id}/form/${r.form_id}/responses`);
+                        }}
+                      >
+                        <p className="text-sm font-medium truncate">{formNames[r.form_id] || "Formulário"}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <Badge
+                            variant={r.status === "completed" ? "default" : "secondary"}
+                            className="text-[10px] h-4"
+                          >
+                            {r.status === "completed" ? "Completada" : "Em andamento"}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">
+                            {formatDistanceToNow(new Date(r.started_at), { locale: ptBR, addSuffix: true })}
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </PopoverContent>
+            </Popover>
+
             <Button variant="ghost" size="icon" onClick={signOut}>
               <LogOut className="h-4 w-4" />
             </Button>
@@ -125,11 +200,7 @@ const Dashboard = () => {
             <img src={logoPratique} alt="Carregando" className="h-8 w-8 rounded-full animate-pulse" />
           </div>
         ) : workspaces.length === 0 ? (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center py-20"
-          >
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center py-20">
             <Building2 className="h-16 w-16 text-muted-foreground/30 mx-auto mb-4" />
             <h2 className="text-xl font-display font-semibold mb-2">Nenhum workspace ainda</h2>
             <p className="text-muted-foreground mb-6">Crie seu primeiro workspace para começar a construir formulários.</p>
@@ -141,12 +212,7 @@ const Dashboard = () => {
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {workspaces.map((ws, i) => (
-              <motion.div
-                key={ws.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.05 }}
-              >
+              <motion.div key={ws.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
                 <Card
                   className="cursor-pointer hover:shadow-lg hover:border-primary/30 transition-all group"
                   onClick={() => navigate(`/workspace/${ws.id}`)}
