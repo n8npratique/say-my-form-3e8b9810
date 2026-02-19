@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
+import { useRealtimeResponses } from "@/hooks/useRealtimeResponses";
 import {
   Plus, ArrowLeft, FileText, MoreHorizontal,
   Eye, Pencil, Trash2, Globe, Settings, Users, Copy, ArchiveRestore
@@ -28,6 +29,20 @@ interface Form {
   created_at: string;
   updated_at: string;
   deleted_at?: string | null;
+}
+
+// Sub-componente isolado para badge de novas respostas (cada form tem seu próprio canal Realtime)
+function FormNewBadge({ formId, isPublished }: { formId: string; isPublished: boolean }) {
+  const { newCount } = useRealtimeResponses({ formId: isPublished ? formId : undefined });
+  if (!isPublished || newCount === 0) return null;
+  return (
+    <Badge
+      variant="destructive"
+      className="animate-pulse h-5 min-w-5 px-1.5 text-[10px] flex items-center justify-center absolute -top-1.5 -right-1.5"
+    >
+      {newCount}
+    </Badge>
+  );
 }
 
 const WorkspaceForms = () => {
@@ -295,7 +310,8 @@ const WorkspaceForms = () => {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.05 }}
                   >
-                    <Card className="hover:shadow-lg hover:border-primary/30 transition-all group">
+                    <Card className="hover:shadow-lg hover:border-primary/30 transition-all group relative overflow-visible">
+                      <FormNewBadge formId={form.id} isPublished={form.status === "published"} />
                       <CardHeader className="flex flex-row items-start justify-between space-y-0">
                         <div
                           className="flex-1 cursor-pointer"

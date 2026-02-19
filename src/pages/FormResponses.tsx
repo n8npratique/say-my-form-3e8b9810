@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,8 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, BarChart3, CheckCircle2, ClipboardList, Download, ShieldCheck } from "lucide-react";
+import { ArrowLeft, BarChart3, CheckCircle2, ClipboardList, Download, ShieldCheck, RefreshCw } from "lucide-react";
+import { useRealtimeResponses } from "@/hooks/useRealtimeResponses";
 import logoPratique from "@/assets/logo-pratique.png";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -77,6 +78,17 @@ const FormResponses = () => {
   // All answers for charts
   const [allAnswers, setAllAnswers] = useState<AnswerRow[]>([]);
   const [exporting, setExporting] = useState(false);
+
+  // Realtime notifications
+  const { newCount, resetCount } = useRealtimeResponses({ formId: formId ?? undefined });
+  const isFirstRender = useRef(true);
+
+  useEffect(() => {
+    if (isFirstRender.current) { isFirstRender.current = false; return; }
+    if (newCount > 0) {
+      toast.info("Nova resposta recebida!", { duration: 4000 });
+    }
+  }, [newCount]);
 
   useEffect(() => {
     if (formId) fetchData();
@@ -353,6 +365,24 @@ const FormResponses = () => {
             )}
           </CardContent>
         </Card>
+
+        {/* Realtime banner */}
+        {newCount > 0 && (
+          <div className="flex items-center justify-between px-4 py-2 bg-primary/10 border-b border-primary/20">
+            <span className="text-sm text-primary font-medium">
+              🔔 {newCount} nova{newCount > 1 ? "s respostas chegaram" : " resposta chegou"}
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs border-primary/40 text-primary"
+              onClick={() => { resetCount(); fetchData(); }}
+            >
+              <RefreshCw className="h-3 w-3 mr-1" />
+              Atualizar ({newCount} nova{newCount > 1 ? "s" : ""})
+            </Button>
+          </div>
+        )}
 
         {/* Filter */}
         <div className="flex items-center gap-3">
