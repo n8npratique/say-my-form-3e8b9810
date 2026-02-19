@@ -196,7 +196,15 @@ const FormWorkflow = () => {
         </div>
 
         {/* Actions sidebar */}
-        <ActionsPanel formId={formId!} emailTemplates={emailTemplates} onUpdateEmailTemplates={setEmailTemplates} />
+        <ActionsPanel
+          formId={formId!}
+          emailTemplates={emailTemplates}
+          onUpdateEmailTemplates={setEmailTemplates}
+          fields={fields}
+          scoring={scoring}
+          tagging={tagging}
+          outcomes={outcomes}
+        />
       </div>
     </div>
   );

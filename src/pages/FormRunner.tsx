@@ -269,6 +269,15 @@ const FormRunner = () => {
     } catch {
       // silent fail
     }
+
+    // Sync to Unnichat (best-effort)
+    try {
+      await supabase.functions.invoke("sync-unnichat", {
+        body: { form_id: formId, response_id: responseId },
+      });
+    } catch {
+      // silent fail
+    }
   };
 
   const handleAnswer = async (value: any) => {

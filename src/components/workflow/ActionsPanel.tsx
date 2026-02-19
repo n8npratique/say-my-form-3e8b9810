@@ -3,21 +3,34 @@ import { WebhookManager } from "./WebhookManager";
 import { ConnectPanel } from "./ConnectPanel";
 import { MessagesPanel } from "./MessagesPanel";
 import { SheetsPanel } from "./SheetsPanel";
-import { Webhook, Plug, Mail, FileSpreadsheet } from "lucide-react";
-import type { EmailTemplate } from "@/types/workflow";
+import { UnnichatPanel } from "./UnnichatPanel";
+import { Webhook, Plug, Mail, FileSpreadsheet, MessageCircle } from "lucide-react";
+import type { EmailTemplate, ScoringConfig, TaggingConfig, OutcomesConfig, FormField } from "@/types/workflow";
 
 interface ActionsPanelProps {
   formId: string;
   emailTemplates: EmailTemplate[];
   onUpdateEmailTemplates: (templates: EmailTemplate[]) => void;
+  fields?: FormField[];
+  scoring?: ScoringConfig | null;
+  tagging?: TaggingConfig | null;
+  outcomes?: OutcomesConfig | null;
 }
 
-export const ActionsPanel = ({ formId, emailTemplates, onUpdateEmailTemplates }: ActionsPanelProps) => {
+export const ActionsPanel = ({
+  formId,
+  emailTemplates,
+  onUpdateEmailTemplates,
+  fields = [],
+  scoring = null,
+  tagging = null,
+  outcomes = null,
+}: ActionsPanelProps) => {
   return (
     <div className="border-l w-80 bg-card/30 p-4 overflow-y-auto">
       <h3 className="font-display font-semibold text-sm mb-4">Actions</h3>
       <Tabs defaultValue="webhooks">
-        <TabsList className="w-full grid grid-cols-4">
+        <TabsList className="w-full grid grid-cols-5">
           <TabsTrigger value="webhooks" className="gap-1 text-xs px-1">
             <Webhook className="h-3 w-3" />
           </TabsTrigger>
@@ -30,12 +43,16 @@ export const ActionsPanel = ({ formId, emailTemplates, onUpdateEmailTemplates }:
           <TabsTrigger value="messages" className="gap-1 text-xs px-1">
             <Mail className="h-3 w-3" />
           </TabsTrigger>
+          <TabsTrigger value="unnichat" className="gap-1 text-xs px-1">
+            <MessageCircle className="h-3 w-3" />
+          </TabsTrigger>
         </TabsList>
         <div className="flex justify-between text-[10px] text-muted-foreground px-0.5 mt-1 mb-3">
-          <span className="w-1/4 text-center">Webhooks</span>
-          <span className="w-1/4 text-center">Connect</span>
-          <span className="w-1/4 text-center">Sheets</span>
-          <span className="w-1/4 text-center">Messages</span>
+          <span className="w-1/5 text-center">Webhooks</span>
+          <span className="w-1/5 text-center">Connect</span>
+          <span className="w-1/5 text-center">Sheets</span>
+          <span className="w-1/5 text-center">Messages</span>
+          <span className="w-1/5 text-center">Unnichat</span>
         </div>
         <TabsContent value="webhooks" className="mt-0">
           <WebhookManager formId={formId} />
@@ -48,6 +65,15 @@ export const ActionsPanel = ({ formId, emailTemplates, onUpdateEmailTemplates }:
         </TabsContent>
         <TabsContent value="messages" className="mt-0">
           <MessagesPanel templates={emailTemplates} onUpdateTemplates={onUpdateEmailTemplates} formId={formId} />
+        </TabsContent>
+        <TabsContent value="unnichat" className="mt-0">
+          <UnnichatPanel
+            formId={formId}
+            fields={fields}
+            scoring={scoring}
+            tagging={tagging}
+            outcomes={outcomes}
+          />
         </TabsContent>
       </Tabs>
     </div>
