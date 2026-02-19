@@ -32,7 +32,7 @@ type ConnectionStatus = "idle" | "loading" | "ok" | "error";
 
 interface WorkspaceSettings {
   waha?: { url: string; api_key: string; session: string; default_number: string };
-  email?: { provider: "gmail" | "resend"; resend_api_key?: string; sender_email: string };
+  email?: { provider: "gmail" | "resend"; resend_api_key?: string; sender_email: string; gmail_email?: string; gmail_app_password?: string };
   unnichat?: { url: string; token: string };
   timezone?: string;
 }
@@ -67,6 +67,8 @@ const WorkspaceSettings = () => {
   const [emailProvider, setEmailProvider] = useState<"gmail" | "resend">("gmail");
   const [resendKey, setResendKey] = useState("");
   const [senderEmail, setSenderEmail] = useState("");
+  const [gmailEmail, setGmailEmail] = useState("");
+  const [gmailAppPassword, setGmailAppPassword] = useState("");
   const [savingEmail, setSavingEmail] = useState(false);
   const [sendingTest, setSendingTest] = useState(false);
 
@@ -91,7 +93,7 @@ const WorkspaceSettings = () => {
       setWorkspaceName(ws.name);
       const s = ((ws as any).settings as WorkspaceSettings) || {};
       if (s.waha) { setWahaUrl(s.waha.url); setWahaKey(s.waha.api_key); setWahaSession(s.waha.session || "default"); setWahaNumber(s.waha.default_number); }
-      if (s.email) { setEmailProvider(s.email.provider); setResendKey(s.email.resend_api_key || ""); setSenderEmail(s.email.sender_email); }
+      if (s.email) { setEmailProvider(s.email.provider); setResendKey(s.email.resend_api_key || ""); setSenderEmail(s.email.sender_email); setGmailEmail(s.email.gmail_email || ""); setGmailAppPassword(s.email.gmail_app_password || ""); }
       if (s.unnichat) { setUnnichatUrl(s.unnichat.url); setUnnichatToken(s.unnichat.token); }
       if (s.timezone) setTimezone(s.timezone);
     }
@@ -205,7 +207,9 @@ const WorkspaceSettings = () => {
     await supabase.from("workspaces").update({
       settings: {
         ...current,
-        email: { provider: emailProvider, resend_api_key: resendKey || undefined, sender_email: senderEmail },
+        email: emailProvider === "gmail"
+          ? { provider: "gmail", gmail_email: gmailEmail, gmail_app_password: gmailAppPassword, sender_email: gmailEmail }
+          : { provider: "resend", resend_api_key: resendKey || undefined, sender_email: senderEmail },
       },
     } as any).eq("id", workspaceId!);
     toast({ title: "Configuração de email salva!" });
@@ -452,27 +456,42 @@ const WorkspaceSettings = () => {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="gmail">Gmail API (Service Account)</SelectItem>
+                    <SelectItem value="gmail">Gmail (App Password)</SelectItem>
                     <SelectItem value="resend">Resend</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               {emailProvider === "gmail" ? (
-                <p className="text-sm text-muted-foreground p-3 rounded-lg bg-muted/50 border">
-                  Usando a Service Account configurada acima. Requer Google Workspace com domain-wide delegation.
-                </p>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="gmail-email">Email do Gmail</Label>
+                    <Input id="gmail-email" type="email" placeholder="seuemail@gmail.com" value={gmailEmail} onChange={(e) => setGmailEmail(e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="gmail-app-password">Senha de App</Label>
+                    <Input id="gmail-app-password" type="password" placeholder="xxxx xxxx xxxx xxxx" value={gmailAppPassword} onChange={(e) => setGmailAppPassword(e.target.value)} />
+                    <p className="text-xs text-muted-foreground">
+                      Gere uma Senha de App em{" "}
+                      <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer" className="underline">
+                        myaccount.google.com/apppasswords
+                      </a>{" "}
+                      (requer 2FA ativado)
+                    </p>
+                  </div>
+                </div>
               ) : (
-                <div className="space-y-2">
-                  <Label htmlFor="resend-key">API Key do Resend</Label>
-                  <Input id="resend-key" type="password" placeholder="re_••••••••" value={resendKey} onChange={(e) => setResendKey(e.target.value)} />
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="resend-key">API Key do Resend</Label>
+                    <Input id="resend-key" type="password" placeholder="re_••••••••" value={resendKey} onChange={(e) => setResendKey(e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="sender-email">Email remetente</Label>
+                    <Input id="sender-email" type="email" placeholder="noreply@suaempresa.com" value={senderEmail} onChange={(e) => setSenderEmail(e.target.value)} />
+                  </div>
                 </div>
               )}
-
-              <div className="space-y-2">
-                <Label htmlFor="sender-email">Email remetente</Label>
-                <Input id="sender-email" type="email" placeholder="noreply@suaempresa.com" value={senderEmail} onChange={(e) => setSenderEmail(e.target.value)} />
-              </div>
 
               <div className="flex gap-2">
                 <Button className="gradient-primary text-primary-foreground" disabled={savingEmail} onClick={saveEmail}>
