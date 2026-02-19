@@ -189,52 +189,46 @@ export const SheetsPanel = ({ formId }: SheetsPanelProps) => {
             />
           </div>
 
-          {(integration.config as any)?.enabled ? (
-            <div className="space-y-3">
-              {/* Link da planilha */}
-              {(integration.config as any)?.spreadsheet_id ? (
-                <a
-                  href={`https://docs.google.com/spreadsheets/d/${(integration.config as any).spreadsheet_id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-xs text-primary hover:underline"
-                >
-                  <ExternalLink className="h-3.5 w-3.5" />
-                  Abrir planilha no Google Sheets
-                </a>
-              ) : (
-                <div className="text-xs text-muted-foreground flex items-center gap-1.5">
-                  <FileSpreadsheet className="h-3.5 w-3.5" />
-                  A planilha será criada na próxima resposta
-                </div>
-              )}
-
-              {/* Última sincronização */}
-              {integration.last_synced_at && (
-                <div className="text-xs text-muted-foreground flex items-center gap-1.5">
-                  <Clock className="h-3.5 w-3.5" />
-                  Última sincronização:{" "}
-                  {format(new Date(integration.last_synced_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
-                </div>
-              )}
-
-              {/* Ações */}
-              {(integration.config as any)?.spreadsheet_id && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full text-xs"
-                  onClick={recreateSpreadsheet}
-                  disabled={saving}
-                >
-                  <RefreshCw className="h-3.5 w-3.5 mr-1" /> Recriar planilha
-                </Button>
-              )}
+          {/* Link da planilha — sempre visível quando spreadsheet_id existe */}
+          {(integration.config as any)?.spreadsheet_id ? (
+            <div className="space-y-2">
+              <a
+                href={`https://docs.google.com/spreadsheets/d/${(integration.config as any).spreadsheet_id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-xs text-primary hover:underline cursor-pointer"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+                Abrir planilha no Google Sheets
+              </a>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full text-xs text-muted-foreground hover:text-foreground"
+                onClick={recreateSpreadsheet}
+                disabled={saving}
+              >
+                <RefreshCw className="h-3.5 w-3.5 mr-1" /> Recriar planilha
+              </Button>
+            </div>
+          ) : (integration.config as any)?.enabled ? (
+            <div className="text-xs text-muted-foreground flex items-center gap-1.5">
+              <FileSpreadsheet className="h-3.5 w-3.5" />
+              A planilha será criada na próxima resposta
             </div>
           ) : (
             <p className="text-xs text-muted-foreground bg-muted/50 rounded-md p-3">
               Sincronização pausada. Respostas não serão enviadas ao Google Sheets até você reativar.
             </p>
+          )}
+
+          {/* Última sincronização */}
+          {integration.last_synced_at && (
+            <div className="text-xs text-muted-foreground flex items-center gap-1.5">
+              <Clock className="h-3.5 w-3.5" />
+              Última sincronização:{" "}
+              {format(new Date(integration.last_synced_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+            </div>
           )}
 
           {/* Remover integração */}
