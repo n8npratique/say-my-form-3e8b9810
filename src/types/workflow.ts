@@ -13,6 +13,10 @@ export interface AppointmentConfig {
   slot_duration: number;         // minutos (30, 60, etc)
   horizon_days: number;          // quantos dias a frente (7, 14, 30)
   buffer_minutes: number;        // intervalo entre slots (0, 15, etc)
+  event_title: string;           // suporta {{form_name}} e {{field:LABEL}}
+  event_description: string;     // suporta {{form_name}} e {{field:LABEL}}
+  add_respondent: boolean;       // adicionar respondente como participante
+  add_meet: boolean;             // gerar link Google Meet
 }
 
 export interface FormField {

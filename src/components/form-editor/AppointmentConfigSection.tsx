@@ -1,10 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AlertTriangle, Loader2 } from "lucide-react";
+import { AlertTriangle, Loader2, Video } from "lucide-react";
 import type { FormField, AppointmentConfig } from "@/types/workflow";
 
 const DEFAULT_APPOINTMENT_CONFIG: AppointmentConfig = {
@@ -16,6 +19,10 @@ const DEFAULT_APPOINTMENT_CONFIG: AppointmentConfig = {
   slot_duration: 60,
   horizon_days: 14,
   buffer_minutes: 0,
+  event_title: "{{form_name}}",
+  event_description: "",
+  add_respondent: true,
+  add_meet: false,
 };
 
 const WEEKDAYS = [
@@ -58,6 +65,9 @@ interface AppointmentConfigSectionProps {
 export const AppointmentConfigSection = ({ field, onChange, workspaceId }: AppointmentConfigSectionProps) => {
   const [oauthConnections, setOauthConnections] = useState<{ id: string; google_email: string }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeField, setActiveField] = useState<"title" | "desc">("title");
+  const titleRef = useRef<HTMLInputElement>(null);
+  const descRef = useRef<HTMLTextAreaElement>(null);
 
   const config: AppointmentConfig = { ...DEFAULT_APPOINTMENT_CONFIG, ...field.appointment_config };
 
@@ -238,6 +248,104 @@ export const AppointmentConfigSection = ({ field, onChange, workspaceId }: Appoi
             ))}
           </SelectContent>
         </Select>
+      </div>
+
+      <hr className="border-border" />
+      <Label className="text-sm font-medium">Evento no Calendar</Label>
+
+      {/* Event Title */}
+      <div className="space-y-1">
+        <Label className="text-xs text-muted-foreground">Título do evento</Label>
+        <Input
+          ref={titleRef}
+          value={config.event_title}
+          onChange={(e) => update({ event_title: e.target.value })}
+          onFocus={() => setActiveField("title")}
+          placeholder="{{form_name}}"
+          className="h-8 text-xs"
+        />
+      </div>
+
+      {/* Event Description */}
+      <div className="space-y-1">
+        <Label className="text-xs text-muted-foreground">Descrição do evento</Label>
+        <Textarea
+          ref={descRef}
+          value={config.event_description}
+          onChange={(e) => update({ event_description: e.target.value })}
+          onFocus={() => setActiveField("desc")}
+          placeholder="Detalhes do agendamento..."
+          className="text-xs min-h-[60px] resize-none"
+          rows={3}
+        />
+      </div>
+
+      {/* Variable Badges */}
+      <div className="space-y-1">
+        <Label className="text-xs text-muted-foreground">Variáveis disponíveis</Label>
+        <p className="text-[10px] text-muted-foreground">Clique para inserir no campo ativo (título ou descrição)</p>
+        <div className="flex flex-wrap gap-1">
+          {[
+            { label: "Nome do form", value: "{{form_name}}" },
+            ...([
+              // Dynamically list field labels from the form — we reference sibling fields
+            ]),
+          ].map((v) => (
+            <Badge
+              key={v.value}
+              variant="secondary"
+              className="text-[10px] cursor-pointer hover:bg-primary/10"
+              onClick={() => {
+                const ref = activeField === "title" ? titleRef.current : descRef.current;
+                if (!ref) return;
+                const start = ref.selectionStart ?? ref.value.length;
+                const end = ref.selectionEnd ?? start;
+                const before = ref.value.slice(0, start);
+                const after = ref.value.slice(end);
+                const newVal = before + v.value + after;
+                if (activeField === "title") {
+                  update({ event_title: newVal });
+                } else {
+                  update({ event_description: newVal });
+                }
+                setTimeout(() => {
+                  ref.focus();
+                  const cursor = start + v.value.length;
+                  ref.setSelectionRange(cursor, cursor);
+                }, 0);
+              }}
+            >
+              {v.label}
+            </Badge>
+          ))}
+        </div>
+      </div>
+
+      {/* Add Respondent */}
+      <div className="flex items-center justify-between">
+        <div>
+          <Label className="text-xs">Adicionar respondente</Label>
+          <p className="text-[10px] text-muted-foreground">Convida o e-mail do respondente</p>
+        </div>
+        <Switch
+          checked={config.add_respondent}
+          onCheckedChange={(v) => update({ add_respondent: v })}
+        />
+      </div>
+
+      {/* Google Meet */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <Video className="h-3.5 w-3.5 text-blue-600" />
+          <div>
+            <Label className="text-xs">Google Meet</Label>
+            <p className="text-[10px] text-muted-foreground">Gera link de videochamada</p>
+          </div>
+        </div>
+        <Switch
+          checked={config.add_meet}
+          onCheckedChange={(v) => update({ add_meet: v })}
+        />
       </div>
     </div>
   );

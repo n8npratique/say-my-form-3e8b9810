@@ -339,9 +339,13 @@ Deno.serve(async (req) => {
     }
 
     // 8. Build attendees
+    // Use appointment config if available, otherwise fall back to integration config
+    const shouldAddRespondent = appointmentFieldConfig
+      ? (appointmentFieldConfig.add_respondent !== false)
+      : cfg.add_respondent;
+
     const attendees: { email: string }[] = [];
-    if (cfg.add_respondent) {
-      // Collect all email-looking values from answers
+    if (shouldAddRespondent) {
       for (const field of schemaFields) {
         if (field.type === "email") {
           const val = answers[field.id];
@@ -355,7 +359,6 @@ Deno.serve(async (req) => {
           }
         }
       }
-      // Also check meta for respondent_email
       const meta: any = response?.meta ?? {};
       if (meta.respondent_email && String(meta.respondent_email).includes("@")) {
         const already = attendees.some((a) => a.email === meta.respondent_email);
@@ -363,10 +366,13 @@ Deno.serve(async (req) => {
       }
     }
 
-    // 9. Create event
+    // 9. Build event title/description (appointment config takes priority)
+    const eventTitle = appointmentFieldConfig?.event_title || cfg.event_title || form.name;
+    const eventDescription = appointmentFieldConfig?.event_description || cfg.event_description || "";
+
     const eventBody: any = {
-      summary: substituteVars(cfg.event_title || form.name),
-      description: substituteVars(cfg.event_description || ""),
+      summary: substituteVars(eventTitle),
+      description: substituteVars(eventDescription),
       start: { dateTime: startIso, timeZone: "America/Sao_Paulo" },
       end: { dateTime: endIso, timeZone: "America/Sao_Paulo" },
     };
@@ -375,17 +381,32 @@ Deno.serve(async (req) => {
       eventBody.attendees = attendees;
     }
 
-    const createRes = await fetch(
-      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
+    // Google Meet — add conference data if enabled
+    const shouldAddMeet = appointmentFieldConfig?.add_meet || cfg.add_meet;
+    if (shouldAddMeet) {
+      eventBody.conferenceData = {
+        createRequest: {
+          requestId: crypto.randomUUID(),
+          conferenceSolutionKey: { type: "hangoutsMeet" },
         },
-        body: JSON.stringify(eventBody),
-      }
+      };
+    }
+
+    const calendarUrl = new URL(
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`
     );
+    if (shouldAddMeet) {
+      calendarUrl.searchParams.set("conferenceDataVersion", "1");
+    }
+
+    const createRes = await fetch(calendarUrl.toString(), {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(eventBody),
+    });
 
     const eventData = await createRes.json();
 
@@ -393,11 +414,13 @@ Deno.serve(async (req) => {
       throw new Error(`Calendar API error: ${JSON.stringify(eventData)}`);
     }
 
-    // 10. Update last_synced_at
-    await supabase
-      .from("integrations")
-      .update({ last_synced_at: new Date().toISOString() })
-      .eq("id", integration.id);
+    // 10. Update last_synced_at (only if integration exists)
+    if (integration?.id) {
+      await supabase
+        .from("integrations")
+        .update({ last_synced_at: new Date().toISOString() })
+        .eq("id", integration.id);
+    }
 
     // 11. Cleanup appointment holds (if from appointment field)
     if (appointmentFieldId && appointmentValue) {
