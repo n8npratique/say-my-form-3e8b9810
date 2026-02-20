@@ -159,6 +159,30 @@ Deno.serve(async (req) => {
       return respond({ held: true, hold_id: hold.id });
     }
 
+    // ── ACTION: LIST_CALENDARS — return calendars for a connection ──
+    if (action === "list_calendars") {
+      const { google_connection_id } = body;
+      if (!google_connection_id) {
+        return respond({ error: "No google_connection_id provided" }, 400);
+      }
+      const accessToken = await getOAuthAccessToken(supabase, google_connection_id);
+      const calRes = await fetch(
+        "https://www.googleapis.com/calendar/v3/users/me/calendarList?minAccessRole=writer",
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      const calData = await calRes.json();
+      if (!calRes.ok) {
+        throw new Error(`CalendarList API error: ${JSON.stringify(calData)}`);
+      }
+      const calendars = (calData.items || []).map((c: any) => ({
+        id: c.id,
+        summary: c.summary || c.id,
+        primary: !!c.primary,
+        backgroundColor: c.backgroundColor || null,
+      }));
+      return respond({ calendars });
+    }
+
     // ── ACTION: CHECK — return available slots ──
     const {
       form_id,

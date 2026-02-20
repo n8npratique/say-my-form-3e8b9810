@@ -63,6 +63,8 @@ interface AppointmentConfigSectionProps {
 
 export const AppointmentConfigSection = ({ field, onChange, workspaceId }: AppointmentConfigSectionProps) => {
   const [oauthConnections, setOauthConnections] = useState<{ id: string; google_email: string }[]>([]);
+  const [calendars, setCalendars] = useState<{ id: string; summary: string; primary: boolean }[]>([]);
+  const [loadingCalendars, setLoadingCalendars] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activeField, setActiveField] = useState<"title" | "desc">("title");
   const titleRef = useRef<HTMLInputElement>(null);
@@ -91,6 +93,29 @@ export const AppointmentConfigSection = ({ field, onChange, workspaceId }: Appoi
     };
     fetchConnections();
   }, [workspaceId]);
+
+  // Fetch calendars when google_connection_id changes
+  useEffect(() => {
+    if (!config.google_connection_id) {
+      setCalendars([]);
+      return;
+    }
+    const fetchCalendars = async () => {
+      setLoadingCalendars(true);
+      try {
+        const { data } = await supabase.functions.invoke("check-availability", {
+          body: { action: "list_calendars", google_connection_id: config.google_connection_id },
+        });
+        if (data?.calendars) {
+          setCalendars(data.calendars);
+        }
+      } catch {
+        // silently fail
+      }
+      setLoadingCalendars(false);
+    };
+    fetchCalendars();
+  }, [config.google_connection_id]);
 
   const toggleDay = (day: number) => {
     const current = config.available_days;
@@ -160,15 +185,37 @@ export const AppointmentConfigSection = ({ field, onChange, workspaceId }: Appoi
           )}
         </div>
 
-        {/* Calendar ID */}
+        {/* Calendar */}
         <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">Calendar ID</Label>
-          <Input
-            value={config.calendar_id}
-            onChange={(e) => update({ calendar_id: e.target.value || "primary" })}
-            placeholder="primary"
-            className="h-8 text-xs"
-          />
+          <Label className="text-xs text-muted-foreground">Agenda</Label>
+          {loadingCalendars ? (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground p-1.5">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Buscando agendas...
+            </div>
+          ) : calendars.length > 0 ? (
+            <Select
+              value={config.calendar_id || "primary"}
+              onValueChange={(v) => update({ calendar_id: v })}
+            >
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="Selecionar agenda..." />
+              </SelectTrigger>
+              <SelectContent>
+                {calendars.map((cal) => (
+                  <SelectItem key={cal.id} value={cal.id}>
+                    {cal.summary}{cal.primary ? " (principal)" : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <Input
+              value={config.calendar_id}
+              onChange={(e) => update({ calendar_id: e.target.value || "primary" })}
+              placeholder="primary"
+              className="h-8 text-xs"
+            />
+          )}
         </div>
 
         {/* Available Days */}
