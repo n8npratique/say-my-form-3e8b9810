@@ -14,7 +14,7 @@ interface AddFieldDialogProps {
   onAddField: (type: FieldType) => void;
 }
 
-const RECOMMENDED: FieldType[] = ["multiple_choice", "short_text", "long_text"];
+const RECOMMENDED: FieldType[] = ["multiple_choice", "short_text", "long_text", "appointment"];
 
 export const AddFieldDialog = ({ open, onOpenChange, onAddField }: AddFieldDialogProps) => {
   const [search, setSearch] = useState("");
