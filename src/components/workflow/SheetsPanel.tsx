@@ -68,8 +68,8 @@ export const SheetsPanel = ({ formId }: SheetsPanelProps) => {
 
       // Buscar contas OAuth conectadas
       try {
-        const { data } = await supabase.functions.invoke("google-oauth?action=status", {
-          body: { workspace_id: form.workspace_id },
+        const { data } = await supabase.functions.invoke("google-oauth", {
+          body: { action: "status", workspace_id: form.workspace_id },
         });
         if (data?.connections) {
           setOauthConnections(data.connections);

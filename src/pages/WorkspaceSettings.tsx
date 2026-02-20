@@ -127,8 +127,8 @@ const WorkspaceSettings = () => {
 
   const fetchOAuthConnections = async () => {
     try {
-      const { data, error } = await supabase.functions.invoke("google-oauth?action=status", {
-        body: { workspace_id: workspaceId },
+      const { data, error } = await supabase.functions.invoke("google-oauth", {
+        body: { action: "status", workspace_id: workspaceId },
       });
       if (!error && data?.connections) {
         setOauthConnections(data.connections);
@@ -141,8 +141,8 @@ const WorkspaceSettings = () => {
   const connectGoogleOAuth = async () => {
     setConnectingOAuth(true);
     try {
-      const { data, error } = await supabase.functions.invoke("google-oauth?action=authorize", {
-        body: { workspace_id: workspaceId },
+      const { data, error } = await supabase.functions.invoke("google-oauth", {
+        body: { action: "authorize", workspace_id: workspaceId },
       });
       if (error) throw error;
       if (data?.authorization_url) {
@@ -165,8 +165,8 @@ const WorkspaceSettings = () => {
   const disconnectGoogleOAuth = async (connectionId: string) => {
     setDisconnectingId(connectionId);
     try {
-      const { error } = await supabase.functions.invoke("google-oauth?action=disconnect", {
-        body: { connection_id: connectionId },
+      const { error } = await supabase.functions.invoke("google-oauth", {
+        body: { action: "disconnect", connection_id: connectionId },
       });
       if (error) throw error;
       setOauthConnections((prev) => prev.filter((c) => c.id !== connectionId));

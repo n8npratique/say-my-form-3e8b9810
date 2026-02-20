@@ -90,14 +90,25 @@ Deno.serve(async (req) => {
   }
 
   const url = new URL(req.url);
-  const action = url.searchParams.get("action");
+  // action can come from query param OR body
+  let action = url.searchParams.get("action");
 
   const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
   try {
+    // For non-callback actions, parse body and check for action there too
+    let body: any = {};
+    if (action !== "callback" && req.method === "POST") {
+      try {
+        body = await req.json();
+        if (!action && body.action) action = body.action;
+      } catch {
+        // no body
+      }
+    }
+
     // ── ACTION: authorize ─────────────────────────────────────────────────
     if (action === "authorize") {
-      const body = await req.json();
       const { workspace_id } = body;
 
       const user = await getUser(req, supabaseAdmin);
@@ -225,7 +236,6 @@ Deno.serve(async (req) => {
 
     // ── ACTION: status ────────────────────────────────────────────────────
     if (action === "status") {
-      const body = await req.json();
       const { workspace_id } = body;
 
       const user = await getUser(req, supabaseAdmin);
@@ -242,7 +252,6 @@ Deno.serve(async (req) => {
 
     // ── ACTION: disconnect ────────────────────────────────────────────────
     if (action === "disconnect") {
-      const body = await req.json();
       const { connection_id } = body;
 
       const user = await getUser(req, supabaseAdmin);
@@ -277,7 +286,6 @@ Deno.serve(async (req) => {
 
     // ── ACTION: refresh (internal - called by other edge functions) ───────
     if (action === "refresh") {
-      const body = await req.json();
       const { connection_id } = body;
 
       const { data: conn } = await supabaseAdmin
