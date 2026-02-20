@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
-import { ArrowLeft, Settings, CheckCircle2, XCircle, Loader2, Trash2, Mail, Phone, MessageCircle, Globe } from "lucide-react";
+import { ArrowLeft, Settings, CheckCircle2, XCircle, Loader2, Trash2, Mail, Phone, MessageCircle, Globe, Link, Unlink } from "lucide-react";
 import logoPratique from "@/assets/logo-pratique.png";
 
 const TIMEZONES = [
@@ -48,6 +48,11 @@ const WorkspaceSettings = () => {
   const [timezone, setTimezone] = useState("America/Sao_Paulo");
   const [savingGeneral, setSavingGeneral] = useState(false);
 
+  // Google OAuth Connections
+  const [oauthConnections, setOauthConnections] = useState<{ id: string; google_email: string; created_at: string; user_id: string }[]>([]);
+  const [connectingOAuth, setConnectingOAuth] = useState(false);
+  const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
+
   // Google Service Account
   const [serviceAccount, setServiceAccount] = useState<{ id: string; client_email: string; name: string } | null>(null);
   const [saJson, setSaJson] = useState("");
@@ -82,6 +87,18 @@ const WorkspaceSettings = () => {
     if (workspaceId) fetchAll();
   }, [workspaceId]);
 
+  // Listen for OAuth popup callback
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      if (event.data?.type === "google-oauth-callback" && event.data?.status === "success") {
+        fetchOAuthConnections();
+        toast({ title: "Conta Google conectada!", description: event.data.detail });
+      }
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, [workspaceId]);
+
   const fetchAll = async () => {
     const { data: ws } = await supabase
       .from("workspaces")
@@ -104,6 +121,60 @@ const WorkspaceSettings = () => {
       .eq("workspace_id", workspaceId!)
       .maybeSingle();
     if (sa) setServiceAccount(sa);
+
+    await fetchOAuthConnections();
+  };
+
+  const fetchOAuthConnections = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke("google-oauth?action=status", {
+        body: { workspace_id: workspaceId },
+      });
+      if (!error && data?.connections) {
+        setOauthConnections(data.connections);
+      }
+    } catch {
+      // silently fail — OAuth might not be deployed yet
+    }
+  };
+
+  const connectGoogleOAuth = async () => {
+    setConnectingOAuth(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("google-oauth?action=authorize", {
+        body: { workspace_id: workspaceId },
+      });
+      if (error) throw error;
+      if (data?.authorization_url) {
+        // Open as popup
+        const w = 500, h = 600;
+        const left = window.screenX + (window.outerWidth - w) / 2;
+        const top = window.screenY + (window.outerHeight - h) / 2;
+        window.open(
+          data.authorization_url,
+          "google-oauth",
+          `width=${w},height=${h},left=${left},top=${top},toolbar=no,menubar=no`
+        );
+      }
+    } catch (err: any) {
+      toast({ title: "Erro ao conectar", description: err.message, variant: "destructive" });
+    }
+    setConnectingOAuth(false);
+  };
+
+  const disconnectGoogleOAuth = async (connectionId: string) => {
+    setDisconnectingId(connectionId);
+    try {
+      const { error } = await supabase.functions.invoke("google-oauth?action=disconnect", {
+        body: { connection_id: connectionId },
+      });
+      if (error) throw error;
+      setOauthConnections((prev) => prev.filter((c) => c.id !== connectionId));
+      toast({ title: "Conta Google desconectada" });
+    } catch (err: any) {
+      toast({ title: "Erro ao desconectar", description: err.message, variant: "destructive" });
+    }
+    setDisconnectingId(null);
   };
 
   // ── Google Service Account ──────────────────────────────────────────────────
@@ -312,8 +383,84 @@ const WorkspaceSettings = () => {
           <p className="text-muted-foreground mt-1">Integrações e preferências deste workspace</p>
         </div>
 
-        {/* ── Google Service Account ── */}
+        {/* ── Google OAuth Connections ── */}
         <motion.div custom={0} variants={cardVariants} initial="hidden" animate="visible">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-lg bg-muted flex items-center justify-center">
+                    <svg viewBox="0 0 48 48" className="h-5 w-5" fill="none">
+                      <path d="M43.6 20.5H42V20H24v8h11.3C34 32.7 29.5 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.8 1.1 7.9 3l5.7-5.7C34.4 6.5 29.5 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.2-.1-2.5-.4-3.5z" fill="#FFC107"/>
+                      <path d="M6.3 14.7l6.6 4.8C14.7 16 19.1 13 24 13c3 0 5.8 1.1 7.9 3l5.7-5.7C34.4 7 29.5 4.5 24 4.5c-7.7 0-14.4 4.4-17.7 10.2z" fill="#FF3D00"/>
+                      <path d="M24 44c5.4 0 10.2-2 13.8-5.3l-6.4-5.4C29.4 35 26.8 36 24 36c-5.4 0-10.1-3.3-11.8-8.1l-6.6 5.1C8.9 39.6 16 44 24 44z" fill="#4CAF50"/>
+                      <path d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.1-4.1 5.4l6.4 5.4C37.3 39 44 34 44 24c0-1.2-.1-2.5-.4-3.5z" fill="#1976D2"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <CardTitle className="text-base">Contas Google Conectadas</CardTitle>
+                    <CardDescription className="text-xs">OAuth2 — planilhas e eventos no seu Drive/Calendar pessoal</CardDescription>
+                  </div>
+                </div>
+                {oauthConnections.length > 0 ? (
+                  <Badge className="flex items-center gap-1 bg-[hsl(var(--success))] text-[hsl(var(--success-foreground))] border-0">
+                    <CheckCircle2 className="h-3 w-3" /> {oauthConnections.length} conta{oauthConnections.length > 1 ? "s" : ""}
+                  </Badge>
+                ) : (
+                  <Badge variant="secondary">Nenhuma conta</Badge>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {/* Connected accounts list */}
+              {oauthConnections.map((conn) => (
+                <div key={conn.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium">{conn.google_email}</p>
+                      <p className="text-xs text-muted-foreground">Conectada via OAuth</p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => disconnectGoogleOAuth(conn.id)}
+                    disabled={disconnectingId === conn.id}
+                  >
+                    {disconnectingId === conn.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <><Unlink className="h-4 w-4 mr-1" /> Desconectar</>
+                    )}
+                  </Button>
+                </div>
+              ))}
+
+              <Button
+                className="w-full gradient-primary text-primary-foreground"
+                onClick={connectGoogleOAuth}
+                disabled={connectingOAuth}
+              >
+                {connectingOAuth ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Link className="h-4 w-4 mr-2" />
+                )}
+                Conectar nova conta Google
+              </Button>
+
+              <p className="text-xs text-muted-foreground">
+                Conecte sua conta Google para que planilhas e eventos sejam criados diretamente no seu Drive e Calendar pessoal.
+                Você pode conectar múltiplas contas e escolher qual usar em cada formulário.
+              </p>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* ── Google Service Account ── */}
+        <motion.div custom={1} variants={cardVariants} initial="hidden" animate="visible">
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -392,7 +539,7 @@ const WorkspaceSettings = () => {
         </motion.div>
 
         {/* ── WhatsApp WAHA ── */}
-        <motion.div custom={1} variants={cardVariants} initial="hidden" animate="visible">
+        <motion.div custom={2} variants={cardVariants} initial="hidden" animate="visible">
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -436,7 +583,7 @@ const WorkspaceSettings = () => {
         </motion.div>
 
         {/* ── Email ── */}
-        <motion.div custom={2} variants={cardVariants} initial="hidden" animate="visible">
+        <motion.div custom={3} variants={cardVariants} initial="hidden" animate="visible">
           <Card>
             <CardHeader>
               <div className="flex items-center gap-3">
@@ -509,7 +656,7 @@ const WorkspaceSettings = () => {
         </motion.div>
 
         {/* ── Unnichat ── */}
-        <motion.div custom={3} variants={cardVariants} initial="hidden" animate="visible">
+        <motion.div custom={4} variants={cardVariants} initial="hidden" animate="visible">
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -546,7 +693,7 @@ const WorkspaceSettings = () => {
         </motion.div>
 
         {/* ── Geral ── */}
-        <motion.div custom={4} variants={cardVariants} initial="hidden" animate="visible">
+        <motion.div custom={5} variants={cardVariants} initial="hidden" animate="visible">
           <Card>
             <CardHeader>
               <div className="flex items-center gap-3">

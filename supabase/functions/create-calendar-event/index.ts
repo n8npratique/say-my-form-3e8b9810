@@ -75,6 +75,63 @@ async function getGoogleAccessToken(
   return tokenData.access_token;
 }
 
+// ── OAuth helper: get access token from OAuth connection (with auto-refresh) ──
+async function getOAuthAccessToken(
+  supabase: any,
+  connectionId: string
+): Promise<string> {
+  const { data: conn } = await supabase
+    .from("google_oauth_connections")
+    .select("*")
+    .eq("id", connectionId)
+    .maybeSingle();
+
+  if (!conn) throw new Error("OAuth connection not found");
+
+  const expiresAt = new Date(conn.token_expires_at).getTime();
+  if (Date.now() < expiresAt - 5 * 60 * 1000) {
+    return conn.access_token;
+  }
+
+  if (!conn.refresh_token) throw new Error("No refresh token available");
+
+  const GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID");
+  const GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET");
+  if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
+    throw new Error("GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET not configured");
+  }
+
+  const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: GOOGLE_CLIENT_ID,
+      client_secret: GOOGLE_CLIENT_SECRET,
+      refresh_token: conn.refresh_token,
+      grant_type: "refresh_token",
+    }),
+  });
+  const tokenData = await tokenRes.json();
+  if (!tokenData.access_token) {
+    throw new Error(`OAuth refresh failed: ${JSON.stringify(tokenData)}`);
+  }
+
+  const newExpiresAt = new Date(
+    Date.now() + (tokenData.expires_in || 3600) * 1000
+  ).toISOString();
+
+  await supabase
+    .from("google_oauth_connections")
+    .update({
+      access_token: tokenData.access_token,
+      token_expires_at: newExpiresAt,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", connectionId);
+
+  return tokenData.access_token;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -92,7 +149,7 @@ Deno.serve(async (req) => {
     });
 
   try {
-    const { form_id, response_id } = await req.json();
+    const { form_id, response_id, google_connection_id } = await req.json();
 
     // 1. Fetch integration
     const { data: integration } = await supabase
@@ -107,7 +164,7 @@ Deno.serve(async (req) => {
       return respond({ created: false, reason: "not_enabled" });
     }
 
-    // 2. Fetch form + service account
+    // 2. Fetch form
     const { data: form } = await supabase
       .from("forms")
       .select("workspace_id, name, published_version_id")
@@ -115,16 +172,6 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (!form) return respond({ created: false, reason: "form_not_found" });
-
-    const { data: serviceAccount } = await supabase
-      .from("google_service_accounts")
-      .select("*")
-      .eq("workspace_id", form.workspace_id)
-      .maybeSingle();
-
-    if (!serviceAccount) {
-      return respond({ created: false, reason: "no_service_account" });
-    }
 
     // 3. Fetch response + answers
     const { data: response } = await supabase
@@ -156,12 +203,46 @@ Deno.serve(async (req) => {
       schemaFields = schema.fields ?? [];
     }
 
-    // 5. Google auth — calendar scope
-    const accessToken = await getGoogleAccessToken(
-      serviceAccount.client_email,
-      serviceAccount.encrypted_key,
-      "https://www.googleapis.com/auth/calendar"
-    );
+    // 5. Google auth — OAuth ou Service Account (dual-token)
+    const effectiveConnectionId =
+      google_connection_id || cfg.google_connection_id;
+
+    let accessToken: string;
+
+    if (effectiveConnectionId) {
+      try {
+        accessToken = await getOAuthAccessToken(supabase, effectiveConnectionId);
+      } catch (oauthErr: any) {
+        console.warn("OAuth failed, falling back to SA:", oauthErr.message);
+        const { data: serviceAccount } = await supabase
+          .from("google_service_accounts")
+          .select("*")
+          .eq("workspace_id", form.workspace_id)
+          .maybeSingle();
+        if (!serviceAccount) {
+          throw new Error(`OAuth failed and no SA: ${oauthErr.message}`);
+        }
+        accessToken = await getGoogleAccessToken(
+          serviceAccount.client_email,
+          serviceAccount.encrypted_key,
+          "https://www.googleapis.com/auth/calendar"
+        );
+      }
+    } else {
+      const { data: serviceAccount } = await supabase
+        .from("google_service_accounts")
+        .select("*")
+        .eq("workspace_id", form.workspace_id)
+        .maybeSingle();
+      if (!serviceAccount) {
+        return respond({ created: false, reason: "no_credentials" });
+      }
+      accessToken = await getGoogleAccessToken(
+        serviceAccount.client_email,
+        serviceAccount.encrypted_key,
+        "https://www.googleapis.com/auth/calendar"
+      );
+    }
 
     // 6. Substitute variables in text
     const substituteVars = (text: string): string => {

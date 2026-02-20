@@ -5,7 +5,8 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { FileSpreadsheet, ExternalLink, AlertTriangle, RefreshCw, Trash2, Plus, Clock, History, Zap, UserPlus, X } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { FileSpreadsheet, ExternalLink, AlertTriangle, RefreshCw, Trash2, Plus, Clock, History, Zap, UserPlus, X, User } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -25,6 +26,8 @@ export const SheetsPanel = ({ formId }: SheetsPanelProps) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [shareEmail, setShareEmail] = useState("");
   const [shareEmails, setShareEmails] = useState<string[]>([]);
+  const [oauthConnections, setOauthConnections] = useState<{ id: string; google_email: string }[]>([]);
+  const [selectedConnectionId, setSelectedConnectionId] = useState<string>("");
 
   useEffect(() => {
     fetchData();
@@ -45,22 +48,34 @@ export const SheetsPanel = ({ formId }: SheetsPanelProps) => {
 
     setIntegration(integ);
     setShareEmails((integ?.config as any)?.share_emails || []);
+    setSelectedConnectionId((integ?.config as any)?.google_connection_id || "");
 
-    // Verificar se tem service account configurada
-    if (integ || !integ) {
-      const { data: form } = await supabase
-        .from("forms")
-        .select("workspace_id")
-        .eq("id", formId)
+    // Buscar workspace_id do form
+    const { data: form } = await supabase
+      .from("forms")
+      .select("workspace_id")
+      .eq("id", formId)
+      .maybeSingle();
+
+    if (form?.workspace_id) {
+      // Verificar Service Account
+      const { data: sa } = await supabase
+        .from("google_service_accounts")
+        .select("id")
+        .eq("workspace_id", form.workspace_id)
         .maybeSingle();
+      setHasServiceAccount(!!sa);
 
-      if (form?.workspace_id) {
-        const { data: sa } = await supabase
-          .from("google_service_accounts")
-          .select("id")
-          .eq("workspace_id", form.workspace_id)
-          .maybeSingle();
-        setHasServiceAccount(!!sa);
+      // Buscar contas OAuth conectadas
+      try {
+        const { data } = await supabase.functions.invoke("google-oauth?action=status", {
+          body: { workspace_id: form.workspace_id },
+        });
+        if (data?.connections) {
+          setOauthConnections(data.connections);
+        }
+      } catch {
+        // OAuth might not be deployed
       }
     }
 
@@ -240,6 +255,27 @@ export const SheetsPanel = ({ formId }: SheetsPanelProps) => {
     if (data) setIntegration(data);
   };
 
+  const saveConnectionId = async (connectionId: string) => {
+    setSelectedConnectionId(connectionId);
+    if (!integration) return;
+    const { data: fresh } = await supabase
+      .from("integrations")
+      .select("config")
+      .eq("id", integration.id)
+      .maybeSingle();
+    const latestConfig = (fresh?.config as any) ?? (integration.config as any) ?? {};
+    const newConfig = connectionId
+      ? { ...latestConfig, google_connection_id: connectionId }
+      : (() => { const { google_connection_id: _, ...rest } = latestConfig; return rest; })();
+    const { data } = await supabase
+      .from("integrations")
+      .update({ config: newConfig } as any)
+      .eq("id", integration.id)
+      .select()
+      .single();
+    if (data) setIntegration(data);
+  };
+
   const deleteIntegration = async () => {
     if (!integration) return;
     setSaving(true);
@@ -272,13 +308,39 @@ export const SheetsPanel = ({ formId }: SheetsPanelProps) => {
         </button>
       </div>
 
-      {/* Aviso de service account */}
-      {!hasServiceAccount && (
+      {/* Aviso: sem credenciais */}
+      {!hasServiceAccount && oauthConnections.length === 0 && (
         <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-3 flex gap-2">
           <AlertTriangle className="h-4 w-4 text-yellow-600 shrink-0 mt-0.5" />
           <p className="text-xs text-yellow-700 dark:text-yellow-400">
-            Configure a <strong>Google Service Account</strong> nas Configurações do Workspace para usar esta integração.
+            Conecte uma <strong>conta Google</strong> ou configure uma <strong>Service Account</strong> nas Configurações do Workspace.
           </p>
+        </div>
+      )}
+
+      {/* Dropdown de conta OAuth */}
+      {oauthConnections.length > 0 && integration && (
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-1.5">
+            <User className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-xs font-medium">Conta Google</span>
+          </div>
+          <Select
+            value={selectedConnectionId || "__none__"}
+            onValueChange={(v) => saveConnectionId(v === "__none__" ? "" : v)}
+          >
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="Escolher conta..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">
+                {hasServiceAccount ? "Service Account (padrão)" : "Nenhuma — selecione uma conta"}
+              </SelectItem>
+              {oauthConnections.map((conn) => (
+                <SelectItem key={conn.id} value={conn.id}>{conn.google_email}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       )}
 
@@ -298,7 +360,7 @@ export const SheetsPanel = ({ formId }: SheetsPanelProps) => {
             className="w-full gradient-primary text-primary-foreground"
             size="sm"
             onClick={activateIntegration}
-            disabled={saving || !hasServiceAccount}
+            disabled={saving || (!hasServiceAccount && oauthConnections.length === 0)}
           >
             <Plus className="h-4 w-4 mr-1" /> Ativar Google Sheets
           </Button>

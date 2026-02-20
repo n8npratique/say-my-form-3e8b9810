@@ -7,7 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, AlertTriangle, Plus, Trash2, Loader2, RefreshCw } from "lucide-react";
+import { Calendar, AlertTriangle, Plus, Trash2, Loader2, RefreshCw, User } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { FormField } from "@/types/workflow";
 
@@ -20,6 +20,7 @@ interface CalendarConfig {
   time_field_id: string;
   duration_minutes: number;
   add_respondent: boolean;
+  google_connection_id?: string;
 }
 
 const DEFAULT_CONFIG: CalendarConfig = {
@@ -31,6 +32,7 @@ const DEFAULT_CONFIG: CalendarConfig = {
   time_field_id: "",
   duration_minutes: 60,
   add_respondent: true,
+  google_connection_id: "",
 };
 
 const DURATION_OPTIONS = [
@@ -54,6 +56,7 @@ export const CalendarPanel = ({ formId, fields }: CalendarPanelProps) => {
   const [integration, setIntegration] = useState<any>(null);
   const [config, setConfig] = useState<CalendarConfig>(DEFAULT_CONFIG);
   const [hasServiceAccount, setHasServiceAccount] = useState<boolean | null>(null);
+  const [oauthConnections, setOauthConnections] = useState<{ id: string; google_email: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -77,7 +80,7 @@ export const CalendarPanel = ({ formId, fields }: CalendarPanelProps) => {
       setConfig({ ...DEFAULT_CONFIG, ...(integ.config as any) });
     }
 
-    // Check service account
+    // Check service account + OAuth connections
     const { data: form } = await supabase
       .from("forms")
       .select("workspace_id")
@@ -91,6 +94,18 @@ export const CalendarPanel = ({ formId, fields }: CalendarPanelProps) => {
         .eq("workspace_id", form.workspace_id)
         .maybeSingle();
       setHasServiceAccount(!!sa);
+
+      // Fetch OAuth connections
+      try {
+        const { data } = await supabase.functions.invoke("google-oauth?action=status", {
+          body: { workspace_id: form.workspace_id },
+        });
+        if (data?.connections) {
+          setOauthConnections(data.connections);
+        }
+      } catch {
+        // OAuth might not be deployed
+      }
     }
 
     setLoading(false);
@@ -191,12 +206,12 @@ export const CalendarPanel = ({ formId, fields }: CalendarPanelProps) => {
         <h3 className="font-semibold text-sm">Google Calendar</h3>
       </div>
 
-      {/* Service account warning */}
-      {hasServiceAccount === false && (
+      {/* Credential warning */}
+      {hasServiceAccount === false && oauthConnections.length === 0 && (
         <div className="rounded-lg border border-warning/30 bg-warning/10 p-3 flex gap-2">
           <AlertTriangle className="h-4 w-4 text-warning shrink-0 mt-0.5" />
           <p className="text-xs text-warning">
-            Configure uma <strong>Google Service Account</strong> nas Configurações do Workspace. A conta de serviço precisa ter acesso ao calendário desejado.
+            Conecte uma <strong>conta Google</strong> ou configure uma <strong>Service Account</strong> nas Configurações do Workspace.
           </p>
         </div>
       )}
@@ -217,7 +232,7 @@ export const CalendarPanel = ({ formId, fields }: CalendarPanelProps) => {
             size="sm"
             className="w-full gap-1.5"
             onClick={activate}
-            disabled={saving || hasServiceAccount === false}
+            disabled={saving || (hasServiceAccount === false && oauthConnections.length === 0)}
           >
             {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
             Ativar Google Calendar
@@ -245,6 +260,32 @@ export const CalendarPanel = ({ formId, fields }: CalendarPanelProps) => {
 
           {config.enabled && (
             <div className="space-y-3">
+              {/* Google account selector */}
+              {oauthConnections.length > 0 && (
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5">
+                    <User className="h-3.5 w-3.5 text-muted-foreground" />
+                    <Label className="text-xs">Conta Google</Label>
+                  </div>
+                  <Select
+                    value={config.google_connection_id || "__none__"}
+                    onValueChange={(v) => update({ google_connection_id: v === "__none__" ? "" : v })}
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="Escolher conta..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">
+                        {hasServiceAccount ? "Service Account (padrão)" : "Selecione uma conta"}
+                      </SelectItem>
+                      {oauthConnections.map((conn) => (
+                        <SelectItem key={conn.id} value={conn.id}>{conn.google_email}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               {/* Calendar ID */}
               <div className="space-y-1">
                 <Label className="text-xs">Calendar ID</Label>

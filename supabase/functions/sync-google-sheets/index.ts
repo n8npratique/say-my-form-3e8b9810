@@ -81,6 +81,65 @@ function formatDateBR(iso: string): string {
   return d.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
 }
 
+// ── OAuth helper: get access token from OAuth connection (with auto-refresh) ──
+async function getOAuthAccessToken(
+  supabase: any,
+  connectionId: string
+): Promise<string> {
+  const { data: conn } = await supabase
+    .from("google_oauth_connections")
+    .select("*")
+    .eq("id", connectionId)
+    .maybeSingle();
+
+  if (!conn) throw new Error("OAuth connection not found");
+
+  // Check if token is still valid (5min buffer)
+  const expiresAt = new Date(conn.token_expires_at).getTime();
+  if (Date.now() < expiresAt - 5 * 60 * 1000) {
+    return conn.access_token;
+  }
+
+  // Refresh the token
+  if (!conn.refresh_token) throw new Error("No refresh token available");
+
+  const GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID");
+  const GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET");
+  if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
+    throw new Error("GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET not configured");
+  }
+
+  const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: GOOGLE_CLIENT_ID,
+      client_secret: GOOGLE_CLIENT_SECRET,
+      refresh_token: conn.refresh_token,
+      grant_type: "refresh_token",
+    }),
+  });
+  const tokenData = await tokenRes.json();
+  if (!tokenData.access_token) {
+    throw new Error(`OAuth refresh failed: ${JSON.stringify(tokenData)}`);
+  }
+
+  const newExpiresAt = new Date(
+    Date.now() + (tokenData.expires_in || 3600) * 1000
+  ).toISOString();
+
+  await supabase
+    .from("google_oauth_connections")
+    .update({
+      access_token: tokenData.access_token,
+      token_expires_at: newExpiresAt,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", connectionId);
+
+  return tokenData.access_token;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -93,7 +152,7 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { form_id, response_id, batch_sync, create_only, fix_permissions } = body;
+    const { form_id, response_id, batch_sync, create_only, fix_permissions, google_connection_id } = body;
 
     if (!form_id || (!response_id && !batch_sync && !create_only && !fix_permissions)) {
       return new Response(
@@ -117,7 +176,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 2. Buscar service account do workspace
+    // 2. Buscar form
     const { data: form } = await supabase
       .from("forms")
       .select("workspace_id, name")
@@ -127,19 +186,6 @@ Deno.serve(async (req) => {
     if (!form) {
       return new Response(
         JSON.stringify({ synced: false, reason: "form_not_found" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const { data: serviceAccount } = await supabase
-      .from("google_service_accounts")
-      .select("*")
-      .eq("workspace_id", form.workspace_id)
-      .maybeSingle();
-
-    if (!serviceAccount) {
-      return new Response(
-        JSON.stringify({ synced: false, reason: "no_service_account" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -156,14 +202,51 @@ Deno.serve(async (req) => {
     const schema = (version?.schema as any) || {};
     const fields: any[] = schema.fields || [];
 
-    // 4. Autenticar com Google
-    const scope =
-      "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive";
-    const accessToken = await getGoogleAccessToken(
-      serviceAccount.client_email,
-      serviceAccount.encrypted_key,
-      scope
-    );
+    // 4. Autenticar com Google (OAuth ou Service Account)
+    // Resolve qual connection usar: body > config > fallback SA
+    const effectiveConnectionId =
+      google_connection_id || (integration.config as any)?.google_connection_id;
+
+    let accessToken: string;
+    let usingOAuth = false;
+
+    if (effectiveConnectionId) {
+      // Tenta OAuth primeiro
+      try {
+        accessToken = await getOAuthAccessToken(supabase, effectiveConnectionId);
+        usingOAuth = true;
+      } catch (oauthErr: any) {
+        console.warn("OAuth failed, falling back to Service Account:", oauthErr.message);
+        // Fallback para Service Account
+        const { data: serviceAccount } = await supabase
+          .from("google_service_accounts")
+          .select("*")
+          .eq("workspace_id", form.workspace_id)
+          .maybeSingle();
+        if (!serviceAccount) {
+          throw new Error(`OAuth failed and no Service Account available: ${oauthErr.message}`);
+        }
+        const scope = "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive";
+        accessToken = await getGoogleAccessToken(serviceAccount.client_email, serviceAccount.encrypted_key, scope);
+      }
+    } else {
+      // Sem OAuth configurado — usa Service Account
+      const { data: serviceAccount } = await supabase
+        .from("google_service_accounts")
+        .select("*")
+        .eq("workspace_id", form.workspace_id)
+        .maybeSingle();
+
+      if (!serviceAccount) {
+        return new Response(
+          JSON.stringify({ synced: false, reason: "no_credentials" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const scope = "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive";
+      accessToken = await getGoogleAccessToken(serviceAccount.client_email, serviceAccount.encrypted_key, scope);
+    }
 
     const config = (integration.config as any) || {};
 
@@ -303,18 +386,20 @@ Deno.serve(async (req) => {
         .update({ config: { ...freshConfig, spreadsheet_id: newId } })
         .eq("id", integration.id);
 
-      // Compartilhar publicamente com permissão de leitura/escrita
-      // Tenta 3 vezes com pequeno delay para garantir propagação pelo Google
-      for (let attempt = 0; attempt < 3; attempt++) {
-        if (attempt > 0) await new Promise((r) => setTimeout(r, 1500));
-        const permRes = await fetch(`https://www.googleapis.com/drive/v3/files/${newId}/permissions`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ type: "anyone", role: "writer" }),
-        });
-        const permData = await permRes.json();
-        if (permRes.ok) break;
-        console.warn(`Attempt ${attempt + 1} to set permissions failed:`, JSON.stringify(permData));
+      // Se usando OAuth, planilha já está no Drive do usuário — pula sharing público
+      // Se usando Service Account, compartilha publicamente
+      if (!usingOAuth) {
+        for (let attempt = 0; attempt < 3; attempt++) {
+          if (attempt > 0) await new Promise((r) => setTimeout(r, 1500));
+          const permRes = await fetch(`https://www.googleapis.com/drive/v3/files/${newId}/permissions`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ type: "anyone", role: "writer" }),
+          });
+          const permData = await permRes.json();
+          if (permRes.ok) break;
+          console.warn(`Attempt ${attempt + 1} to set permissions failed:`, JSON.stringify(permData));
+        }
       }
 
       // Compartilhar com emails específicos configurados pelo usuário
