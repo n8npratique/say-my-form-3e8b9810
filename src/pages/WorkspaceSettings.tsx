@@ -87,16 +87,32 @@ const WorkspaceSettings = () => {
     if (workspaceId) fetchAll();
   }, [workspaceId]);
 
-  // Listen for OAuth popup callback
+  // Listen for OAuth popup callback (postMessage + localStorage fallback)
   useEffect(() => {
-    const handler = (event: MessageEvent) => {
+    const messageHandler = (event: MessageEvent) => {
       if (event.data?.type === "google-oauth-callback" && event.data?.status === "success") {
         fetchOAuthConnections();
         toast({ title: "Conta Google conectada!", description: event.data.detail });
       }
     };
-    window.addEventListener("message", handler);
-    return () => window.removeEventListener("message", handler);
+    const storageHandler = (event: StorageEvent) => {
+      if (event.key === "google-oauth-result" && event.newValue) {
+        try {
+          const result = JSON.parse(event.newValue);
+          if (result.status === "success") {
+            fetchOAuthConnections();
+            toast({ title: "Conta Google conectada!", description: result.detail });
+          }
+          localStorage.removeItem("google-oauth-result");
+        } catch {}
+      }
+    };
+    window.addEventListener("message", messageHandler);
+    window.addEventListener("storage", storageHandler);
+    return () => {
+      window.removeEventListener("message", messageHandler);
+      window.removeEventListener("storage", storageHandler);
+    };
   }, [workspaceId]);
 
   const fetchAll = async () => {
@@ -150,11 +166,20 @@ const WorkspaceSettings = () => {
         const w = 500, h = 600;
         const left = window.screenX + (window.outerWidth - w) / 2;
         const top = window.screenY + (window.outerHeight - h) / 2;
-        window.open(
+        const popup = window.open(
           data.authorization_url,
           "google-oauth",
           `width=${w},height=${h},left=${left},top=${top},toolbar=no,menubar=no`
         );
+        // Poll: when popup closes, refresh connections
+        if (popup) {
+          const poll = setInterval(() => {
+            if (popup.closed) {
+              clearInterval(poll);
+              fetchOAuthConnections();
+            }
+          }, 500);
+        }
       }
     } catch (err: any) {
       toast({ title: "Erro ao conectar", description: err.message, variant: "destructive" });

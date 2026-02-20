@@ -180,7 +180,7 @@ Deno.serve(async (req) => {
       if (!tokenData.access_token) {
         return new Response(
           callbackHTML("error", `Token exchange failed: ${tokenData.error || "unknown"}`),
-          { headers: { "Content-Type": "text/html" } }
+          { headers: { "Content-Type": "text/html; charset=utf-8" } }
         );
       }
 
@@ -194,7 +194,7 @@ Deno.serve(async (req) => {
       if (!googleEmail) {
         return new Response(
           callbackHTML("error", "Could not retrieve Google email"),
-          { headers: { "Content-Type": "text/html" } }
+          { headers: { "Content-Type": "text/html; charset=utf-8" } }
         );
       }
 
@@ -224,13 +224,13 @@ Deno.serve(async (req) => {
         console.error("DB upsert error:", dbError);
         return new Response(
           callbackHTML("error", `Database error: ${dbError.message}`),
-          { headers: { "Content-Type": "text/html" } }
+          { headers: { "Content-Type": "text/html; charset=utf-8" } }
         );
       }
 
       return new Response(
         callbackHTML("success", googleEmail),
-        { headers: { "Content-Type": "text/html" } }
+        { headers: { "Content-Type": "text/html; charset=utf-8" } }
       );
     }
 
@@ -373,25 +373,36 @@ function callbackHTML(status: "success" | "error", detail: string): string {
 <body>
   <div class="card">
     <div class="icon">${isSuccess ? "&#10004;&#65039;" : "&#10060;"}</div>
-    <h2>${isSuccess ? "Conta conectada!" : "Erro na conexão"}</h2>
+    <h2>${isSuccess ? "Conta conectada!" : "Erro na conexao"}</h2>
     <p>${isSuccess
       ? `A conta <span class="email">${detail}</span> foi conectada com sucesso.`
       : `${detail}`
     }</p>
     <p style="margin-top:1rem;color:#94a3b8;font-size:0.75rem;">
-      Você pode fechar esta janela.
+      Esta janela vai fechar automaticamente...
     </p>
   </div>
   <script>
-    // Notify parent window (if opened as popup)
-    if (window.opener) {
-      window.opener.postMessage({
-        type: "google-oauth-callback",
+    // Use localStorage event to notify parent window (works cross-origin)
+    try {
+      localStorage.setItem("google-oauth-result", JSON.stringify({
         status: "${status}",
-        detail: ${JSON.stringify(detail)}
-      }, "*");
-      setTimeout(() => window.close(), 2000);
-    }
+        detail: ${JSON.stringify(detail)},
+        ts: Date.now()
+      }));
+    } catch(e) {}
+    // Also try postMessage (works if opener is same origin)
+    try {
+      if (window.opener) {
+        window.opener.postMessage({
+          type: "google-oauth-callback",
+          status: "${status}",
+          detail: ${JSON.stringify(detail)}
+        }, "*");
+      }
+    } catch(e) {}
+    // Close popup after short delay
+    setTimeout(() => window.close(), 1500);
   </script>
 </body>
 </html>`;
