@@ -109,7 +109,6 @@ export const AppointmentConfigSection = ({ field, onChange, workspaceId }: Appoi
         const { data, error } = await supabase.functions.invoke("check-availability", {
           body: { action: "list_calendars", google_connection_id: config.google_connection_id },
         });
-        console.log("[AppointmentConfig] list_calendars response:", { data, error });
         if (error) {
           setCalendarError(typeof error === "object" ? JSON.stringify(error) : String(error));
         } else if (data?.calendars) {
@@ -118,7 +117,6 @@ export const AppointmentConfigSection = ({ field, onChange, workspaceId }: Appoi
           setCalendarError(data.error);
         }
       } catch (err: any) {
-        console.error("[AppointmentConfig] list_calendars error:", err);
         setCalendarError(err.message || "Erro ao buscar agendas");
       }
       setLoadingCalendars(false);
