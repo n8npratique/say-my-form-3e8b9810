@@ -65,6 +65,7 @@ export const AppointmentConfigSection = ({ field, onChange, workspaceId }: Appoi
   const [oauthConnections, setOauthConnections] = useState<{ id: string; google_email: string }[]>([]);
   const [calendars, setCalendars] = useState<{ id: string; summary: string; primary: boolean }[]>([]);
   const [loadingCalendars, setLoadingCalendars] = useState(false);
+  const [calendarError, setCalendarError] = useState("");
   const [loading, setLoading] = useState(true);
   const [activeField, setActiveField] = useState<"title" | "desc">("title");
   const titleRef = useRef<HTMLInputElement>(null);
@@ -98,19 +99,27 @@ export const AppointmentConfigSection = ({ field, onChange, workspaceId }: Appoi
   useEffect(() => {
     if (!config.google_connection_id) {
       setCalendars([]);
+      setCalendarError("");
       return;
     }
     const fetchCalendars = async () => {
       setLoadingCalendars(true);
+      setCalendarError("");
       try {
-        const { data } = await supabase.functions.invoke("check-availability", {
+        const { data, error } = await supabase.functions.invoke("check-availability", {
           body: { action: "list_calendars", google_connection_id: config.google_connection_id },
         });
-        if (data?.calendars) {
+        console.log("[AppointmentConfig] list_calendars response:", { data, error });
+        if (error) {
+          setCalendarError(typeof error === "object" ? JSON.stringify(error) : String(error));
+        } else if (data?.calendars) {
           setCalendars(data.calendars);
+        } else if (data?.error) {
+          setCalendarError(data.error);
         }
-      } catch {
-        // silently fail
+      } catch (err: any) {
+        console.error("[AppointmentConfig] list_calendars error:", err);
+        setCalendarError(err.message || "Erro ao buscar agendas");
       }
       setLoadingCalendars(false);
     };
@@ -188,7 +197,11 @@ export const AppointmentConfigSection = ({ field, onChange, workspaceId }: Appoi
         {/* Calendar */}
         <div className="space-y-1">
           <Label className="text-xs text-muted-foreground">Agenda</Label>
-          {loadingCalendars ? (
+          {calendarError ? (
+            <div className="text-xs text-red-500 bg-red-50 rounded p-2 break-all">
+              Erro: {calendarError}
+            </div>
+          ) : loadingCalendars ? (
             <div className="flex items-center gap-2 text-xs text-muted-foreground p-1.5">
               <Loader2 className="h-3.5 w-3.5 animate-spin" /> Buscando agendas...
             </div>
