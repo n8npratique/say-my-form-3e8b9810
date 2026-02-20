@@ -3,7 +3,7 @@ import {
   ListChecks, ChevronDown, Image, ToggleLeft, Scale, Star, ThumbsUp,
   MessageSquare, FileUp, CheckSquare, Users, Sparkles, LayoutList,
   SplitSquareVertical, Grid3X3, Award, BarChart3, ListOrdered,
-  Milestone, PanelTop, PanelBottom, ExternalLink, CircleDot
+  Milestone, PanelTop, PanelBottom, ExternalLink, CircleDot, CalendarClock
 } from "lucide-react";
 
 export type FieldType =
@@ -11,7 +11,8 @@ export type FieldType =
   | "number" | "date" | "multiple_choice" | "dropdown" | "image_choice"
   | "yes_no" | "legal" | "checkbox" | "nps" | "opinion_scale" | "rating"
   | "ranking" | "matrix" | "file_upload" | "statement" | "welcome_screen"
-  | "end_screen" | "question_group" | "redirect_url" | "contact_info";
+  | "end_screen" | "question_group" | "redirect_url" | "contact_info"
+  | "appointment";
 
 export interface FieldTypeConfig {
   type: FieldType;
@@ -65,6 +66,7 @@ export const FIELD_TYPES: FieldTypeConfig[] = [
   { type: "end_screen", label: "Tela final", icon: PanelBottom, category: "Outro", color: "text-secondary" },
   { type: "question_group", label: "Grupo de perguntas", icon: LayoutList, category: "Outro", color: "text-primary" },
   { type: "redirect_url", label: "Redirecionar para URL", icon: ExternalLink, category: "Outro", color: "text-accent" },
+  { type: "appointment", label: "Agendamento", icon: CalendarClock, category: "Outro", color: "text-success" },
 ];
 
 export function getFieldTypeConfig(type: FieldType): FieldTypeConfig | undefined {

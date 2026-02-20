@@ -191,22 +191,36 @@ export const FORM_TEMPLATES: FormTemplate[] = [
     },
   },
 
-  // ── 6. Agendamento ───────────────────────────────────────────────────────
+  // ── 6. Agendamento Inteligente ───────────────────────────────────────────
   {
     id: "scheduling",
-    name: "Agendamento",
-    description: "Permita que clientes solicitem agendamentos com data, horário e observações.",
-    icon: "CalendarDays",
+    name: "Agendamento Inteligente",
+    description: "Aulas experimentais, consultas ou reuniões — o cliente escolhe horários livres do seu Google Calendar.",
+    icon: "CalendarClock",
     category: "Serviços",
     themeColors: ["#F0FDF4", "#16A34A", "#166534"],
     buildSchema: (): FormSchema => ({
       fields: [
-        { id: crypto.randomUUID(), type: "short_text", label: "Seu nome completo", required: true },
+        { id: crypto.randomUUID(), type: "contact_info", label: "Seus dados", required: true, contact_fields: ["first_name", "last_name", "phone"] },
         { id: crypto.randomUUID(), type: "email", label: "E-mail", required: true },
-        { id: crypto.randomUUID(), type: "phone", label: "Telefone", required: true },
-        { id: crypto.randomUUID(), type: "date", label: "Data preferida", required: true },
-        { id: crypto.randomUUID(), type: "dropdown", label: "Horário preferido", required: true, options: ["08:00", "09:00", "10:00", "11:00", "14:00", "15:00", "16:00", "17:00"] },
-        { id: crypto.randomUUID(), type: "long_text", label: "Observações adicionais", required: false },
+        { id: crypto.randomUUID(), type: "dropdown", label: "Tipo de aula", required: true, options: ["Musculação", "Funcional", "Pilates", "Yoga", "Spinning"] },
+        {
+          id: crypto.randomUUID(),
+          type: "appointment",
+          label: "Escolha o melhor horário",
+          required: true,
+          appointment_config: {
+            google_connection_id: "",
+            calendar_id: "primary",
+            available_days: [1, 2, 3, 4, 5, 6],
+            start_time: "06:00",
+            end_time: "21:00",
+            slot_duration: 60,
+            horizon_days: 14,
+            buffer_minutes: 15,
+          },
+        },
+        { id: crypto.randomUUID(), type: "long_text", label: "Observações ou restrições médicas", required: false },
       ],
       theme: getTheme("Floresta"),
     }),

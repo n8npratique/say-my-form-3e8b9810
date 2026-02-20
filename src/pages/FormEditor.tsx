@@ -343,7 +343,7 @@ const FormEditor = () => {
         <div className="flex-1 overflow-auto">
           {selectedField ? (
             <div className="max-w-lg mx-auto p-8">
-              <FieldConfigPanel field={selectedField} onChange={updateField} />
+              <FieldConfigPanel field={selectedField} onChange={updateField} workspaceId={workspaceId} />
             </div>
           ) : (
             <div className="flex items-center justify-center h-full text-muted-foreground text-sm">

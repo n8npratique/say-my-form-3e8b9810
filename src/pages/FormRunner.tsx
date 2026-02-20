@@ -534,6 +534,7 @@ const FormRunner = () => {
               index={currentIdx}
               total={fields.length}
               onAnswer={handleAnswer}
+              formId={formId || undefined}
             />
           )}
         </AnimatePresence>

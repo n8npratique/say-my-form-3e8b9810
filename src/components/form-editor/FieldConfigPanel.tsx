@@ -11,6 +11,7 @@ import type { ContactFieldKey } from "@/types/workflow";
 import { parseMediaUrl } from "@/lib/mediaUtils";
 import { supabase } from "@/integrations/supabase/client";
 import { useRef } from "react";
+import { AppointmentConfigSection } from "./AppointmentConfigSection";
 
 const OPTION_TYPES = ["multiple_choice", "dropdown", "image_choice", "checkbox", "ranking"];
 
@@ -27,9 +28,10 @@ const ALL_CONTACT_FIELDS: { key: ContactFieldKey; label: string }[] = [
 interface FieldConfigPanelProps {
   field: FormField;
   onChange: (updated: FormField) => void;
+  workspaceId?: string;
 }
 
-export const FieldConfigPanel = ({ field, onChange }: FieldConfigPanelProps) => {
+export const FieldConfigPanel = ({ field, onChange, workspaceId }: FieldConfigPanelProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cfg = getFieldTypeConfig(field.type);
   const hasOptions = OPTION_TYPES.includes(field.type);
@@ -204,6 +206,11 @@ export const FieldConfigPanel = ({ field, onChange }: FieldConfigPanelProps) => 
                   })}
                 </div>
               </div>
+            )}
+
+            {/* Appointment Config */}
+            {field.type === "appointment" && workspaceId && (
+              <AppointmentConfigSection field={field} onChange={onChange} workspaceId={workspaceId} />
             )}
 
             {hasOptions && (

@@ -14,7 +14,7 @@ import { useRealtimeResponses } from "@/hooks/useRealtimeResponses";
 import {
   Plus, ArrowLeft, FileText, MoreHorizontal,
   Eye, Pencil, Trash2, Globe, Settings, Users, Copy, ArchiveRestore,
-  Star, ThumbsUp, GraduationCap, UserPlus, MessageSquare, CalendarDays, Check,
+  Star, ThumbsUp, GraduationCap, UserPlus, MessageSquare, CalendarDays, CalendarClock, Check,
 } from "lucide-react";
 import logoPratique from "@/assets/logo-pratique.png";
 import {
@@ -48,7 +48,7 @@ function FormNewBadge({ formId, isPublished }: { formId: string; isPublished: bo
 }
 
 const TEMPLATE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
-  Star, ThumbsUp, GraduationCap, UserPlus, MessageSquare, CalendarDays,
+  Star, ThumbsUp, GraduationCap, UserPlus, MessageSquare, CalendarDays, CalendarClock,
 };
 
 const WorkspaceForms = () => {

@@ -11,6 +11,7 @@ import type { FormField, ContactFieldKey } from "@/types/workflow";
 import { FieldMedia } from "./FieldMedia";
 import { PhoneInput } from "./PhoneInput";
 import { ValidatedEmailInput } from "./ValidatedEmailInput";
+import { AppointmentPicker } from "./AppointmentPicker";
 import { validateEmail } from "@/lib/countries";
 
 interface RunnerFieldProps {
@@ -18,9 +19,10 @@ interface RunnerFieldProps {
   index: number;
   total: number;
   onAnswer: (value: any) => void;
+  formId?: string;
 }
 
-export const RunnerField = ({ field, index, total, onAnswer }: RunnerFieldProps) => {
+export const RunnerField = ({ field, index, total, onAnswer, formId }: RunnerFieldProps) => {
   const [value, setValue] = useState<any>("");
   const [checkboxValues, setCheckboxValues] = useState<string[]>([]);
   const [rating, setRating] = useState(0);
@@ -62,6 +64,7 @@ export const RunnerField = ({ field, index, total, onAnswer }: RunnerFieldProps)
     if (field.type === "rating") return rating > 0;
     if (field.type === "phone") return phoneValid;
     if (field.type === "email") return emailValid;
+    if (field.type === "appointment") return !!value && !!value.slot_start;
     return !!value;
   };
 
@@ -275,6 +278,15 @@ export const RunnerField = ({ field, index, total, onAnswer }: RunnerFieldProps)
             ))}
           </div>
         );
+
+      case "appointment":
+        return formId ? (
+          <AppointmentPicker
+            field={field}
+            formId={formId}
+            onSelect={(val) => setValue(val)}
+          />
+        ) : null;
 
       case "statement":
       case "welcome_screen":

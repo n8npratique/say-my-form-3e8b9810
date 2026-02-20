@@ -151,7 +151,7 @@ Deno.serve(async (req) => {
   try {
     const { form_id, response_id, google_connection_id } = await req.json();
 
-    // 1. Fetch integration
+    // 1. Fetch integration (may be null if only appointment field is used)
     const { data: integration } = await supabase
       .from("integrations")
       .select("*")
@@ -160,9 +160,7 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     const cfg: any = integration?.config ?? {};
-    if (!integration || cfg.enabled === false) {
-      return respond({ created: false, reason: "not_enabled" });
-    }
+    // Don't return early yet — appointment fields work without the calendar integration
 
     // 2. Fetch form
     const { data: form } = await supabase
@@ -186,8 +184,10 @@ Deno.serve(async (req) => {
       .eq("response_id", response_id);
 
     const answers: Record<string, any> = {};
+    const rawValues: Record<string, any> = {}; // keep raw value objects for appointment detection
     for (const ans of answersRaw ?? []) {
       answers[ans.field_key] = ans.value_text ?? (typeof ans.value === "object" ? JSON.stringify(ans.value) : ans.value);
+      rawValues[ans.field_key] = ans.value;
     }
 
     // 4. Fetch schema
@@ -203,9 +203,27 @@ Deno.serve(async (req) => {
       schemaFields = schema.fields ?? [];
     }
 
+    // 4b. Check for appointment fields to determine connection + early return
+    let appointmentFieldConfig: any = null;
+    for (const field of schemaFields) {
+      if (field.type === "appointment" && field.appointment_config?.google_connection_id) {
+        const raw = rawValues[field.id];
+        const parsed = typeof raw === "string" ? (() => { try { return JSON.parse(raw); } catch { return raw; } })() : raw;
+        if (parsed && parsed.slot_start) {
+          appointmentFieldConfig = field.appointment_config;
+          break;
+        }
+      }
+    }
+
+    // If no calendar integration and no appointment field, return early
+    if ((!integration || cfg.enabled === false) && !appointmentFieldConfig) {
+      return respond({ created: false, reason: "not_enabled" });
+    }
+
     // 5. Google auth — OAuth ou Service Account (dual-token)
     const effectiveConnectionId =
-      google_connection_id || cfg.google_connection_id;
+      google_connection_id || appointmentFieldConfig?.google_connection_id || cfg.google_connection_id;
 
     let accessToken: string;
 
@@ -259,48 +277,66 @@ Deno.serve(async (req) => {
     };
 
     // 7. Build event datetime
-    const calendarId = cfg.calendar_id || "primary";
-    const dateFieldId: string = cfg.date_field_id || "";
-    const timeFieldId: string = cfg.time_field_id || "";
-    const durationMinutes: number = cfg.duration_minutes ?? 60;
+    const calendarId = appointmentFieldConfig?.calendar_id || cfg.calendar_id || "primary";
+    let startIso: string;
+    let endIso: string;
+    let appointmentFieldId: string | null = null;
 
-    // Get date string from field
-    let dateStr = "";
-    if (dateFieldId && answers[dateFieldId]) {
-      // Could be ISO string or dd/mm/yyyy etc
-      const raw = String(answers[dateFieldId]);
-      // Try to parse common formats
-      if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
-        dateStr = raw.substring(0, 10);
-      } else if (/^\d{2}\/\d{2}\/\d{4}/.test(raw)) {
-        const [d, m, y] = raw.split("/");
-        dateStr = `${y}-${m}-${d}`;
-      } else {
-        dateStr = raw.substring(0, 10);
+    // Check if any answer came from an appointment field (has slot_start/slot_end)
+    let appointmentValue: any = null;
+    for (const field of schemaFields) {
+      if (field.type === "appointment") {
+        const raw = rawValues[field.id];
+        const parsed = typeof raw === "string" ? (() => { try { return JSON.parse(raw); } catch { return raw; } })() : raw;
+        if (parsed && parsed.slot_start && parsed.slot_end) {
+          appointmentValue = parsed;
+          appointmentFieldId = field.id;
+          break;
+        }
       }
+    }
+
+    if (appointmentValue) {
+      // Use slot_start/slot_end directly from appointment picker
+      startIso = appointmentValue.slot_start;
+      endIso = appointmentValue.slot_end;
     } else {
-      // Default to today + 1 day
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      dateStr = tomorrow.toISOString().substring(0, 10);
-    }
+      // Fallback: use date_field_id / time_field_id (existing behavior)
+      const dateFieldId: string = cfg.date_field_id || "";
+      const timeFieldId: string = cfg.time_field_id || "";
+      const durationMinutes: number = cfg.duration_minutes ?? 60;
 
-    // Get time string from field
-    let timeStr = "09:00";
-    if (timeFieldId && answers[timeFieldId]) {
-      const raw = String(answers[timeFieldId]).trim();
-      // Match HH:MM pattern
-      const match = raw.match(/(\d{1,2}):(\d{2})/);
-      if (match) {
-        timeStr = `${match[1].padStart(2, "0")}:${match[2]}`;
+      let dateStr = "";
+      if (dateFieldId && answers[dateFieldId]) {
+        const raw = String(answers[dateFieldId]);
+        if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
+          dateStr = raw.substring(0, 10);
+        } else if (/^\d{2}\/\d{2}\/\d{4}/.test(raw)) {
+          const [d, m, y] = raw.split("/");
+          dateStr = `${y}-${m}-${d}`;
+        } else {
+          dateStr = raw.substring(0, 10);
+        }
+      } else {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        dateStr = tomorrow.toISOString().substring(0, 10);
       }
+
+      let timeStr = "09:00";
+      if (timeFieldId && answers[timeFieldId]) {
+        const raw = String(answers[timeFieldId]).trim();
+        const match = raw.match(/(\d{1,2}):(\d{2})/);
+        if (match) {
+          timeStr = `${match[1].padStart(2, "0")}:${match[2]}`;
+        }
+      }
+
+      const startDt = new Date(`${dateStr}T${timeStr}:00`);
+      const endDt = new Date(startDt.getTime() + durationMinutes * 60 * 1000);
+      startIso = startDt.toISOString();
+      endIso = endDt.toISOString();
     }
-
-    const startDt = new Date(`${dateStr}T${timeStr}:00`);
-    const endDt = new Date(startDt.getTime() + durationMinutes * 60 * 1000);
-
-    const startIso = startDt.toISOString();
-    const endIso = endDt.toISOString();
 
     // 8. Build attendees
     const attendees: { email: string }[] = [];
@@ -362,6 +398,24 @@ Deno.serve(async (req) => {
       .from("integrations")
       .update({ last_synced_at: new Date().toISOString() })
       .eq("id", integration.id);
+
+    // 11. Cleanup appointment holds (if from appointment field)
+    if (appointmentFieldId && appointmentValue) {
+      // Delete the hold for this slot
+      await supabase
+        .from("appointment_holds")
+        .delete()
+        .eq("form_id", form_id)
+        .eq("field_id", appointmentFieldId)
+        .eq("slot_start", appointmentValue.slot_start);
+
+      // Best-effort: also clean expired holds
+      supabase
+        .from("appointment_holds")
+        .delete()
+        .lt("expires_at", new Date().toISOString())
+        .then(() => {});
+    }
 
     return respond({ created: true, event_id: eventData.id, html_link: eventData.htmlLink });
   } catch (err: any) {
