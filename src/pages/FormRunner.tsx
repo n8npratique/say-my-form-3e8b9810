@@ -10,6 +10,8 @@ import logoPratique from "@/assets/logo-pratique.png";
 import { AnimatePresence, motion } from "framer-motion";
 import type { FormField } from "@/types/workflow";
 import type { FieldLogic, ScoringConfig, TaggingConfig, OutcomesConfig, FormSchema } from "@/types/workflow";
+import type { Locale } from "@/lib/i18n";
+import { t } from "@/lib/i18n";
 import { getNextFieldId, calculateScore, collectTags, determineOutcome } from "@/lib/logicEngine";
 import type { FormTheme, WelcomeScreen as WelcomeScreenType } from "@/lib/formTheme";
 import { DEFAULT_THEME, getThemeStyle, loadGoogleFont } from "@/lib/formTheme";
@@ -26,6 +28,7 @@ const FormRunner = () => {
   const [tagging, setTagging] = useState<TaggingConfig | null>(null);
   const [outcomesConfig, setOutcomesConfig] = useState<OutcomesConfig | null>(null);
   const [theme, setTheme] = useState<FormTheme>(DEFAULT_THEME);
+  const [locale, setLocale] = useState<Locale>("pt-BR");
   const [formId, setFormId] = useState<string | null>(null);
   const [versionId, setVersionId] = useState<string | null>(null);
   const [accessMode, setAccessMode] = useState<"public" | "email_required">("public");
@@ -105,6 +108,7 @@ const FormRunner = () => {
       if (schema?.tagging?.enabled) setTagging(schema.tagging);
       if (schema?.outcomes?.enabled) setOutcomesConfig(schema.outcomes);
       if (schema?.theme) setTheme(schema.theme);
+      if (schema?.locale) setLocale(schema.locale);
       if (schema?.theme?.welcome_screen?.enabled) setShowWelcome(true);
     }
 
@@ -408,7 +412,7 @@ const FormRunner = () => {
   }
 
   if (accessMode === "email_required" && !emailCollected) {
-    return <EmailGate formName={formName} onSubmit={handleEmailSubmit} themeStyle={themeStyle} theme={theme} />;
+    return <EmailGate formName={formName} onSubmit={handleEmailSubmit} themeStyle={themeStyle} theme={theme} locale={locale} />;
   }
 
   if (showWelcome && theme.welcome_screen?.enabled) {
@@ -437,7 +441,7 @@ const FormRunner = () => {
         )}
         <div className="text-center space-y-4 max-w-md relative z-10">
           <AlertTriangle className="h-16 w-16 mx-auto text-yellow-500" />
-          <h1 className="text-2xl font-bold">Resposta duplicada</h1>
+          <h1 className="text-2xl font-bold">{t(locale).duplicateTitle}</h1>
           <p style={{ color: theme.text_secondary_color }}>{duplicateError}</p>
         </div>
       </motion.div>
@@ -467,7 +471,7 @@ const FormRunner = () => {
                 />
               )}
               <CheckCircle2 className="h-14 w-14 mx-auto" style={{ color: theme.button_color }} />
-              <h1 className="text-2xl font-bold">{endScreen.label || "Obrigado!"}</h1>
+              <h1 className="text-2xl font-bold">{endScreen.label || t(locale).thankYou}</h1>
               {endScreen.placeholder && (
                 <p style={{ color: theme.text_secondary_color }}>{endScreen.placeholder}</p>
               )}
@@ -494,15 +498,15 @@ const FormRunner = () => {
             /* ── Default thank-you screen ── */
             <>
               <CheckCircle2 className="h-16 w-16 mx-auto" style={{ color: theme.button_color }} />
-              <h1 className="text-2xl font-bold">Obrigado!</h1>
-              <p style={{ color: theme.text_secondary_color }}>Suas respostas foram enviadas com sucesso.</p>
+              <h1 className="text-2xl font-bold">{t(locale).thankYou}</h1>
+              <p style={{ color: theme.text_secondary_color }}>{t(locale).responseSent}</p>
             </>
           )}
 
           {/* Score card — always shown when scoring is active */}
           {scoreResult && (
             <div className="mt-4 p-4 rounded-xl" style={{ backgroundColor: `${theme.button_color}15`, border: `1px solid ${theme.button_color}30` }}>
-              <p className="text-sm" style={{ color: theme.text_secondary_color }}>Sua pontuação</p>
+              <p className="text-sm" style={{ color: theme.text_secondary_color }}>{t(locale).yourScore}</p>
               <p className="text-3xl font-bold" style={{ color: theme.button_color }}>{scoreResult.score}</p>
               {scoreResult.label && <p className="text-sm" style={{ color: theme.text_secondary_color }}>{scoreResult.label}</p>}
             </div>
@@ -535,6 +539,7 @@ const FormRunner = () => {
               total={fields.length}
               onAnswer={handleAnswer}
               formId={formId || undefined}
+              locale={locale}
             />
           )}
         </AnimatePresence>

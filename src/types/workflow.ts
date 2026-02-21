@@ -1,5 +1,6 @@
 import type { FieldType } from "@/config/fieldTypes";
 import type { FormTheme } from "@/lib/formTheme";
+import type { Locale } from "@/lib/i18n";
 
 // ── FormField extended ──
 export type ContactFieldKey = "first_name" | "last_name" | "email" | "phone" | "cpf" | "cep" | "address";
@@ -118,6 +119,7 @@ export interface FormSchema {
   outcomes?: OutcomesConfig;
   theme?: FormTheme;
   email_templates?: EmailTemplate[];
+  locale?: Locale;
 }
 
 // ── Helpers ──

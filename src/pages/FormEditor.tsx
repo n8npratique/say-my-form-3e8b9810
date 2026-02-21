@@ -9,11 +9,14 @@ import { FieldItem, type FormField } from "@/components/form-editor/FieldItem";
 import { FieldConfigPanel } from "@/components/form-editor/FieldConfigPanel";
 import { ShareDialog } from "@/components/form-editor/ShareDialog";
 import { ThemePanel } from "@/components/form-editor/ThemePanel";
-import { ArrowLeft, Plus, Save, Eye, Share2, Rocket, GitBranch, ClipboardList, Palette } from "lucide-react";
+import { ArrowLeft, Plus, Save, Eye, Share2, Rocket, GitBranch, ClipboardList, Palette, Globe } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import logoPratique from "@/assets/logo-pratique.png";
 import type { FieldType } from "@/config/fieldTypes";
 import type { FormTheme } from "@/lib/formTheme";
 import { DEFAULT_THEME } from "@/lib/formTheme";
+import type { Locale } from "@/lib/i18n";
+import { LOCALE_OPTIONS, defaultTimezoneForLocale } from "@/lib/i18n";
 
 const generateSlug = (name: string) => {
   const base = name
@@ -44,6 +47,7 @@ const FormEditor = () => {
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [dragOverPosition, setDragOverPosition] = useState<"top" | "bottom" | null>(null);
   const [theme, setTheme] = useState<FormTheme>(DEFAULT_THEME);
+  const [locale, setLocale] = useState<Locale>("pt-BR");
   const [themeOpen, setThemeOpen] = useState(false);
   const selectedField = fields.find((f) => f.id === selectedId) || null;
 
@@ -78,6 +82,7 @@ const FormEditor = () => {
         if (schema.fields.length > 0) setSelectedId(schema.fields[0].id);
       }
       if (schema?.theme) setTheme(schema.theme);
+      if (schema?.locale) setLocale(schema.locale);
     }
   };
 
@@ -117,7 +122,7 @@ const FormEditor = () => {
       .maybeSingle();
 
     const existingSchema = (current?.schema as any) || {};
-    const mergedSchema = { ...existingSchema, fields, theme };
+    const mergedSchema = { ...existingSchema, fields, theme, locale };
 
     const { error } = await supabase
       .from("form_versions")
@@ -146,7 +151,7 @@ const FormEditor = () => {
     const existingSchema = (currentVersion?.schema as any) || {};
     await supabase
       .from("form_versions")
-      .update({ schema: { ...existingSchema, fields, theme } as any })
+      .update({ schema: { ...existingSchema, fields, theme, locale } as any })
       .eq("id", versionId);
 
     // Generate slug if needed
@@ -235,6 +240,22 @@ const FormEditor = () => {
           <Button variant="outline" size="sm" onClick={handlePreview}>
             <Eye className="h-4 w-4 mr-1" /> Preview
           </Button>
+          <Select
+            value={locale}
+            onValueChange={(v) => setLocale(v as Locale)}
+          >
+            <SelectTrigger className="h-8 w-[160px] text-xs gap-1">
+              <Globe className="h-3.5 w-3.5 shrink-0" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {LOCALE_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  <span className="mr-1.5">{opt.flag}</span>{opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Button variant="outline" size="sm" onClick={() => setThemeOpen(true)}>
             <Palette className="h-4 w-4 mr-1" /> Aparência
             <span className="ml-1 flex gap-0.5">

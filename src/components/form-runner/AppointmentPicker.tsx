@@ -3,7 +3,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Loader2, CalendarClock, Check } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { ptBR } from "date-fns/locale/pt-BR";
+import { es } from "date-fns/locale/es";
 import type { FormField } from "@/types/workflow";
+import type { Locale } from "@/lib/i18n";
+import { t } from "@/lib/i18n";
 
 interface SlotDay {
   date: string;
@@ -14,9 +17,10 @@ interface AppointmentPickerProps {
   field: FormField;
   formId: string;
   onSelect: (value: { date: string; time: string; slot_start: string; slot_end: string }) => void;
+  locale?: Locale;
 }
 
-export const AppointmentPicker = ({ field, formId, onSelect }: AppointmentPickerProps) => {
+export const AppointmentPicker = ({ field, formId, onSelect, locale }: AppointmentPickerProps) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [slots, setSlots] = useState<SlotDay[]>([]);
@@ -27,10 +31,12 @@ export const AppointmentPicker = ({ field, formId, onSelect }: AppointmentPicker
   const sessionIdRef = useRef(crypto.randomUUID());
 
   const config = field.appointment_config;
+  const i = t(locale);
+  const calendarLocale = locale === "es-AR" ? es : locale === "en-US" ? undefined : ptBR;
 
   useEffect(() => {
     if (!config?.google_connection_id) {
-      setError("Agendamento não configurado.");
+      setError(i.appointmentNotConfigured);
       setLoading(false);
       return;
     }
@@ -60,7 +66,7 @@ export const AppointmentPicker = ({ field, formId, onSelect }: AppointmentPicker
       }
     } catch (err: any) {
       console.error("Availability error:", err);
-      setError("Erro ao buscar horários disponíveis.");
+      setError(i.appointmentError);
     }
     setLoading(false);
   };
@@ -154,10 +160,9 @@ export const AppointmentPicker = ({ field, formId, onSelect }: AppointmentPicker
 
   const formatLongDate = (dateStr: string): string => {
     const d = toDate(dateStr);
-    const dayNames = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
-    const monthNames = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
-    const dayName = dayNames[d.getDay()];
-    return `${dayName}, ${d.getDate()} de ${monthNames[d.getMonth()]}`;
+    const localeMap: Record<string, string> = { "pt-BR": "pt-BR", "es-AR": "es-AR", "en-US": "en-US" };
+    const dtLocale = localeMap[locale || "pt-BR"] || "pt-BR";
+    return d.toLocaleDateString(dtLocale, { weekday: "long", day: "numeric", month: "short" });
   };
 
   const formatEndTime = (time: string): string => {
@@ -174,7 +179,7 @@ export const AppointmentPicker = ({ field, formId, onSelect }: AppointmentPicker
       <div className="flex items-center justify-center gap-2 py-8">
         <Loader2 className="h-5 w-5 animate-spin" style={{ color: "var(--runner-btn-bg)" }} />
         <span className="text-sm" style={{ color: "var(--runner-text-secondary)" }}>
-          Buscando horários disponíveis...
+          {i.appointmentLoading}
         </span>
       </div>
     );
@@ -194,7 +199,7 @@ export const AppointmentPicker = ({ field, formId, onSelect }: AppointmentPicker
       <div className="text-center py-8">
         <CalendarClock className="h-10 w-10 mx-auto mb-2 opacity-30" />
         <p className="text-sm" style={{ color: "var(--runner-text-secondary)" }}>
-          Nenhum horário disponível no momento.
+          {i.appointmentNoSlots}
         </p>
       </div>
     );
@@ -211,7 +216,7 @@ export const AppointmentPicker = ({ field, formId, onSelect }: AppointmentPicker
           style={{ borderColor: "var(--runner-border, #e5e7eb)" }}>
           <Calendar
             mode="single"
-            locale={ptBR}
+            locale={calendarLocale}
             selected={calendarSelected}
             onSelect={(date) => {
               if (!date) return;
@@ -290,7 +295,7 @@ export const AppointmentPicker = ({ field, formId, onSelect }: AppointmentPicker
                   })
                 ) : (
                   <p className="text-sm py-4 text-center" style={{ color: "var(--runner-text-secondary)" }}>
-                    Nenhum horário neste dia.
+                    {i.appointmentNoTimesThisDay}
                   </p>
                 )}
               </div>
@@ -298,7 +303,7 @@ export const AppointmentPicker = ({ field, formId, onSelect }: AppointmentPicker
           ) : (
             <div className="flex items-center justify-center h-full">
               <p className="text-sm" style={{ color: "var(--runner-text-secondary)" }}>
-                Selecione um dia no calendário.
+                {i.appointmentSelectDay}
               </p>
             </div>
           )}
@@ -312,9 +317,7 @@ export const AppointmentPicker = ({ field, formId, onSelect }: AppointmentPicker
           style={{ backgroundColor: "#fef2f2", color: "#dc2626" }}
         >
           <CalendarClock className="h-4 w-4 shrink-0" />
-          <span>
-            O horário <strong>{conflictTime}</strong> acabou de ser reservado por outra pessoa. Escolha outro.
-          </span>
+          <span>{i.appointmentConflict(conflictTime)}</span>
         </div>
       )}
 

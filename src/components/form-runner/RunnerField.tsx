@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Star, ArrowRight, Check } from "lucide-react";
 import { motion } from "framer-motion";
 import type { FormField, ContactFieldKey } from "@/types/workflow";
+import type { Locale } from "@/lib/i18n";
+import { t } from "@/lib/i18n";
 import { FieldMedia } from "./FieldMedia";
 import { PhoneInput } from "./PhoneInput";
 import { ValidatedEmailInput } from "./ValidatedEmailInput";
@@ -20,9 +22,10 @@ interface RunnerFieldProps {
   total: number;
   onAnswer: (value: any) => void;
   formId?: string;
+  locale?: Locale;
 }
 
-export const RunnerField = ({ field, index, total, onAnswer, formId }: RunnerFieldProps) => {
+export const RunnerField = ({ field, index, total, onAnswer, formId, locale }: RunnerFieldProps) => {
   const [value, setValue] = useState<any>("");
   const [checkboxValues, setCheckboxValues] = useState<string[]>([]);
   const [rating, setRating] = useState(0);
@@ -30,14 +33,15 @@ export const RunnerField = ({ field, index, total, onAnswer, formId }: RunnerFie
   const [phoneValid, setPhoneValid] = useState(false);
   const [emailValid, setEmailValid] = useState(false);
 
+  const i = t(locale);
   const CONTACT_LABELS: Record<ContactFieldKey, string> = {
-    first_name: "Nome",
-    last_name: "Sobrenome",
-    email: "E-mail",
-    phone: "Telefone",
-    cpf: "CPF",
-    cep: "CEP",
-    address: "Endereço",
+    first_name: i.contactFirstName,
+    last_name: i.contactLastName,
+    email: i.contactEmail,
+    phone: i.contactPhone,
+    cpf: i.contactCpf,
+    cep: i.contactCep,
+    address: i.contactAddress,
   };
 
   const submit = () => {
@@ -88,7 +92,7 @@ export const RunnerField = ({ field, index, total, onAnswer, formId }: RunnerFie
                   <ValidatedEmailInput
                     value={contactValues[key] || ""}
                     onChange={(v) => setContactValues(prev => ({ ...prev, [key]: v }))}
-                    placeholder="seunome@provedor.com"
+                    placeholder={i.emailGatePlaceholder}
                   />
                 ) : (
                   <Input
@@ -133,7 +137,7 @@ export const RunnerField = ({ field, index, total, onAnswer, formId }: RunnerFie
           <div className="space-y-1">
             <Input
               type={field.type === "number" ? "number" : "text"}
-              placeholder={field.placeholder || "Digite sua resposta..."}
+              placeholder={field.placeholder || i.typeYourAnswer}
               value={value}
               onChange={(e) => setValue(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && canSubmit() && submit()}
@@ -141,10 +145,10 @@ export const RunnerField = ({ field, index, total, onAnswer, formId }: RunnerFie
               autoFocus
             />
             {field.type === "website" && (
-              <p className="text-xs opacity-40" style={{ color: "var(--runner-text-secondary)" }}>Ex: https://www.seusite.com.br</p>
+              <p className="text-xs opacity-40" style={{ color: "var(--runner-text-secondary)" }}>{i.websiteExample}</p>
             )}
             {field.type === "number" && (
-              <p className="text-xs opacity-40" style={{ color: "var(--runner-text-secondary)" }}>Ex: 1234</p>
+              <p className="text-xs opacity-40" style={{ color: "var(--runner-text-secondary)" }}>{i.numberExample}</p>
             )}
           </div>
         );
@@ -152,7 +156,7 @@ export const RunnerField = ({ field, index, total, onAnswer, formId }: RunnerFie
       case "long_text":
         return (
           <Textarea
-            placeholder={field.placeholder || "Digite sua resposta..."}
+            placeholder={field.placeholder || i.typeYourAnswer}
             value={value}
             onChange={(e) => setValue(e.target.value)}
             className="text-lg min-h-[120px] border-0 border-b-2 rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-primary resize-none"
@@ -213,7 +217,7 @@ export const RunnerField = ({ field, index, total, onAnswer, formId }: RunnerFie
       case "legal":
         return (
           <div className="flex gap-3">
-            {["Sim", "Não"].map((opt) => (
+            {[i.yes, i.no].map((opt) => (
               <Button
                 key={opt}
                 variant={value === opt ? "default" : "outline"}
@@ -258,8 +262,8 @@ export const RunnerField = ({ field, index, total, onAnswer, formId }: RunnerFie
               ))}
             </div>
             <div className="flex justify-between text-xs text-muted-foreground px-1">
-              <span>Nada provável</span>
-              <span>Muito provável</span>
+              <span>{i.notLikely}</span>
+              <span>{i.veryLikely}</span>
             </div>
           </div>
         );
@@ -285,6 +289,7 @@ export const RunnerField = ({ field, index, total, onAnswer, formId }: RunnerFie
             field={field}
             formId={formId}
             onSelect={(val) => setValue(val)}
+            locale={locale}
           />
         ) : null;
 
@@ -296,7 +301,7 @@ export const RunnerField = ({ field, index, total, onAnswer, formId }: RunnerFie
       default:
         return (
           <Input
-            placeholder="Digite sua resposta..."
+            placeholder={i.typeYourAnswer}
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && canSubmit() && submit()}
@@ -321,7 +326,7 @@ export const RunnerField = ({ field, index, total, onAnswer, formId }: RunnerFie
 
       <div className="space-y-2">
       <p className="text-sm" style={{ color: "var(--runner-text-secondary)" }}>
-          {index + 1} → {total}
+          {index + 1} {i.questionOf} {total}
         </p>
         <h2 className="text-2xl font-bold">
           {field.label || `Pergunta ${index + 1}`}
@@ -338,7 +343,7 @@ export const RunnerField = ({ field, index, total, onAnswer, formId }: RunnerFie
         disabled={!isPassthrough && !canSubmit()}
         style={{ backgroundColor: "var(--runner-btn-bg)", color: "var(--runner-btn-text)" }}
       >
-        {isPassthrough ? "Continuar" : "OK"} <Check className="h-4 w-4 ml-1" />
+        {isPassthrough ? i.continue : i.ok} <Check className="h-4 w-4 ml-1" />
       </Button>
     </motion.div>
   );

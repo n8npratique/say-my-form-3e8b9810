@@ -4,17 +4,21 @@ import { Input } from "@/components/ui/input";
 import { Sparkles, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
 import type { FormTheme } from "@/lib/formTheme";
+import type { Locale } from "@/lib/i18n";
+import { t } from "@/lib/i18n";
 
 interface EmailGateProps {
   formName: string;
   onSubmit: (email: string) => void;
   themeStyle?: React.CSSProperties;
   theme?: FormTheme;
+  locale?: Locale;
 }
 
-export const EmailGate = ({ formName, onSubmit, themeStyle, theme }: EmailGateProps) => {
+export const EmailGate = ({ formName, onSubmit, themeStyle, theme, locale }: EmailGateProps) => {
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
+  const i = t(locale);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,13 +40,13 @@ export const EmailGate = ({ formName, onSubmit, themeStyle, theme }: EmailGatePr
         <div className="space-y-2">
           <Sparkles className="h-8 w-8 mx-auto" style={{ color: theme?.button_color || "hsl(var(--primary))" }} />
           <h1 className="text-2xl font-bold">{formName}</h1>
-          <p style={{ color: theme?.text_secondary_color || "hsl(var(--muted-foreground))" }}>Insira seu e-mail para começar</p>
+          <p style={{ color: theme?.text_secondary_color || "hsl(var(--muted-foreground))" }}>{i.emailGateTitle}</p>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <Input
               type="email"
-              placeholder="seu@email.com"
+              placeholder={i.emailGatePlaceholder}
               value={email}
               onChange={(e) => { setEmail(e.target.value); setError(""); }}
               className="text-center text-lg h-12"
@@ -58,7 +62,7 @@ export const EmailGate = ({ formName, onSubmit, themeStyle, theme }: EmailGatePr
               color: theme?.button_text_color || "hsl(var(--primary-foreground))",
             }}
           >
-            Começar <ArrowRight className="h-4 w-4 ml-1" />
+            {i.emailGateSubmit} <ArrowRight className="h-4 w-4 ml-1" />
           </Button>
         </form>
       </div>
