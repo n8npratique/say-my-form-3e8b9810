@@ -266,24 +266,12 @@ const FormRunner = () => {
       }
     }
 
-    await supabase
-      .from("responses")
-      .update({
-        status: "completed",
-        completed_at: new Date().toISOString(),
-        meta: meta as any,
-      })
-      .eq("id", responseId)
-      .eq("session_token", sessionToken);
-
-    setCompleted(true);
-
     // 1) Fire webhooks (fire-and-forget, independent)
     supabase.functions.invoke("fire-webhooks", {
       body: { form_id: formId, response_id: responseId, session_token: sessionToken, event: "response.completed" },
     }).catch(() => {});
 
-    // 2) Fire delivery integrations first, collect results
+    // 2) Run integrations BEFORE marking completed (RLS only allows update while status='in_progress')
     const integrationResults = await Promise.allSettled([
       supabase.functions.invoke("send-email", {
         body: { form_id: formId, response_id: responseId },
@@ -334,26 +322,22 @@ const FormRunner = () => {
       }
     }
 
-    // 5) Save integration status + calendar event data to response meta
-    if (Object.keys(integrationStatus).length > 0 || Object.keys(calendarMeta).length > 0) {
-      const { data: freshResp } = await supabase
-        .from("responses")
-        .select("meta")
-        .eq("id", responseId)
-        .maybeSingle();
-      const freshMeta = (freshResp?.meta as any) || {};
-      await supabase
-        .from("responses")
-        .update({
-          meta: {
-            ...freshMeta,
-            ...calendarMeta,
-            integration_status: integrationStatus,
-          } as any,
-        })
-        .eq("id", responseId)
-        .eq("session_token", sessionToken);
-    }
+    // 5) Single update: mark completed + save all meta (RLS requires status='in_progress')
+    await supabase
+      .from("responses")
+      .update({
+        status: "completed",
+        completed_at: new Date().toISOString(),
+        meta: {
+          ...meta,
+          ...calendarMeta,
+          ...(Object.keys(integrationStatus).length > 0 ? { integration_status: integrationStatus } : {}),
+        } as any,
+      })
+      .eq("id", responseId)
+      .eq("session_token", sessionToken);
+
+    setCompleted(true);
 
     // 6) Sync to Google Sheets LAST (so it captures integration status)
     supabase.functions.invoke("sync-google-sheets", {
