@@ -8,7 +8,7 @@ import { WelcomeScreen } from "@/components/form-runner/WelcomeScreen";
 import { CheckCircle2, Trophy, AlertTriangle } from "lucide-react";
 import logoPratique from "@/assets/logo-pratique.png";
 import { AnimatePresence, motion } from "framer-motion";
-import type { FormField } from "@/types/workflow";
+import type { FormField, FieldTranslation } from "@/types/workflow";
 import type { FieldLogic, ScoringConfig, TaggingConfig, OutcomesConfig, FormSchema } from "@/types/workflow";
 import type { Locale } from "@/lib/i18n";
 import { t } from "@/lib/i18n";
@@ -29,6 +29,7 @@ const FormRunner = () => {
   const [outcomesConfig, setOutcomesConfig] = useState<OutcomesConfig | null>(null);
   const [theme, setTheme] = useState<FormTheme>(DEFAULT_THEME);
   const [locale, setLocale] = useState<Locale>("pt-BR");
+  const [fieldTranslationsMap, setFieldTranslationsMap] = useState<Record<string, FieldTranslation>>({});
   const [formId, setFormId] = useState<string | null>(null);
   const [versionId, setVersionId] = useState<string | null>(null);
   const [accessMode, setAccessMode] = useState<"public" | "email_required">("public");
@@ -108,8 +109,13 @@ const FormRunner = () => {
       if (schema?.tagging?.enabled) setTagging(schema.tagging);
       if (schema?.outcomes?.enabled) setOutcomesConfig(schema.outcomes);
       if (schema?.theme) setTheme(schema.theme);
-      console.log("[DEBUG] schema.locale =", schema?.locale, "| full schema keys:", Object.keys(schema || {}));
-      if (schema?.locale) setLocale(schema.locale);
+      if (schema?.locale) {
+        setLocale(schema.locale);
+        // Load field translations for the active locale
+        if (schema.field_translations?.[schema.locale]) {
+          setFieldTranslationsMap(schema.field_translations[schema.locale]);
+        }
+      }
       if (schema?.theme?.welcome_screen?.enabled) setShowWelcome(true);
     }
 
@@ -541,6 +547,7 @@ const FormRunner = () => {
               onAnswer={handleAnswer}
               formId={formId || undefined}
               locale={locale}
+              fieldTranslation={fieldTranslationsMap[currentField.id]}
             />
           )}
         </AnimatePresence>
@@ -550,7 +557,6 @@ const FormRunner = () => {
         <div className="flex items-center justify-center gap-1 text-xs" style={{ color: theme.text_secondary_color }}>
           <img src={logoPratique} alt="TecForms" className="h-4 w-4 rounded-full" />
           <span>TecForms</span>
-          <span className="ml-2 opacity-50">({locale})</span>
         </div>
       </footer>
     </div>

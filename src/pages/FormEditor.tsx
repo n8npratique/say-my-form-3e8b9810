@@ -9,9 +9,10 @@ import { FieldItem, type FormField } from "@/components/form-editor/FieldItem";
 import { FieldConfigPanel } from "@/components/form-editor/FieldConfigPanel";
 import { ShareDialog } from "@/components/form-editor/ShareDialog";
 import { ThemePanel } from "@/components/form-editor/ThemePanel";
-import { ArrowLeft, Plus, Save, Eye, Share2, Rocket, GitBranch, ClipboardList, Palette, Globe } from "lucide-react";
+import { ArrowLeft, Plus, Save, Eye, Share2, Rocket, GitBranch, ClipboardList, Palette, Globe, Languages, Loader2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import logoPratique from "@/assets/logo-pratique.png";
+import type { FieldTranslation } from "@/types/workflow";
 import type { FieldType } from "@/config/fieldTypes";
 import type { FormTheme } from "@/lib/formTheme";
 import { DEFAULT_THEME } from "@/lib/formTheme";
@@ -49,6 +50,8 @@ const FormEditor = () => {
   const [theme, setTheme] = useState<FormTheme>(DEFAULT_THEME);
   const [locale, setLocale] = useState<Locale>("pt-BR");
   const [themeOpen, setThemeOpen] = useState(false);
+  const [fieldTranslations, setFieldTranslations] = useState<Record<string, Record<string, FieldTranslation>>>({});
+  const [translating, setTranslating] = useState(false);
   const selectedField = fields.find((f) => f.id === selectedId) || null;
 
   useEffect(() => {
@@ -83,6 +86,7 @@ const FormEditor = () => {
       }
       if (schema?.theme) setTheme(schema.theme);
       if (schema?.locale) setLocale(schema.locale);
+      if (schema?.field_translations) setFieldTranslations(schema.field_translations);
     }
   };
 
@@ -122,7 +126,7 @@ const FormEditor = () => {
       .maybeSingle();
 
     const existingSchema = (current?.schema as any) || {};
-    const mergedSchema = { ...existingSchema, fields, theme, locale };
+    const mergedSchema = { ...existingSchema, fields, theme, locale, field_translations: fieldTranslations };
 
     const { error } = await supabase
       .from("form_versions")
@@ -151,7 +155,7 @@ const FormEditor = () => {
     const existingSchema = (currentVersion?.schema as any) || {};
     await supabase
       .from("form_versions")
-      .update({ schema: { ...existingSchema, fields, theme, locale } as any })
+      .update({ schema: { ...existingSchema, fields, theme, locale, field_translations: fieldTranslations } as any })
       .eq("id", versionId);
 
     // Generate slug if needed
@@ -209,6 +213,44 @@ const FormEditor = () => {
     }
   };
 
+  const translateWithAI = async () => {
+    if (locale === "pt-BR" || fields.length === 0) return;
+    setTranslating(true);
+    try {
+      const payload = {
+        fields: fields
+          .filter((f) => f.type !== "end_screen" && f.type !== "welcome_screen")
+          .map((f) => ({
+            id: f.id,
+            label: f.label,
+            placeholder: f.placeholder,
+            options: f.options,
+          })),
+        source_locale: "pt-BR",
+        target_locale: locale,
+      };
+
+      const { data, error } = await supabase.functions.invoke("translate-form", {
+        body: payload,
+      });
+
+      if (error || !data?.translations) {
+        toast({ title: "Erro na tradução", description: error?.message || "Sem resposta da IA", variant: "destructive" });
+        return;
+      }
+
+      setFieldTranslations((prev) => ({
+        ...prev,
+        [locale]: data.translations,
+      }));
+      toast({ title: "Traduzido!", description: `Campos traduzidos para ${LOCALE_OPTIONS.find((o) => o.value === locale)?.label || locale}. Salve para persistir.` });
+    } catch (err: any) {
+      toast({ title: "Erro na tradução", description: err.message, variant: "destructive" });
+    } finally {
+      setTranslating(false);
+    }
+  };
+
   return (
     <div className="h-screen flex flex-col bg-background">
       {/* Header */}
@@ -256,6 +298,17 @@ const FormEditor = () => {
               ))}
             </SelectContent>
           </Select>
+          {locale !== "pt-BR" && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={translateWithAI}
+              disabled={translating || fields.length === 0}
+            >
+              {translating ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Languages className="h-4 w-4 mr-1" />}
+              {translating ? "Traduzindo..." : "Traduzir com IA"}
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={() => setThemeOpen(true)}>
             <Palette className="h-4 w-4 mr-1" /> Aparência
             <span className="ml-1 flex gap-0.5">

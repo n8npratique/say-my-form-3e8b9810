@@ -110,6 +110,13 @@ export interface EmailTemplate {
   footer?: string;
 }
 
+// ── Field Translation (AI) ──
+export interface FieldTranslation {
+  label?: string;
+  placeholder?: string;
+  options?: string[];
+}
+
 // ── Full Schema ──
 export interface FormSchema {
   fields: FormField[];
@@ -120,6 +127,7 @@ export interface FormSchema {
   theme?: FormTheme;
   email_templates?: EmailTemplate[];
   locale?: Locale;
+  field_translations?: Record<string, Record<string, FieldTranslation>>; // locale -> fieldId -> translation
 }
 
 // ── Helpers ──

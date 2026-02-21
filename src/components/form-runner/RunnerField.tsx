@@ -7,7 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Star, ArrowRight, Check } from "lucide-react";
 import { motion } from "framer-motion";
-import type { FormField, ContactFieldKey } from "@/types/workflow";
+import type { FormField, ContactFieldKey, FieldTranslation } from "@/types/workflow";
 import type { Locale } from "@/lib/i18n";
 import { t } from "@/lib/i18n";
 import { FieldMedia } from "./FieldMedia";
@@ -23,9 +23,10 @@ interface RunnerFieldProps {
   onAnswer: (value: any) => void;
   formId?: string;
   locale?: Locale;
+  fieldTranslation?: FieldTranslation;
 }
 
-export const RunnerField = ({ field, index, total, onAnswer, formId, locale }: RunnerFieldProps) => {
+export const RunnerField = ({ field, index, total, onAnswer, formId, locale, fieldTranslation }: RunnerFieldProps) => {
   const [value, setValue] = useState<any>("");
   const [checkboxValues, setCheckboxValues] = useState<string[]>([]);
   const [rating, setRating] = useState(0);
@@ -34,6 +35,9 @@ export const RunnerField = ({ field, index, total, onAnswer, formId, locale }: R
   const [emailValid, setEmailValid] = useState(false);
 
   const i = t(locale);
+  const displayLabel = fieldTranslation?.label || field.label;
+  const displayPlaceholder = fieldTranslation?.placeholder || field.placeholder;
+  const displayOptions = fieldTranslation?.options || field.options;
   const CONTACT_LABELS: Record<ContactFieldKey, string> = {
     first_name: i.contactFirstName,
     last_name: i.contactLastName,
@@ -114,7 +118,7 @@ export const RunnerField = ({ field, index, total, onAnswer, formId, locale }: R
             value={value}
             onChange={(v, valid) => { setValue(v); setEmailValid(valid); }}
             onKeyDown={(e) => e.key === "Enter" && canSubmit() && submit()}
-            placeholder={field.placeholder}
+            placeholder={displayPlaceholder}
             autoFocus
           />
         );
@@ -137,7 +141,7 @@ export const RunnerField = ({ field, index, total, onAnswer, formId, locale }: R
           <div className="space-y-1">
             <Input
               type={field.type === "number" ? "number" : "text"}
-              placeholder={field.placeholder || i.typeYourAnswer}
+              placeholder={displayPlaceholder || i.typeYourAnswer}
               value={value}
               onChange={(e) => setValue(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && canSubmit() && submit()}
@@ -156,7 +160,7 @@ export const RunnerField = ({ field, index, total, onAnswer, formId, locale }: R
       case "long_text":
         return (
           <Textarea
-            placeholder={field.placeholder || i.typeYourAnswer}
+            placeholder={displayPlaceholder || i.typeYourAnswer}
             value={value}
             onChange={(e) => setValue(e.target.value)}
             className="text-lg min-h-[120px] border-0 border-b-2 rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-primary resize-none"
@@ -179,7 +183,7 @@ export const RunnerField = ({ field, index, total, onAnswer, formId, locale }: R
       case "dropdown":
         return (
           <RadioGroup value={value} onValueChange={(v) => { setValue(v); }} className="space-y-3">
-            {(field.options || []).map((opt, i) => (
+            {(displayOptions || []).map((opt, i) => (
               <label
                 key={i}
                 className={`flex items-center gap-3 p-4 rounded-lg border cursor-pointer transition-all hover:border-primary ${value === opt ? "border-primary bg-primary/5" : "border-border"}`}
@@ -194,7 +198,7 @@ export const RunnerField = ({ field, index, total, onAnswer, formId, locale }: R
       case "checkbox":
         return (
           <div className="space-y-3">
-            {(field.options || []).map((opt, i) => (
+            {(displayOptions || []).map((opt, i) => (
               <label
                 key={i}
                 className={`flex items-center gap-3 p-4 rounded-lg border cursor-pointer transition-all hover:border-primary ${checkboxValues.includes(opt) ? "border-primary bg-primary/5" : "border-border"}`}
@@ -329,10 +333,10 @@ export const RunnerField = ({ field, index, total, onAnswer, formId, locale }: R
           {index + 1} {i.questionOf} {total}
         </p>
         <h2 className="text-2xl font-bold">
-          {field.label || `Pergunta ${index + 1}`}
+          {displayLabel || `Pergunta ${index + 1}`}
         </h2>
-        {field.placeholder && field.type === "statement" && (
-          <p style={{ color: "var(--runner-text-secondary)" }}>{field.placeholder}</p>
+        {displayPlaceholder && field.type === "statement" && (
+          <p style={{ color: "var(--runner-text-secondary)" }}>{displayPlaceholder}</p>
         )}
       </div>
 
