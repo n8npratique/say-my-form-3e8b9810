@@ -108,6 +108,7 @@ const FormRunner = () => {
       if (schema?.tagging?.enabled) setTagging(schema.tagging);
       if (schema?.outcomes?.enabled) setOutcomesConfig(schema.outcomes);
       if (schema?.theme) setTheme(schema.theme);
+      console.log("[DEBUG] schema.locale =", schema?.locale, "| full schema keys:", Object.keys(schema || {}));
       if (schema?.locale) setLocale(schema.locale);
       if (schema?.theme?.welcome_screen?.enabled) setShowWelcome(true);
     }
@@ -549,6 +550,7 @@ const FormRunner = () => {
         <div className="flex items-center justify-center gap-1 text-xs" style={{ color: theme.text_secondary_color }}>
           <img src={logoPratique} alt="TecForms" className="h-4 w-4 rounded-full" />
           <span>TecForms</span>
+          <span className="ml-2 opacity-50">({locale})</span>
         </div>
       </footer>
     </div>
