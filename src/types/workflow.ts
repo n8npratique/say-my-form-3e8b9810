@@ -17,6 +17,7 @@ export interface AppointmentConfig {
   event_description: string;     // suporta {{form_name}} e {{field:LABEL}}
   add_respondent: boolean;       // adicionar respondente como participante
   add_meet: boolean;             // gerar link Google Meet
+  timezone: string;              // IANA timezone (ex: "America/Sao_Paulo")
 }
 
 export interface FormField {

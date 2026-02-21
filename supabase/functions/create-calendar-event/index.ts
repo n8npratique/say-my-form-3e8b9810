@@ -369,12 +369,13 @@ Deno.serve(async (req) => {
     // 9. Build event title/description (appointment config takes priority)
     const eventTitle = appointmentFieldConfig?.event_title || cfg.event_title || form.name;
     const eventDescription = appointmentFieldConfig?.event_description || cfg.event_description || "";
+    const eventTimezone = appointmentFieldConfig?.timezone || cfg.timezone || "America/Sao_Paulo";
 
     const eventBody: any = {
       summary: substituteVars(eventTitle),
       description: substituteVars(eventDescription),
-      start: { dateTime: startIso, timeZone: "America/Sao_Paulo" },
-      end: { dateTime: endIso, timeZone: "America/Sao_Paulo" },
+      start: { dateTime: startIso, timeZone: eventTimezone },
+      end: { dateTime: endIso, timeZone: eventTimezone },
     };
 
     if (attendees.length > 0) {
@@ -405,7 +406,7 @@ Deno.serve(async (req) => {
           body: JSON.stringify({
             timeMin: startIso,
             timeMax: endIso,
-            timeZone: "America/Sao_Paulo",
+            timeZone: eventTimezone,
             items: [{ id: calendarId }],
           }),
         }

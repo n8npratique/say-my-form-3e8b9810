@@ -63,21 +63,42 @@ async function getOAuthAccessToken(
   return tokenData.access_token;
 }
 
+// ── Helper: get UTC offset in minutes for a given IANA timezone at a specific date ──
+// Returns negative for west of UTC (e.g., -180 for São Paulo, -300 for Miami winter)
+function getTzOffsetMinutes(tz: string, date: Date): number {
+  const utcStr = date.toLocaleString("en-US", { timeZone: "UTC" });
+  const localStr = date.toLocaleString("en-US", { timeZone: tz });
+  return (new Date(localStr).getTime() - new Date(utcStr).getTime()) / (60 * 1000);
+}
+
+// ── Helper: format offset as "+HH:MM" or "-HH:MM" ──
+function formatOffset(offsetMin: number): string {
+  const sign = offsetMin >= 0 ? "+" : "-";
+  const abs = Math.abs(offsetMin);
+  const h = String(Math.floor(abs / 60)).padStart(2, "0");
+  const m = String(abs % 60).padStart(2, "0");
+  return `${sign}${h}:${m}`;
+}
+
 // ── Helper: generate time slots for a given day ──
-// Uses -03:00 (São Paulo) offset so Date objects align with Google FreeBusy UTC times
+// Uses dynamic IANA timezone so Date objects align with Google FreeBusy UTC times
 function generateSlots(
   dateStr: string,
   startTime: string,
   endTime: string,
   durationMin: number,
   bufferMin: number,
-  _tz: string
+  tz: string
 ): { start: Date; end: Date }[] {
   const slots: { start: Date; end: Date }[] = [];
 
-  // Parse with São Paulo offset so comparisons with Google FreeBusy (UTC) are correct
-  const baseDate = new Date(`${dateStr}T${startTime}:00-03:00`);
-  const endLimit = new Date(`${dateStr}T${endTime}:00-03:00`);
+  // Calculate the UTC offset for this specific date in the target timezone
+  // This handles DST automatically (e.g., Miami switches between -05:00 and -04:00)
+  const refDate = new Date(`${dateStr}T12:00:00Z`);
+  const offset = formatOffset(getTzOffsetMinutes(tz, refDate));
+
+  const baseDate = new Date(`${dateStr}T${startTime}:00${offset}`);
+  const endLimit = new Date(`${dateStr}T${endTime}:00${offset}`);
 
   let cursor = new Date(baseDate);
   while (cursor < endLimit) {
@@ -91,11 +112,15 @@ function generateSlots(
   return slots;
 }
 
-// ── Helper: extract São Paulo local HH:MM from a timezone-aware Date ──
-function toSaoPauloTime(date: Date): string {
-  const spHours = (date.getUTCHours() - 3 + 24) % 24;
-  const spMinutes = date.getUTCMinutes();
-  return `${String(spHours).padStart(2, "0")}:${String(spMinutes).padStart(2, "0")}`;
+// ── Helper: extract local HH:MM from a UTC Date using IANA timezone ──
+function toLocalTime(date: Date, tz: string): string {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: tz,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
+  return parts; // "08:00" format
 }
 
 // ── Helper: check if two time ranges overlap ──
@@ -224,6 +249,7 @@ Deno.serve(async (req) => {
       slot_duration = 60,
       horizon_days = 14,
       buffer_minutes = 0,
+      timezone = "America/Sao_Paulo",
     } = appointment_config;
 
     // 1. Get OAuth token
@@ -256,8 +282,10 @@ Deno.serve(async (req) => {
     }
 
     // 4. Call Google Calendar FreeBusy API
-    const timeMin = `${candidateDates[0]}T${start_time}:00-03:00`;
-    const timeMax = `${candidateDates[candidateDates.length - 1]}T${end_time}:00-03:00`;
+    const refForOffset = new Date(`${candidateDates[0]}T12:00:00Z`);
+    const tzOffset = formatOffset(getTzOffsetMinutes(timezone, refForOffset));
+    const timeMin = `${candidateDates[0]}T${start_time}:00${tzOffset}`;
+    const timeMax = `${candidateDates[candidateDates.length - 1]}T${end_time}:00${tzOffset}`;
 
     const freeBusyRes = await fetch(
       "https://www.googleapis.com/calendar/v3/freeBusy",
@@ -270,7 +298,7 @@ Deno.serve(async (req) => {
         body: JSON.stringify({
           timeMin,
           timeMax,
-          timeZone: "America/Sao_Paulo",
+          timeZone: timezone,
           items: [{ id: calendar_id }],
         }),
       }
@@ -310,7 +338,7 @@ Deno.serve(async (req) => {
         end_time,
         slot_duration,
         buffer_minutes,
-        "America/Sao_Paulo"
+        timezone
       );
 
       const freeTimes: string[] = [];
@@ -330,7 +358,7 @@ Deno.serve(async (req) => {
         );
         if (isHeld) continue;
 
-        freeTimes.push(toSaoPauloTime(slot.start));
+        freeTimes.push(toLocalTime(slot.start, timezone));
       }
 
       if (freeTimes.length > 0) {

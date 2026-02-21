@@ -25,6 +25,7 @@ const DEFAULT_APPOINTMENT_CONFIG: AppointmentConfig = {
   event_description: "",
   add_respondent: true,
   add_meet: false,
+  timezone: "America/Sao_Paulo",
 };
 
 const WEEKDAYS = [
@@ -49,6 +50,15 @@ const HORIZON_OPTIONS = [
   { value: 7, label: "7 dias" },
   { value: 14, label: "14 dias" },
   { value: 30, label: "30 dias" },
+];
+
+const TIMEZONE_OPTIONS = [
+  { value: "America/Sao_Paulo", label: "Brasil (Brasília)" },
+  { value: "America/Argentina/Buenos_Aires", label: "Argentina (Buenos Aires)" },
+  { value: "America/New_York", label: "EUA Leste (Miami / Nova York)" },
+  { value: "America/Chicago", label: "EUA Centro (Chicago)" },
+  { value: "America/Los_Angeles", label: "EUA Pacífico (Los Angeles)" },
+  { value: "Europe/Lisbon", label: "Portugal (Lisboa)" },
 ];
 
 const BUFFER_OPTIONS = [
@@ -328,6 +338,24 @@ export const AppointmentConfigSection = ({ field, onChange, workspaceId, fields 
             <SelectContent>
               {BUFFER_OPTIONS.map((opt) => (
                 <SelectItem key={opt.value} value={String(opt.value)}>{opt.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Timezone */}
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">Fuso horário</Label>
+          <Select
+            value={config.timezone || "America/Sao_Paulo"}
+            onValueChange={(v) => update({ timezone: v })}
+          >
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {TIMEZONE_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
               ))}
             </SelectContent>
           </Select>
