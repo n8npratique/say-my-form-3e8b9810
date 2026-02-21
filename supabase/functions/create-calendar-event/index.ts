@@ -392,6 +392,39 @@ Deno.serve(async (req) => {
       };
     }
 
+    // ── FreeBusy check: verify slot is still available before creating ──
+    if (appointmentValue) {
+      const freeBusyRes = await fetch(
+        "https://www.googleapis.com/calendar/v3/freeBusy",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            timeMin: startIso,
+            timeMax: endIso,
+            timeZone: "America/Sao_Paulo",
+            items: [{ id: calendarId }],
+          }),
+        }
+      );
+
+      const freeBusyData = await freeBusyRes.json();
+      if (freeBusyRes.ok) {
+        const busyPeriods = freeBusyData.calendars?.[calendarId]?.busy || [];
+        if (busyPeriods.length > 0) {
+          console.warn("Slot conflict detected at creation time:", { startIso, endIso, busyPeriods });
+          return respond({
+            created: false,
+            reason: "slot_conflict",
+            message: "Este horário já foi reservado por outra pessoa.",
+          }, 409);
+        }
+      }
+    }
+
     const calendarUrl = new URL(
       `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`
     );
