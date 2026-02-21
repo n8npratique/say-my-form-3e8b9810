@@ -138,6 +138,21 @@ Deno.serve(async (req) => {
         .eq("field_id", field_id)
         .eq("session_id", session_id);
 
+      // Check for conflicting holds from OTHER sessions
+      const { data: conflictingHolds } = await supabase
+        .from("appointment_holds")
+        .select("id, session_id")
+        .eq("form_id", form_id)
+        .eq("field_id", field_id)
+        .neq("session_id", session_id)
+        .gt("expires_at", new Date().toISOString())
+        .lt("slot_start", slot_end)
+        .gt("slot_end", slot_start);
+
+      if (conflictingHolds && conflictingHolds.length > 0) {
+        return respond({ held: false, conflict: true, message: "Horário já reservado por outra pessoa" }, 409);
+      }
+
       // Create new hold
       const { data: hold, error: holdErr } = await supabase
         .from("appointment_holds")

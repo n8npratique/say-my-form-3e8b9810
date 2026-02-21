@@ -29,9 +29,10 @@ interface FieldConfigPanelProps {
   field: FormField;
   onChange: (updated: FormField) => void;
   workspaceId?: string;
+  fields?: FormField[];
 }
 
-export const FieldConfigPanel = ({ field, onChange, workspaceId }: FieldConfigPanelProps) => {
+export const FieldConfigPanel = ({ field, onChange, workspaceId, fields = [] }: FieldConfigPanelProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cfg = getFieldTypeConfig(field.type);
   const hasOptions = OPTION_TYPES.includes(field.type);
@@ -210,7 +211,7 @@ export const FieldConfigPanel = ({ field, onChange, workspaceId }: FieldConfigPa
 
             {/* Appointment Config */}
             {field.type === "appointment" && workspaceId && (
-              <AppointmentConfigSection field={field} onChange={onChange} workspaceId={workspaceId} />
+              <AppointmentConfigSection field={field} onChange={onChange} workspaceId={workspaceId} fields={fields} />
             )}
 
             {hasOptions && (

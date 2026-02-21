@@ -9,6 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AlertTriangle, Loader2, Video, Calendar } from "lucide-react";
 import type { FormField, AppointmentConfig } from "@/types/workflow";
 
+/** Field types that don't produce useful variable values */
+const NON_VARIABLE_TYPES = ["end_screen", "appointment", "statement"];
+
 const DEFAULT_APPOINTMENT_CONFIG: AppointmentConfig = {
   google_connection_id: "",
   calendar_id: "primary",
@@ -59,9 +62,10 @@ interface AppointmentConfigSectionProps {
   field: FormField;
   onChange: (updated: FormField) => void;
   workspaceId: string;
+  fields?: FormField[];
 }
 
-export const AppointmentConfigSection = ({ field, onChange, workspaceId }: AppointmentConfigSectionProps) => {
+export const AppointmentConfigSection = ({ field, onChange, workspaceId, fields = [] }: AppointmentConfigSectionProps) => {
   const [oauthConnections, setOauthConnections] = useState<{ id: string; google_email: string }[]>([]);
   const [calendars, setCalendars] = useState<{ id: string; summary: string; primary: boolean }[]>([]);
   const [loadingCalendars, setLoadingCalendars] = useState(false);
@@ -364,15 +368,41 @@ export const AppointmentConfigSection = ({ field, onChange, workspaceId }: Appoi
           />
         </div>
 
-        {/* Variable Badges */}
-        <div className="space-y-1">
+        {/* Variable Badges — grouped */}
+        <div className="space-y-2">
           <Label className="text-xs text-muted-foreground">Variáveis disponíveis</Label>
-          <p className="text-[10px] text-muted-foreground">Clique para inserir no título ou descrição</p>
-          <div className="flex flex-wrap gap-1">
-            <Badge variant="secondary" className="text-[10px] cursor-pointer hover:bg-primary/10" onClick={() => insertVariable("{{form_name}}")}>
-              Nome do form
-            </Badge>
+          <p className="text-[10px] text-muted-foreground">Clique para inserir no {activeField === "title" ? "título" : "descrição"}</p>
+
+          {/* System variables */}
+          <div className="space-y-1">
+            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Sistema</span>
+            <div className="flex flex-wrap gap-1">
+              <Badge variant="secondary" className="text-[10px] cursor-pointer hover:bg-primary/10" onClick={() => insertVariable("{{form_name}}")}>
+                Nome do form
+              </Badge>
+            </div>
           </div>
+
+          {/* Field variables — dynamically generated */}
+          {fields.filter((f) => f.id !== field.id && !NON_VARIABLE_TYPES.includes(f.type) && f.label.trim()).length > 0 && (
+            <div className="space-y-1">
+              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Campos</span>
+              <div className="flex flex-wrap gap-1">
+                {fields
+                  .filter((f) => f.id !== field.id && !NON_VARIABLE_TYPES.includes(f.type) && f.label.trim())
+                  .map((f) => (
+                    <Badge
+                      key={f.id}
+                      variant="outline"
+                      className="text-[10px] cursor-pointer hover:bg-primary/10"
+                      onClick={() => insertVariable(`{{field:${f.label}}}`)}
+                    >
+                      {f.label}
+                    </Badge>
+                  ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Add Respondent */}
