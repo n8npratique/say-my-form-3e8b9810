@@ -95,8 +95,8 @@ function buildPreviewHtml(template: EmailTemplate): string {
 
 // ── Status badge do email config ──
 function EmailConfigBadge({ formId }: { formId?: string }) {
-  const [emailConfig, setEmailConfig] = useState<any>(null);
-  const [checked, setChecked] = useState(false);
+  const [status, setStatus] = useState<"loading" | "provider" | "oauth" | "none">("loading");
+  const [providerName, setProviderName] = useState("");
 
   useEffect(() => {
     if (!formId) return;
@@ -106,26 +106,45 @@ function EmailConfigBadge({ formId }: { formId?: string }) {
         .select("workspace_id")
         .eq("id", formId)
         .maybeSingle();
-      if (form?.workspace_id) {
-        const { data: ws } = await supabase
-          .from("workspaces")
-          .select("settings")
-          .eq("id", form.workspace_id)
-          .maybeSingle();
-        setEmailConfig((ws?.settings as any)?.email || null);
+      if (!form?.workspace_id) { setStatus("none"); return; }
+
+      // Check workspace email provider
+      const { data: ws } = await supabase
+        .from("workspaces")
+        .select("settings")
+        .eq("id", form.workspace_id)
+        .maybeSingle();
+      const emailCfg = (ws?.settings as any)?.email;
+      if (emailCfg?.provider) {
+        setProviderName(emailCfg.provider === "gmail" ? "Gmail API" : "Resend");
+        setStatus("provider");
+        return;
       }
-      setChecked(true);
+
+      // Check Google OAuth connection (gmail.send scope)
+      const { data: connections } = await supabase
+        .from("google_oauth_connections")
+        .select("id, google_email")
+        .eq("workspace_id", form.workspace_id)
+        .limit(1);
+      if (connections && connections.length > 0) {
+        setProviderName(`Gmail (${connections[0].google_email})`);
+        setStatus("oauth");
+        return;
+      }
+
+      setStatus("none");
     })();
   }, [formId]);
 
-  if (!checked || !formId) return null;
+  if (status === "loading" || !formId) return null;
 
-  if (emailConfig?.provider) {
+  if (status === "provider" || status === "oauth") {
     return (
       <div className="flex items-center gap-1.5 rounded-md border border-green-500/30 bg-green-500/10 px-2.5 py-1.5">
         <CheckCircle className="h-3.5 w-3.5 text-green-600" />
         <span className="text-xs text-green-700 dark:text-green-400">
-          Email configurado ({emailConfig.provider === "gmail" ? "Gmail API" : "Resend"})
+          Email configurado ({providerName})
         </span>
       </div>
     );
@@ -135,7 +154,7 @@ function EmailConfigBadge({ formId }: { formId?: string }) {
     <div className="flex items-center gap-1.5 rounded-md border border-yellow-500/30 bg-yellow-500/10 px-2.5 py-1.5">
       <AlertCircle className="h-3.5 w-3.5 text-yellow-600" />
       <span className="text-xs text-yellow-700 dark:text-yellow-400">
-        Configure o envio de email nas Configurações do Workspace
+        Conecte uma conta Google nas Configurações do Workspace
       </span>
     </div>
   );
