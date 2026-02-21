@@ -64,22 +64,20 @@ async function getOAuthAccessToken(
 }
 
 // ── Helper: generate time slots for a given day ──
+// Uses -03:00 (São Paulo) offset so Date objects align with Google FreeBusy UTC times
 function generateSlots(
   dateStr: string,
   startTime: string,
   endTime: string,
   durationMin: number,
   bufferMin: number,
-  tz: string
+  _tz: string
 ): { start: Date; end: Date }[] {
   const slots: { start: Date; end: Date }[] = [];
-  const [sh, sm] = startTime.split(":").map(Number);
-  const [eh, em] = endTime.split(":").map(Number);
 
-  // Work in UTC-offset-aware manner using simple date math
-  // dateStr is YYYY-MM-DD, times are local
-  const baseDate = new Date(`${dateStr}T${startTime}:00`);
-  const endLimit = new Date(`${dateStr}T${endTime}:00`);
+  // Parse with São Paulo offset so comparisons with Google FreeBusy (UTC) are correct
+  const baseDate = new Date(`${dateStr}T${startTime}:00-03:00`);
+  const endLimit = new Date(`${dateStr}T${endTime}:00-03:00`);
 
   let cursor = new Date(baseDate);
   while (cursor < endLimit) {
@@ -91,6 +89,13 @@ function generateSlots(
   }
 
   return slots;
+}
+
+// ── Helper: extract São Paulo local HH:MM from a timezone-aware Date ──
+function toSaoPauloTime(date: Date): string {
+  const spHours = (date.getUTCHours() - 3 + 24) % 24;
+  const spMinutes = date.getUTCMinutes();
+  return `${String(spHours).padStart(2, "0")}:${String(spMinutes).padStart(2, "0")}`;
 }
 
 // ── Helper: check if two time ranges overlap ──
@@ -325,9 +330,7 @@ Deno.serve(async (req) => {
         );
         if (isHeld) continue;
 
-        const hh = String(slot.start.getHours()).padStart(2, "0");
-        const mm = String(slot.start.getMinutes()).padStart(2, "0");
-        freeTimes.push(`${hh}:${mm}`);
+        freeTimes.push(toSaoPauloTime(slot.start));
       }
 
       if (freeTimes.length > 0) {
