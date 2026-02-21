@@ -38,6 +38,14 @@ export const RunnerField = ({ field, index, total, onAnswer, formId, locale, fie
   const displayLabel = fieldTranslation?.label || field.label;
   const displayPlaceholder = fieldTranslation?.placeholder || field.placeholder;
   const displayOptions = fieldTranslation?.options || field.options;
+
+  const formatCpf = (raw: string): string => {
+    const digits = raw.replace(/\D/g, "").slice(0, 11);
+    if (digits.length <= 3) return digits;
+    if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`;
+    if (digits.length <= 9) return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
+    return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
+  };
   const CONTACT_LABELS: Record<ContactFieldKey, string> = {
     first_name: i.contactFirstName,
     last_name: i.contactLastName,
@@ -87,7 +95,17 @@ export const RunnerField = ({ field, index, total, onAnswer, formId, locale, fie
                 <Label className="text-sm" style={{ color: "var(--runner-text-secondary)" }}>
                   {CONTACT_LABELS[key]}
                 </Label>
-                {key === "phone" ? (
+                {key === "cpf" ? (
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="000.000.000-00"
+                    value={contactValues[key] || ""}
+                    onChange={(e) => setContactValues(prev => ({ ...prev, [key]: formatCpf(e.target.value) }))}
+                    maxLength={14}
+                    className="text-lg h-12 border-0 border-b-2 rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-primary"
+                  />
+                ) : key === "phone" ? (
                   <PhoneInput
                     value={contactValues[key] || ""}
                     onChange={(v) => setContactValues(prev => ({ ...prev, [key]: v }))}

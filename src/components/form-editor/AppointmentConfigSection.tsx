@@ -12,6 +12,17 @@ import type { FormField, AppointmentConfig } from "@/types/workflow";
 /** Field types that don't produce useful variable values */
 const NON_VARIABLE_TYPES = ["end_screen", "appointment", "statement"];
 
+/** Sub-field labels for contact_info — maps key to Portuguese display name */
+const CONTACT_SUBFIELD_LABELS: Record<string, string> = {
+  first_name: "Nome",
+  last_name: "Sobrenome",
+  email: "Email",
+  phone: "Telefone",
+  cpf: "CPF",
+  cep: "CEP",
+  address: "Endereço",
+};
+
 const DEFAULT_APPOINTMENT_CONFIG: AppointmentConfig = {
   google_connection_id: "",
   calendar_id: "primary",
@@ -418,16 +429,32 @@ export const AppointmentConfigSection = ({ field, onChange, workspaceId, fields 
               <div className="flex flex-wrap gap-1">
                 {fields
                   .filter((f) => f.id !== field.id && !NON_VARIABLE_TYPES.includes(f.type) && f.label.trim())
-                  .map((f) => (
-                    <Badge
-                      key={f.id}
-                      variant="outline"
-                      className="text-[10px] cursor-pointer hover:bg-primary/10"
-                      onClick={() => insertVariable(`{{field:${f.label}}}`)}
-                    >
-                      {f.label}
-                    </Badge>
-                  ))}
+                  .flatMap((f) => {
+                    if (f.type === "contact_info") {
+                      // Expand contact_info into individual sub-field badges
+                      const subFields = f.contact_fields || ["first_name", "email"];
+                      return subFields.map((key) => (
+                        <Badge
+                          key={`${f.id}-${key}`}
+                          variant="outline"
+                          className="text-[10px] cursor-pointer hover:bg-primary/10"
+                          onClick={() => insertVariable(`{{field:${f.label}.${CONTACT_SUBFIELD_LABELS[key] || key}}}`)}
+                        >
+                          {f.label}.{CONTACT_SUBFIELD_LABELS[key] || key}
+                        </Badge>
+                      ));
+                    }
+                    return (
+                      <Badge
+                        key={f.id}
+                        variant="outline"
+                        className="text-[10px] cursor-pointer hover:bg-primary/10"
+                        onClick={() => insertVariable(`{{field:${f.label}}}`)}
+                      >
+                        {f.label}
+                      </Badge>
+                    );
+                  })}
               </div>
             </div>
           )}

@@ -263,12 +263,40 @@ Deno.serve(async (req) => {
     }
 
     // 6. Substitute variables in text
+    // Maps Portuguese sub-field names to contact_info keys
+    const SUBFIELD_MAP: Record<string, string> = {
+      nome: "first_name", sobrenome: "last_name",
+      email: "email", telefone: "phone",
+      cpf: "cpf", cep: "cep", "endereço": "address", endereco: "address",
+      // English aliases
+      first_name: "first_name", last_name: "last_name", phone: "phone", address: "address",
+    };
+
     const substituteVars = (text: string): string => {
       let result = text.replace(/\{\{form_name\}\}/g, form.name || "");
-      // {{field:LABEL}} — look up field by label
-      result = result.replace(/\{\{field:([^}]+)\}\}/g, (_m, label: string) => {
+      // {{field:LABEL.SUBFIELD}} — dot notation for contact_info sub-fields
+      // {{field:LABEL}} — full field value
+      result = result.replace(/\{\{field:([^}]+)\}\}/g, (_m, expr: string) => {
+        const dotIdx = expr.indexOf(".");
+        if (dotIdx > 0) {
+          // Dot notation: "Dados.Nome" → field "Dados", sub-field "Nome"
+          const fieldLabel = expr.slice(0, dotIdx);
+          const subLabel = expr.slice(dotIdx + 1).toLowerCase();
+          const field = schemaFields.find(
+            (f: any) => (f.label || "").toLowerCase() === fieldLabel.toLowerCase()
+          );
+          if (!field) return "";
+          const raw = rawValues[field.id];
+          const parsed = typeof raw === "string" ? (() => { try { return JSON.parse(raw); } catch { return null; } })() : raw;
+          if (parsed && typeof parsed === "object") {
+            const key = SUBFIELD_MAP[subLabel] || subLabel;
+            return parsed[key] ?? "";
+          }
+          return answers[field.id] ?? "";
+        }
+        // No dot: return full value
         const field = schemaFields.find(
-          (f: any) => (f.label || "").toLowerCase() === label.toLowerCase()
+          (f: any) => (f.label || "").toLowerCase() === expr.toLowerCase()
         );
         if (!field) return "";
         return answers[field.id] ?? "";
