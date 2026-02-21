@@ -178,6 +178,106 @@ async function sendViaGmailSMTP(
   await client.close();
 }
 
+// ── OAuth helper: get access token (with auto-refresh) ──
+async function getOAuthAccessToken(
+  supabase: any,
+  connectionId: string
+): Promise<{ accessToken: string; email: string }> {
+  const { data: conn } = await supabase
+    .from("google_oauth_connections")
+    .select("*")
+    .eq("id", connectionId)
+    .maybeSingle();
+
+  if (!conn) throw new Error("OAuth connection not found");
+
+  const expiresAt = new Date(conn.token_expires_at).getTime();
+  if (Date.now() < expiresAt - 5 * 60 * 1000) {
+    return { accessToken: conn.access_token, email: conn.google_email };
+  }
+
+  if (!conn.refresh_token) throw new Error("No refresh token");
+
+  const GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID");
+  const GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET");
+  if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
+    throw new Error("GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET not configured");
+  }
+
+  const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: GOOGLE_CLIENT_ID,
+      client_secret: GOOGLE_CLIENT_SECRET,
+      refresh_token: conn.refresh_token,
+      grant_type: "refresh_token",
+    }),
+  });
+  const tokenData = await tokenRes.json();
+  if (!tokenData.access_token) {
+    throw new Error(`OAuth refresh failed: ${JSON.stringify(tokenData)}`);
+  }
+
+  await supabase
+    .from("google_oauth_connections")
+    .update({
+      access_token: tokenData.access_token,
+      token_expires_at: new Date(Date.now() + (tokenData.expires_in || 3600) * 1000).toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", connectionId);
+
+  return { accessToken: tokenData.access_token, email: conn.google_email };
+}
+
+// ── Send via Gmail API (OAuth) ──
+async function sendViaGmailAPI(
+  accessToken: string,
+  from: string,
+  to: string,
+  subject: string,
+  html: string
+) {
+  // Build RFC 2822 email
+  const boundary = `boundary_${crypto.randomUUID()}`;
+  const rawEmail = [
+    `From: ${from}`,
+    `To: ${to}`,
+    `Subject: =?UTF-8?B?${btoa(unescape(encodeURIComponent(subject)))}?=`,
+    `MIME-Version: 1.0`,
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    ``,
+    `--${boundary}`,
+    `Content-Type: text/html; charset=UTF-8`,
+    `Content-Transfer-Encoding: base64`,
+    ``,
+    btoa(unescape(encodeURIComponent(html))),
+    `--${boundary}--`,
+  ].join("\r\n");
+
+  // Base64url encode
+  const encoded = btoa(rawEmail)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+
+  const res = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ raw: encoded }),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Gmail API error (${res.status}): ${err}`);
+  }
+  return await res.json();
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -223,11 +323,27 @@ Deno.serve(async (req) => {
 
     const schema = (version?.schema as any) || {};
     const allTemplates: any[] = schema.email_templates || [];
+    const fields: any[] = schema.fields || [];
+
+    // Auto-generate appointment confirmation template if none configured
+    const hasAppointment = fields.some((f: any) => f.type === "appointment");
 
     // Em modo teste usa o template passado
-    const templates = test_mode
+    let templates = test_mode
       ? [{ ...test_template, enabled: true }]
       : allTemplates.filter((t: any) => t.enabled);
+
+    if (templates.length === 0 && hasAppointment && !test_mode) {
+      // Auto-generate confirmation email for appointment forms
+      templates = [{
+        id: "auto_appointment_confirmation",
+        enabled: true,
+        recipient: "respondent",
+        subject: "Confirmação de agendamento - {{form_name}}",
+        body: "Olá!\n\nSeu agendamento no formulário {{form_name}} foi confirmado com sucesso.\n\nData: {{appointment_datetime}}\n\nCaso precise cancelar, clique no link abaixo:\n{{cancel_url}}\n\nObrigado!",
+        footer: "Enviado automaticamente via TecForms",
+      }];
+    }
 
     if (templates.length === 0) {
       return new Response(
@@ -243,15 +359,38 @@ Deno.serve(async (req) => {
       .eq("id", form.workspace_id)
       .maybeSingle();
 
-    const emailConfig = (workspace?.settings as any)?.email;
-    if (!emailConfig?.provider) {
-      return new Response(
-        JSON.stringify({ sent: false, reason: "not_configured" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    const emailConfig = (workspace?.settings as any)?.email || {};
+
+    // 3. Determine email sending method
+    // Priority: workspace config (resend/gmail SMTP) → Google OAuth (Gmail API)
+    let oauthConnection: { accessToken: string; email: string } | null = null;
+
+    if (!emailConfig.provider) {
+      // No workspace email config — try Google OAuth as fallback
+      const { data: connections } = await supabase
+        .from("google_oauth_connections")
+        .select("id, scopes")
+        .eq("workspace_id", form.workspace_id)
+        .limit(1)
+        .maybeSingle();
+
+      if (connections) {
+        try {
+          oauthConnection = await getOAuthAccessToken(supabase, connections.id);
+        } catch (oauthErr: any) {
+          console.warn("OAuth email fallback failed:", oauthErr.message);
+        }
+      }
+
+      if (!oauthConnection) {
+        return new Response(
+          JSON.stringify({ sent: false, reason: "not_configured" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
-    // 3. Validar config Gmail se necessário
+    // Validate Gmail SMTP config if using that provider
     if (emailConfig.provider === "gmail") {
       if (!emailConfig.gmail_email || !emailConfig.gmail_app_password) {
         return new Response(
@@ -265,8 +404,6 @@ Deno.serve(async (req) => {
     let meta: any = {};
     let sessionToken = "";
     let answerMap: Record<string, string> = {};
-    const fields: any[] = schema.fields || [];
-
     let rawAnswerMap: Record<string, any> = {};
 
     if (!test_mode && response_id) {
@@ -335,9 +472,31 @@ Deno.serve(async (req) => {
       })
       .join("<br>");
 
-    // Build cancel URL (only when there's a calendar event)
+    // Extract appointment datetime from answers
+    let appointmentDatetime = "";
+    for (const f of fields) {
+      if (f.type === "appointment") {
+        const raw = rawAnswerMap[f.id];
+        const parsed = typeof raw === "string" ? (() => { try { return JSON.parse(raw); } catch { return null; } })() : raw;
+        if (parsed?.slot_start) {
+          const dt = new Date(parsed.slot_start);
+          appointmentDatetime = dt.toLocaleString("pt-BR", {
+            weekday: "long",
+            day: "2-digit",
+            month: "long",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            timeZone: "America/Sao_Paulo",
+          });
+          break;
+        }
+      }
+    }
+
+    // Build cancel URL (for appointment forms, always include — event will exist by the time user clicks)
     const siteUrl = Deno.env.get("SITE_URL") || req.headers.get("origin") || "";
-    const cancelUrl = (sessionToken && meta.calendar_event_id && siteUrl)
+    const cancelUrl = (sessionToken && hasAppointment && siteUrl)
       ? `${siteUrl}/cancel/${sessionToken}`
       : "";
 
@@ -351,6 +510,7 @@ Deno.serve(async (req) => {
       date: new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }),
       answers: answersHtml,
       cancel_url: cancelUrl,
+      appointment_datetime: appointmentDatetime,
     };
 
     // Buscar email do owner
@@ -392,10 +552,17 @@ Deno.serve(async (req) => {
 
       const html = buildEmailHtml(template, vars);
       const subject = replaceVars(template.subject || form.name, vars);
-      const senderEmail = emailConfig.provider === "gmail" ? emailConfig.gmail_email : (emailConfig.sender_email || "noreply@tecforms.com");
+      const senderEmail = oauthConnection
+        ? oauthConnection.email
+        : emailConfig.provider === "gmail"
+          ? emailConfig.gmail_email
+          : (emailConfig.sender_email || "noreply@tecforms.com");
 
       try {
-        if (emailConfig.provider === "resend") {
+        if (oauthConnection) {
+          // Use Gmail API via OAuth
+          await sendViaGmailAPI(oauthConnection.accessToken, oauthConnection.email, recipientEmail, subject, html);
+        } else if (emailConfig.provider === "resend") {
           await sendViaResend(emailConfig.resend_api_key, senderEmail, recipientEmail, subject, html);
         } else if (emailConfig.provider === "gmail") {
           await sendViaGmailSMTP(emailConfig.gmail_email, emailConfig.gmail_app_password, recipientEmail, subject, html);
