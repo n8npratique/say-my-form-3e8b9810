@@ -169,6 +169,23 @@ const FormEditor = () => {
       .maybeSingle();
 
     const existingSchema = (currentVersion?.schema as any) || {};
+
+    // Auto-create appointment confirmation email template if needed
+    if (hasAppointment) {
+      const existingTemplates: any[] = existingSchema.email_templates || [];
+      if (existingTemplates.length === 0) {
+        existingSchema.email_templates = [{
+          id: "auto_appointment_confirmation",
+          name: "Confirmação de Agendamento",
+          enabled: true,
+          recipient: "respondent",
+          subject: "Confirmação de agendamento - {{form_name}}",
+          body: "Olá!\n\nSeu agendamento no formulário {{form_name}} foi confirmado com sucesso.\n\nData: {{appointment_datetime}}\n\nCaso precise cancelar, clique no link abaixo:\n{{cancel_url}}\n\nObrigado!",
+          footer: "Enviado automaticamente via TecForms",
+        }];
+      }
+    }
+
     await supabase
       .from("form_versions")
       .update({ schema: { ...existingSchema, fields, theme, locale, field_translations: fieldTranslations } as any })
