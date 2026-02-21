@@ -263,8 +263,11 @@ Deno.serve(async (req) => {
 
     // 4. Buscar resposta (se não for teste)
     let meta: any = {};
+    let sessionToken = "";
     let answerMap: Record<string, string> = {};
     const fields: any[] = schema.fields || [];
+
+    let rawAnswerMap: Record<string, any> = {};
 
     if (!test_mode && response_id) {
       const { data: response } = await supabase
@@ -273,6 +276,7 @@ Deno.serve(async (req) => {
         .eq("id", response_id)
         .maybeSingle();
       meta = (response?.meta as any) || {};
+      sessionToken = (response as any)?.session_token || "";
 
       const { data: answers } = await supabase
         .from("response_answers")
@@ -281,6 +285,7 @@ Deno.serve(async (req) => {
 
       for (const ans of answers || []) {
         answerMap[ans.field_key] = ans.value_text || String(ans.value || "");
+        rawAnswerMap[ans.field_key] = ans.value;
       }
     } else {
       // Valores de exemplo para teste
@@ -293,6 +298,35 @@ Deno.serve(async (req) => {
       };
     }
 
+    // Fallback: extract respondent email from answers if not in meta
+    if (!meta.respondent_email) {
+      for (const f of fields) {
+        const ft = (f.type || "").toLowerCase();
+        if (ft === "email" || ft === "email_input") {
+          const val = answerMap[f.id];
+          if (val && val.includes("@")) {
+            meta.respondent_email = val;
+            break;
+          }
+        } else if (ft === "contact_info") {
+          // Try raw value first (JSON object with .email)
+          const raw = rawAnswerMap[f.id];
+          const parsed = typeof raw === "string" ? (() => { try { return JSON.parse(raw); } catch { return null; } })() : raw;
+          if (parsed && typeof parsed === "object" && parsed.email && String(parsed.email).includes("@")) {
+            meta.respondent_email = String(parsed.email);
+            break;
+          }
+          // Fallback: check value_text for email pattern
+          const text = answerMap[f.id] || "";
+          const emailMatch = text.match(/[\w.+-]+@[\w-]+\.[\w.-]+/);
+          if (emailMatch) {
+            meta.respondent_email = emailMatch[0];
+            break;
+          }
+        }
+      }
+    }
+
     // Montar HTML de respostas
     const answersHtml = fields
       .map((f: any) => {
@@ -300,6 +334,12 @@ Deno.serve(async (req) => {
         return `<strong>${f.label}:</strong> ${val}`;
       })
       .join("<br>");
+
+    // Build cancel URL (only when there's a calendar event)
+    const siteUrl = Deno.env.get("SITE_URL") || req.headers.get("origin") || "";
+    const cancelUrl = (sessionToken && meta.calendar_event_id && siteUrl)
+      ? `${siteUrl}/cancel/${sessionToken}`
+      : "";
 
     const vars: Record<string, string> = {
       form_name: form.name,
@@ -310,6 +350,7 @@ Deno.serve(async (req) => {
       respondent_email: meta.respondent_email || "",
       date: new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }),
       answers: answersHtml,
+      cancel_url: cancelUrl,
     };
 
     // Buscar email do owner

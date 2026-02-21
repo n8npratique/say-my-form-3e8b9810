@@ -199,14 +199,26 @@ const FormRunner = () => {
 
     const meta: any = {};
 
-    // Extract respondent email from answers (find first email field)
-    for (const field of fields) {
-      const ft = field.type?.toLowerCase();
-      if (ft === "email" || ft === "email_input") {
-        const val = answersRef.current[field.id];
-        if (val && typeof val === "string" && val.includes("@")) {
-          meta.respondent_email = val;
-          break;
+    // Extract respondent email from answers (email field, contact_info, or email_required)
+    if (respondentEmail) {
+      meta.respondent_email = respondentEmail;
+    } else {
+      for (const field of fields) {
+        const ft = field.type?.toLowerCase();
+        if (ft === "email" || ft === "email_input") {
+          const val = answersRef.current[field.id];
+          if (val && typeof val === "string" && val.includes("@")) {
+            meta.respondent_email = val;
+            break;
+          }
+        } else if (ft === "contact_info") {
+          const val = answersRef.current[field.id];
+          const email = typeof val === "object" && val?.email ? val.email :
+                        typeof val === "string" ? (() => { try { const p = JSON.parse(val); return p?.email; } catch { return null; } })() : null;
+          if (email && typeof email === "string" && email.includes("@")) {
+            meta.respondent_email = email;
+            break;
+          }
         }
       }
     }
@@ -307,8 +319,23 @@ const FormRunner = () => {
       }
     }
 
-    // 4) Save integration status to response meta
-    if (Object.keys(integrationStatus).length > 0) {
+    // 4) Extract calendar event_id from create-calendar-event result
+    const calendarResult = (integrationResults as any[])?.[2];
+    let calendarMeta: Record<string, any> = {};
+    if (calendarResult?.status === "fulfilled") {
+      const d = calendarResult.value?.data;
+      if (d?.created && d?.event_id) {
+        calendarMeta = {
+          calendar_event_id: d.event_id,
+          calendar_html_link: d.html_link || null,
+          calendar_id: d.calendar_id || null,
+          google_connection_id: d.google_connection_id || null,
+        };
+      }
+    }
+
+    // 5) Save integration status + calendar event data to response meta
+    if (Object.keys(integrationStatus).length > 0 || Object.keys(calendarMeta).length > 0) {
       const { data: freshResp } = await supabase
         .from("responses")
         .select("meta")
@@ -317,12 +344,18 @@ const FormRunner = () => {
       const freshMeta = (freshResp?.meta as any) || {};
       await supabase
         .from("responses")
-        .update({ meta: { ...freshMeta, integration_status: integrationStatus } as any })
+        .update({
+          meta: {
+            ...freshMeta,
+            ...calendarMeta,
+            integration_status: integrationStatus,
+          } as any,
+        })
         .eq("id", responseId)
         .eq("session_token", sessionToken);
     }
 
-    // 5) Sync to Google Sheets LAST (so it captures integration status)
+    // 6) Sync to Google Sheets LAST (so it captures integration status)
     supabase.functions.invoke("sync-google-sheets", {
       body: { form_id: formId, response_id: responseId },
     }).catch(() => {});

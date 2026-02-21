@@ -143,6 +143,22 @@ const FormEditor = () => {
 
   const publishForm = async () => {
     if (!versionId || !formId) return;
+
+    // Validate: appointment field requires an email field
+    const hasAppointment = fields.some((f: any) => f.type === "appointment");
+    const hasEmailField = fields.some((f: any) => {
+      const ft = (f.type || "").toLowerCase();
+      return ft === "email" || ft === "email_input" || ft === "contact_info";
+    });
+    if (hasAppointment && !hasEmailField) {
+      toast({
+        title: "Campo de e-mail obrigatório",
+        description: "Formulários com agendamento precisam de um campo de e-mail para enviar a confirmação e link de cancelamento ao respondente.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setPublishing(true);
 
     // Save schema first (merge with existing to preserve workflow data)

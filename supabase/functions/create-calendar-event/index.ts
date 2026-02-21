@@ -502,7 +502,13 @@ Deno.serve(async (req) => {
         .then(() => {});
     }
 
-    return respond({ created: true, event_id: eventData.id, html_link: eventData.htmlLink });
+    return respond({
+      created: true,
+      event_id: eventData.id,
+      html_link: eventData.htmlLink,
+      calendar_id: calendarId,
+      google_connection_id: effectiveConnectionId || null,
+    });
   } catch (err: any) {
     console.error("create-calendar-event error:", err);
     return respond({ created: false, reason: "error", error: err.message }, 500);
