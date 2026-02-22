@@ -491,57 +491,15 @@ export const AppointmentConfigSection = ({ field, onChange, workspaceId, fields 
         </div>
       </div>
 
-      {/* ── BOX 3: Email de Confirmação ── */}
-      <div className="space-y-4 rounded-lg border p-3">
-        <div className="flex items-center gap-2">
-          <Mail className="h-4 w-4 text-muted-foreground" />
-          <Label className="text-sm font-medium">Email de Confirmação</Label>
+      {/* ── BOX 3: Info banner (email moved to Integrations) ── */}
+      <div className="flex items-start gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 p-3">
+        <Info className="h-4 w-4 shrink-0 mt-0.5 text-blue-600" />
+        <div>
+          <p className="text-xs font-medium text-blue-700 dark:text-blue-400">Email de Confirmação</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            O email de confirmação é configurado na aba <strong>Email</strong> da página de Integrações, com template completo, variáveis e preview.
+          </p>
         </div>
-
-        {/* Toggle */}
-        <div className="flex items-center justify-between rounded-md bg-muted/50 p-2">
-          <div>
-            <Label className="text-xs">Enviar email ao respondente</Label>
-            <p className="text-[10px] text-muted-foreground">Email automático com dados do agendamento</p>
-          </div>
-          <Switch
-            checked={config.confirmation_email_enabled}
-            onCheckedChange={(v) => update({ confirmation_email_enabled: v })}
-          />
-        </div>
-
-        {config.confirmation_email_enabled && (
-          <>
-            {/* Subject */}
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Assunto</Label>
-              <Input
-                value={config.confirmation_email_subject}
-                onChange={(e) => update({ confirmation_email_subject: e.target.value })}
-                placeholder="Confirmação de agendamento - {{form_name}}"
-                className="h-8 text-xs"
-              />
-            </div>
-
-            {/* Custom Body */}
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Mensagem personalizada <span className="text-muted-foreground/60">(opcional)</span></Label>
-              <Textarea
-                value={config.confirmation_email_body}
-                onChange={(e) => update({ confirmation_email_body: e.target.value })}
-                placeholder="Texto extra que aparecerá no email..."
-                className="text-xs min-h-[60px] resize-none"
-                rows={3}
-              />
-            </div>
-
-            {/* Info */}
-            <div className="flex items-start gap-2 text-[11px] text-muted-foreground bg-muted/30 rounded-md p-2">
-              <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-              <span>Data, horário e link de cancelamento são incluídos automaticamente no email.</span>
-            </div>
-          </>
-        )}
       </div>
     </div>
   );

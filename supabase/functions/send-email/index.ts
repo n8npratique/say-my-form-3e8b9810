@@ -87,6 +87,45 @@ function replaceVars(
   return result;
 }
 
+// ── Resolver {{field:LABEL}} e {{field:LABEL.SUBFIELD}} ──
+const SUBFIELD_MAP: Record<string, string> = {
+  nome: "first_name", sobrenome: "last_name",
+  email: "email", telefone: "phone",
+  cpf: "cpf", cep: "cep", "endereço": "address", endereco: "address",
+  first_name: "first_name", last_name: "last_name", phone: "phone", address: "address",
+};
+
+function resolveFieldVars(
+  text: string,
+  fields: any[],
+  answerMap: Record<string, string>,
+  rawAnswerMap: Record<string, any>,
+): string {
+  return text.replace(/\{\{field:([^}]+)\}\}/g, (_m, expr: string) => {
+    const dotIdx = expr.indexOf(".");
+    if (dotIdx > 0) {
+      const fieldLabel = expr.slice(0, dotIdx);
+      const subLabel = expr.slice(dotIdx + 1).toLowerCase();
+      const field = fields.find(
+        (f: any) => (f.label || "").toLowerCase() === fieldLabel.toLowerCase()
+      );
+      if (!field) return "";
+      const raw = rawAnswerMap[field.id];
+      const parsed = typeof raw === "string" ? (() => { try { return JSON.parse(raw); } catch { return null; } })() : raw;
+      if (parsed && typeof parsed === "object") {
+        const key = SUBFIELD_MAP[subLabel] || subLabel;
+        return parsed[key] ?? "";
+      }
+      return answerMap[field.id] ?? "";
+    }
+    const field = fields.find(
+      (f: any) => (f.label || "").toLowerCase() === expr.toLowerCase()
+    );
+    if (!field) return "";
+    return answerMap[field.id] ?? "";
+  });
+}
+
 // ── Montar HTML do email ──
 function buildEmailHtml(
   template: any,
@@ -328,45 +367,44 @@ Deno.serve(async (req) => {
     // Check for appointment field and its confirmation_email config
     const appointmentField = fields.find((f: any) => f.type === "appointment");
     const appointmentConfig = appointmentField?.appointment_config;
-    const confirmationEmailEnabled = appointmentConfig?.confirmation_email_enabled !== false; // default true
 
     // Em modo teste usa o template passado
     let templates = test_mode
       ? [{ ...test_template, enabled: true }]
       : allTemplates.filter((t: any) => t.enabled);
 
-    // Build appointment confirmation template from appointment_config (not from email_templates)
-    let appointmentEmailTemplate: any = null;
-    if (!test_mode && appointmentField && confirmationEmailEnabled) {
-      const subject = appointmentConfig?.confirmation_email_subject || "Confirmação de agendamento - {{form_name}}";
-      const customBody = appointmentConfig?.confirmation_email_body || "";
-      const bodyParts = ["Olá!\n\nSeu agendamento no formulário {{form_name}} foi confirmado com sucesso.\n\nData: {{appointment_datetime}}"];
-      if (customBody.trim()) {
-        bodyParts.push(customBody.trim());
+    // Unified email: if email_templates has auto_appointment, it's the new unified approach.
+    // If not, fall back to legacy: build template from appointment_config fields.
+    const hasAutoAppointmentTemplate = templates.some((t: any) => t.id === "auto_appointment");
+
+    if (!test_mode && appointmentField && !hasAutoAppointmentTemplate) {
+      // Legacy fallback: build appointment email from appointment_config
+      const confirmationEmailEnabled = appointmentConfig?.confirmation_email_enabled !== false;
+      if (confirmationEmailEnabled) {
+        const subject = appointmentConfig?.confirmation_email_subject || "Confirmação de agendamento - {{form_name}}";
+        const customBody = appointmentConfig?.confirmation_email_body || "";
+        const bodyParts = ["Olá!\n\nSeu agendamento no formulário {{form_name}} foi confirmado com sucesso.\n\nData: {{appointment_datetime}}"];
+        if (customBody.trim()) {
+          bodyParts.push(customBody.trim());
+        }
+        bodyParts.push("{{event_links}}Caso precise cancelar, clique no link abaixo:\n{{cancel_url}}\n\nObrigado!");
+        const legacyTemplate = {
+          id: "legacy_appointment_confirmation",
+          enabled: true,
+          recipient: "respondent",
+          subject,
+          body: bodyParts.join("\n\n"),
+          footer: "Enviado automaticamente via TecForms",
+        };
+        templates = [legacyTemplate, ...templates];
       }
-      bodyParts.push("{{event_links}}Caso precise cancelar, clique no link abaixo:\n{{cancel_url}}\n\nObrigado!");
-      appointmentEmailTemplate = {
-        id: "appointment_confirmation",
-        enabled: true,
-        recipient: "respondent",
-        subject,
-        body: bodyParts.join("\n\n"),
-        footer: "Enviado automaticamente via TecForms",
-      };
     }
 
-    if (templates.length === 0 && !appointmentEmailTemplate) {
+    if (templates.length === 0) {
       return new Response(
         JSON.stringify({ sent: false, reason: "no_templates" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
-    }
-
-    // Merge: appointment confirmation first, then extra templates
-    if (appointmentEmailTemplate) {
-      // Remove any legacy auto_appointment_confirmation from email_templates to avoid duplicates
-      templates = templates.filter((t: any) => t.id !== "auto_appointment_confirmation");
-      templates = [appointmentEmailTemplate, ...templates];
     }
 
     // 2. Buscar config de email do workspace
@@ -565,8 +603,18 @@ Deno.serve(async (req) => {
         }
       }
 
-      const html = buildEmailHtml(template, vars);
-      const subject = replaceVars(template.subject || form.name, vars);
+      // Resolve {{field:...}} variables in all text fields before building HTML
+      const resolvedTemplate = {
+        ...template,
+        subject: resolveFieldVars(template.subject || "", fields, answerMap, rawAnswerMap),
+        body: resolveFieldVars(template.body || "", fields, answerMap, rawAnswerMap),
+        footer: resolveFieldVars(template.footer || "", fields, answerMap, rawAnswerMap),
+        cta_text: resolveFieldVars(template.cta_text || "", fields, answerMap, rawAnswerMap),
+        cta_url: resolveFieldVars(template.cta_url || "", fields, answerMap, rawAnswerMap),
+      };
+
+      const html = buildEmailHtml(resolvedTemplate, vars);
+      const subject = replaceVars(resolvedTemplate.subject || form.name, vars);
       try {
         if (oauthConnection) {
           // Use Gmail API via OAuth (primary)
