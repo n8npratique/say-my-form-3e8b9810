@@ -36,6 +36,7 @@ export const ActionsPanel = ({
     const t = f.type?.toLowerCase();
     return t === "phone" || t === "phone_input";
   });
+  const hasAppointment = fields.some((f) => f.type === "appointment");
 
   const MissingFieldWarning = ({ fieldType, integration }: { fieldType: string; integration: string }) => (
     <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-4 text-center space-y-2">
@@ -55,7 +56,7 @@ export const ActionsPanel = ({
     <div className="border-l w-80 bg-card/30 p-4 overflow-y-auto">
       <h3 className="font-display font-semibold text-sm mb-4">Actions</h3>
       <Tabs defaultValue="webhooks">
-        <TabsList className="w-full grid grid-cols-7">
+        <TabsList className={`w-full grid ${hasAppointment ? "grid-cols-6" : "grid-cols-7"}`}>
           <TabsTrigger value="webhooks" className="gap-1 text-xs px-0.5">
             <Webhook className="h-3 w-3" />
           </TabsTrigger>
@@ -71,21 +72,23 @@ export const ActionsPanel = ({
           <TabsTrigger value="whatsapp" className={`gap-1 text-xs px-0.5 ${!hasPhoneField ? "opacity-50" : ""}`}>
             <Phone className="h-3 w-3" />
           </TabsTrigger>
-          <TabsTrigger value="calendar" className="gap-1 text-xs px-0.5">
-            <Calendar className="h-3 w-3" />
-          </TabsTrigger>
+          {!hasAppointment && (
+            <TabsTrigger value="calendar" className="gap-1 text-xs px-0.5">
+              <Calendar className="h-3 w-3" />
+            </TabsTrigger>
+          )}
           <TabsTrigger value="unnichat" className={`gap-1 text-xs px-0.5 ${!hasPhoneField ? "opacity-50" : ""}`}>
             <MessageCircle className="h-3 w-3" />
           </TabsTrigger>
         </TabsList>
-        <div className="flex justify-between text-[10px] text-muted-foreground px-0.5 mt-1 mb-3">
-          <span className="w-1/7 text-center">Hooks</span>
-          <span className="w-1/7 text-center">Link</span>
-          <span className="w-1/7 text-center">Sheets</span>
-          <span className="w-1/7 text-center">Email</span>
-          <span className="w-1/7 text-center">WA</span>
-          <span className="w-1/7 text-center">Cal</span>
-          <span className="w-1/7 text-center">CRM</span>
+        <div className={`flex justify-between text-[10px] text-muted-foreground px-0.5 mt-1 mb-3`}>
+          <span className="flex-1 text-center">Hooks</span>
+          <span className="flex-1 text-center">Link</span>
+          <span className="flex-1 text-center">Sheets</span>
+          <span className="flex-1 text-center">Email</span>
+          <span className="flex-1 text-center">WA</span>
+          {!hasAppointment && <span className="flex-1 text-center">Cal</span>}
+          <span className="flex-1 text-center">CRM</span>
         </div>
         <TabsContent value="webhooks" className="mt-0">
           <WebhookManager formId={formId} />
@@ -110,9 +113,11 @@ export const ActionsPanel = ({
             <MissingFieldWarning fieldType="telefone" integration="WhatsApp" />
           )}
         </TabsContent>
-        <TabsContent value="calendar" className="mt-0">
-          <CalendarPanel formId={formId} fields={fields} />
-        </TabsContent>
+        {!hasAppointment && (
+          <TabsContent value="calendar" className="mt-0">
+            <CalendarPanel formId={formId} fields={fields} />
+          </TabsContent>
+        )}
         <TabsContent value="unnichat" className="mt-0">
           {hasPhoneField ? (
             <UnnichatPanel
