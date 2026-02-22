@@ -33,6 +33,9 @@ const VARIABLES = [
   { key: "{{tags}}", label: "Tags" },
   { key: "{{respondent_email}}", label: "Email" },
   { key: "{{answers}}", label: "Respostas" },
+  { key: "{{appointment_datetime}}", label: "Data/hora agendamento" },
+  { key: "{{meet_link}}", label: "Link Meet" },
+  { key: "{{cancel_url}}", label: "Link cancelar" },
 ];
 
 const emptyTemplate = (): WhatsAppTemplate => ({

@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
 
   try {
   const body = await req.json();
-  const { form_id, response_id, test_mode, test_template } = body;
+  const { form_id, response_id, test_mode, test_template, meet_link: bodyMeetLink, calendar_link: bodyCalendarLink } = body;
 
   // ── 1. Fetch WhatsApp integration ──
   const { data: integ } = await supabase
@@ -100,6 +100,39 @@ Deno.serve(async (req) => {
     }
   }
 
+  // ── Extract appointment data ──
+  let appointmentDatetime = "";
+  let appointmentField: any = null;
+  for (const f of schemaFields) {
+    if (f.type === "appointment") {
+      appointmentField = f;
+      const raw = answers[f.id];
+      const parsed = typeof raw === "string" ? (() => { try { return JSON.parse(raw); } catch { return null; } })() : raw;
+      if (parsed?.slot_start) {
+        const dt = new Date(parsed.slot_start);
+        appointmentDatetime = dt.toLocaleString("pt-BR", {
+          weekday: "long",
+          day: "2-digit",
+          month: "long",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          timeZone: "America/Sao_Paulo",
+        });
+      }
+      break;
+    }
+  }
+
+  // Build cancel URL
+  const sessionToken = meta.session_token || "";
+  const siteUrl = Deno.env.get("SITE_URL") || req.headers.get("origin") || "";
+  const cancelUrl = (sessionToken && appointmentField && siteUrl)
+    ? `${siteUrl}/cancel/${sessionToken}`
+    : "";
+
+  const meetLink = bodyMeetLink || meta.meet_link || "";
+
   // ── Helper: format phone ──
   const formatPhone = (raw: string): string => {
     const digits = raw.replace(/\D/g, "");
@@ -159,7 +192,10 @@ Deno.serve(async (req) => {
           typeof v === "string" && v.includes("@")
         ) || ""
       ))
-      .replace(/\{\{answers\}\}/g, answersText);
+      .replace(/\{\{answers\}\}/g, answersText)
+      .replace(/\{\{appointment_datetime\}\}/g, appointmentDatetime)
+      .replace(/\{\{meet_link\}\}/g, meetLink)
+      .replace(/\{\{cancel_url\}\}/g, cancelUrl);
 
     // {{field:LABEL}} → value of field with that label
     result = result.replace(/\{\{field:([^}]+)\}\}/g, (_match, label: string) => {

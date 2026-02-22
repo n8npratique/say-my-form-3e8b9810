@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Star, ArrowRight, Check } from "lucide-react";
+import { Star, ArrowRight, Check, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import type { FormField, ContactFieldKey, FieldTranslation } from "@/types/workflow";
 import type { Locale } from "@/lib/i18n";
@@ -31,6 +31,10 @@ export const RunnerField = ({ field, index, total, onAnswer, formId, locale, fie
   const [checkboxValues, setCheckboxValues] = useState<string[]>([]);
   const [rating, setRating] = useState(0);
   const [contactValues, setContactValues] = useState<Record<string, string>>({});
+  const [contactValidation, setContactValidation] = useState<Record<string, boolean>>({});
+  const [contactTouched, setContactTouched] = useState<Record<string, boolean>>({});
+  const [cepLoading, setCepLoading] = useState(false);
+  const [cepError, setCepError] = useState("");
   const [phoneValid, setPhoneValid] = useState(false);
   const [emailValid, setEmailValid] = useState(false);
 
@@ -46,6 +50,51 @@ export const RunnerField = ({ field, index, total, onAnswer, formId, locale, fie
     if (digits.length <= 9) return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
     return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
   };
+
+  const formatCep = (raw: string): string => {
+    const digits = raw.replace(/\D/g, "").slice(0, 8);
+    if (digits.length <= 5) return digits;
+    return `${digits.slice(0, 5)}-${digits.slice(5)}`;
+  };
+
+  const validateCpf = (masked: string): boolean => {
+    const digits = masked.replace(/\D/g, "");
+    if (digits.length !== 11) return false;
+    if (/^(\d)\1{10}$/.test(digits)) return false;
+    for (let t = 9; t <= 10; t++) {
+      let sum = 0;
+      for (let i = 0; i < t; i++) sum += Number(digits[i]) * (t + 1 - i);
+      const remainder = (sum * 10) % 11;
+      if ((remainder === 10 ? 0 : remainder) !== Number(digits[t])) return false;
+    }
+    return true;
+  };
+
+  const fetchCep = useCallback(async (cep: string) => {
+    const digits = cep.replace(/\D/g, "");
+    if (digits.length !== 8) return;
+    setCepLoading(true);
+    setCepError("");
+    try {
+      const res = await fetch(`https://viacep.com.br/ws/${digits}/json/`);
+      const data = await res.json();
+      if (data.erro) {
+        setCepError("CEP não encontrado");
+      } else {
+        const activeFields = field.contact_fields || ["first_name", "email"];
+        if (activeFields.includes("address" as ContactFieldKey)) {
+          const addr = [data.logradouro, data.bairro].filter(Boolean).join(", ");
+          const full = addr ? `${addr} - ${data.localidade}/${data.uf}` : `${data.localidade}/${data.uf}`;
+          setContactValues(prev => ({ ...prev, address: full }));
+        }
+      }
+    } catch {
+      setCepError("Erro ao buscar CEP");
+    } finally {
+      setCepLoading(false);
+    }
+  }, [field.contact_fields]);
+
   const CONTACT_LABELS: Record<ContactFieldKey, string> = {
     first_name: i.contactFirstName,
     last_name: i.contactLastName,
@@ -74,7 +123,13 @@ export const RunnerField = ({ field, index, total, onAnswer, formId, locale, fie
     if (!field.required) return true;
     if (field.type === "contact_info") {
       const activeFields = field.contact_fields || ["first_name", "email"];
-      return activeFields.every(f => !!contactValues[f]?.trim());
+      return activeFields.every(f => {
+        if (!contactValues[f]?.trim()) return false;
+        if (f === "email" || f === "phone" || f === "cpf") {
+          return contactValidation[f] !== false;
+        }
+        return true;
+      });
     }
     if (field.type === "checkbox" || field.type === "ranking") return checkboxValues.length > 0;
     if (field.type === "rating") return rating > 0;
@@ -96,24 +151,66 @@ export const RunnerField = ({ field, index, total, onAnswer, formId, locale, fie
                   {CONTACT_LABELS[key]}
                 </Label>
                 {key === "cpf" ? (
-                  <Input
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="000.000.000-00"
-                    value={contactValues[key] || ""}
-                    onChange={(e) => setContactValues(prev => ({ ...prev, [key]: formatCpf(e.target.value) }))}
-                    maxLength={14}
-                    className="text-lg h-12 border-0 border-b-2 rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-primary"
-                  />
+                  <>
+                    <Input
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="000.000.000-00"
+                      value={contactValues[key] || ""}
+                      onChange={(e) => {
+                        const formatted = formatCpf(e.target.value);
+                        setContactValues(prev => ({ ...prev, [key]: formatted }));
+                        const digits = formatted.replace(/\D/g, "");
+                        if (digits.length === 11) {
+                          setContactValidation(prev => ({ ...prev, cpf: validateCpf(formatted) }));
+                        } else {
+                          setContactValidation(prev => ({ ...prev, cpf: false }));
+                        }
+                      }}
+                      onBlur={() => setContactTouched(prev => ({ ...prev, cpf: true }))}
+                      maxLength={14}
+                      className={`text-lg h-12 border-0 border-b-2 rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-primary ${contactTouched.cpf && contactValidation.cpf === false && (contactValues.cpf || "").replace(/\D/g, "").length === 11 ? "!border-red-500" : ""}`}
+                    />
+                    {contactTouched.cpf && contactValidation.cpf === false && (contactValues.cpf || "").replace(/\D/g, "").length === 11 && (
+                      <p className="text-xs text-red-500">CPF inválido</p>
+                    )}
+                  </>
+                ) : key === "cep" ? (
+                  <div className="relative">
+                    <Input
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="00000-000"
+                      value={contactValues[key] || ""}
+                      onChange={(e) => {
+                        const formatted = formatCep(e.target.value);
+                        setContactValues(prev => ({ ...prev, [key]: formatted }));
+                        const digits = formatted.replace(/\D/g, "");
+                        if (digits.length === 8) fetchCep(digits);
+                      }}
+                      maxLength={9}
+                      className={`text-lg h-12 border-0 border-b-2 rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-primary ${cepError ? "!border-red-500" : ""}`}
+                    />
+                    {cepLoading && (
+                      <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                    )}
+                    {cepError && <p className="text-xs text-red-500">{cepError}</p>}
+                  </div>
                 ) : key === "phone" ? (
                   <PhoneInput
                     value={contactValues[key] || ""}
-                    onChange={(v) => setContactValues(prev => ({ ...prev, [key]: v }))}
+                    onChange={(v, valid) => {
+                      setContactValues(prev => ({ ...prev, [key]: v }));
+                      setContactValidation(prev => ({ ...prev, phone: valid }));
+                    }}
                   />
                 ) : key === "email" ? (
                   <ValidatedEmailInput
                     value={contactValues[key] || ""}
-                    onChange={(v) => setContactValues(prev => ({ ...prev, [key]: v }))}
+                    onChange={(v, valid) => {
+                      setContactValues(prev => ({ ...prev, [key]: v }));
+                      setContactValidation(prev => ({ ...prev, email: valid }));
+                    }}
                     placeholder={i.emailGatePlaceholder}
                   />
                 ) : (

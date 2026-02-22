@@ -309,7 +309,12 @@ const FormRunner = () => {
         },
       }),
       supabase.functions.invoke("send-whatsapp", {
-        body: { form_id: formId, response_id: responseId },
+        body: {
+          form_id: formId,
+          response_id: responseId,
+          meet_link: calendarMeta.calendar_meet_link || "",
+          calendar_link: calendarMeta.calendar_html_link || "",
+        },
       }),
       supabase.functions.invoke("sync-unnichat", {
         body: { form_id: formId, response_id: responseId },
