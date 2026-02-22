@@ -5,8 +5,9 @@ import { MessagesPanel } from "./MessagesPanel";
 import { SheetsPanel } from "./SheetsPanel";
 import { UnnichatPanel } from "./UnnichatPanel";
 import { WhatsAppPanel } from "./WhatsAppPanel";
+import { ChatGuruPanel } from "./ChatGuruPanel";
 import { CalendarPanel } from "./CalendarPanel";
-import { Webhook, Plug, Mail, FileSpreadsheet, MessageCircle, Phone, Calendar } from "lucide-react";
+import { Webhook, Plug, Mail, FileSpreadsheet, MessageCircle, MessageSquare, Phone, Calendar } from "lucide-react";
 import type { EmailTemplate, ScoringConfig, TaggingConfig, OutcomesConfig, FormField } from "@/types/workflow";
 
 interface ActionsPanelProps {
@@ -56,7 +57,7 @@ export const ActionsPanel = ({
     <div className="border-l w-80 bg-card/30 p-4 overflow-y-auto">
       <h3 className="font-display font-semibold text-sm mb-4">Actions</h3>
       <Tabs defaultValue="webhooks">
-        <TabsList className={`w-full grid ${hasAppointment ? "grid-cols-6" : "grid-cols-7"}`}>
+        <TabsList className={`w-full grid ${hasAppointment ? "grid-cols-7" : "grid-cols-8"}`}>
           <TabsTrigger value="webhooks" className="gap-1 text-xs px-0.5">
             <Webhook className="h-3 w-3" />
           </TabsTrigger>
@@ -71,6 +72,9 @@ export const ActionsPanel = ({
           </TabsTrigger>
           <TabsTrigger value="whatsapp" className={`gap-1 text-xs px-0.5 ${!hasPhoneField ? "opacity-50" : ""}`}>
             <Phone className="h-3 w-3" />
+          </TabsTrigger>
+          <TabsTrigger value="chatguru" className={`gap-1 text-xs px-0.5 ${!hasPhoneField ? "opacity-50" : ""}`}>
+            <MessageSquare className="h-3 w-3" />
           </TabsTrigger>
           {!hasAppointment && (
             <TabsTrigger value="calendar" className="gap-1 text-xs px-0.5">
@@ -87,6 +91,7 @@ export const ActionsPanel = ({
           <span className="flex-1 text-center">Sheets</span>
           <span className="flex-1 text-center">Email</span>
           <span className="flex-1 text-center">WA</span>
+          <span className="flex-1 text-center">Guru</span>
           {!hasAppointment && <span className="flex-1 text-center">Cal</span>}
           <span className="flex-1 text-center">CRM</span>
         </div>
@@ -101,7 +106,7 @@ export const ActionsPanel = ({
         </TabsContent>
         <TabsContent value="messages" className="mt-0">
           {hasEmailField ? (
-            <MessagesPanel templates={emailTemplates} onUpdateTemplates={onUpdateEmailTemplates} formId={formId} />
+            <MessagesPanel templates={emailTemplates} onUpdateTemplates={onUpdateEmailTemplates} formId={formId} fields={fields} hasAppointment={hasAppointment} />
           ) : (
             <MissingFieldWarning fieldType="email" integration="Email" />
           )}
@@ -111,6 +116,13 @@ export const ActionsPanel = ({
             <WhatsAppPanel formId={formId} />
           ) : (
             <MissingFieldWarning fieldType="telefone" integration="WhatsApp" />
+          )}
+        </TabsContent>
+        <TabsContent value="chatguru" className="mt-0">
+          {hasPhoneField ? (
+            <ChatGuruPanel formId={formId} fields={fields} />
+          ) : (
+            <MissingFieldWarning fieldType="telefone" integration="ChatGuru" />
           )}
         </TabsContent>
         {!hasAppointment && (

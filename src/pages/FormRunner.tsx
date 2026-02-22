@@ -314,10 +314,13 @@ const FormRunner = () => {
       supabase.functions.invoke("sync-unnichat", {
         body: { form_id: formId, response_id: responseId },
       }),
+      supabase.functions.invoke("sync-chatguru", {
+        body: { form_id: formId, response_id: responseId },
+      }),
     ]).catch(() => []) as PromiseSettledResult<any>[] | [];
 
     // 4) Parse integration statuses
-    const otherNames = ["email", "whatsapp", "unnichat"];
+    const otherNames = ["email", "whatsapp", "unnichat", "chatguru"];
     for (let i = 0; i < otherNames.length; i++) {
       const result = (otherResults as any[])?.[i];
       if (!result) continue;

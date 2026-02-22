@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
-import { ArrowLeft, Settings, CheckCircle2, XCircle, Loader2, Trash2, Mail, Phone, MessageCircle, Globe, Link, Unlink } from "lucide-react";
+import { ArrowLeft, Settings, CheckCircle2, XCircle, Loader2, Trash2, Mail, Phone, MessageCircle, MessageSquare, Globe, Link, Unlink, Plus } from "lucide-react";
 import logoPratique from "@/assets/logo-pratique.png";
 
 const TIMEZONES = [
@@ -34,6 +34,7 @@ interface WorkspaceSettings {
   waha?: { url: string; api_key: string; session: string; default_number: string };
   email?: { provider: "google_oauth" | "resend"; resend_api_key?: string; sender_email?: string };
   unnichat?: { url: string; token: string };
+  chatguru?: { key: string; account_id: string; phones: Array<{ telefone: string; phone_id: string }> };
   timezone?: string;
 }
 
@@ -81,6 +82,13 @@ const WorkspaceSettings = () => {
   const [savingUnnichat, setSavingUnnichat] = useState(false);
   const [unnichatStatus, setUnnichatStatus] = useState<ConnectionStatus>("idle");
 
+  // ChatGuru
+  const [chatguruKey, setChatguruKey] = useState("");
+  const [chatguruAccountId, setChatguruAccountId] = useState("");
+  const [chatguruPhones, setChatguruPhones] = useState<Array<{ telefone: string; phone_id: string }>>([]);
+  const [savingChatguru, setSavingChatguru] = useState(false);
+  const [chatguruStatus, setChatguruStatus] = useState<ConnectionStatus>("idle");
+
   useEffect(() => {
     if (workspaceId) fetchAll();
   }, [workspaceId]);
@@ -126,6 +134,7 @@ const WorkspaceSettings = () => {
       if (s.waha) { setWahaUrl(s.waha.url); setWahaKey(s.waha.api_key); setWahaSession(s.waha.session || "default"); setWahaNumber(s.waha.default_number); }
       if (s.email) { setEmailProvider(s.email.provider === "resend" ? "resend" : "google_oauth"); setResendKey(s.email.resend_api_key || ""); setSenderEmail(s.email.sender_email || ""); }
       if (s.unnichat) { setUnnichatUrl(s.unnichat.url); setUnnichatToken(s.unnichat.token); }
+      if (s.chatguru) { setChatguruKey(s.chatguru.key || ""); setChatguruAccountId(s.chatguru.account_id || ""); setChatguruPhones(s.chatguru.phones || []); }
       if (s.timezone) setTimezone(s.timezone);
     }
 
@@ -345,6 +354,22 @@ const WorkspaceSettings = () => {
 
     toast({ title: ok ? "Unnichat salvo e conectado!" : "Unnichat salvo, mas conexão falhou", variant: ok ? "default" : "destructive" });
     setSavingUnnichat(false);
+  };
+
+  // ── ChatGuru ─────────────────────────────────────────────────────────────
+  const saveChatguru = async () => {
+    setSavingChatguru(true);
+    setChatguruStatus("loading");
+
+    const { data: ws } = await supabase.from("workspaces").select("*").eq("id", workspaceId!).maybeSingle();
+    const current = ((ws as any)?.settings as WorkspaceSettings) || {};
+    await supabase.from("workspaces").update({
+      settings: { ...current, chatguru: { key: chatguruKey, account_id: chatguruAccountId, phones: chatguruPhones.filter((p) => p.phone_id) } },
+    } as any).eq("id", workspaceId!);
+
+    setChatguruStatus(chatguruKey && chatguruAccountId ? "ok" : "error");
+    toast({ title: "ChatGuru salvo!" });
+    setSavingChatguru(false);
   };
 
   // ── General ────────────────────────────────────────────────────────────────
@@ -704,8 +729,88 @@ const WorkspaceSettings = () => {
           </Card>
         </motion.div>
 
-        {/* ── Geral ── */}
+        {/* ── ChatGuru ── */}
         <motion.div custom={5} variants={cardVariants} initial="hidden" animate="visible">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-lg bg-muted flex items-center justify-center">
+                    <MessageSquare className="h-5 w-5 text-foreground" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-base">ChatGuru</CardTitle>
+                    <CardDescription className="text-xs">WhatsApp Business via ChatGuru</CardDescription>
+                  </div>
+                </div>
+                <StatusBadge status={chatguruStatus} />
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="chatguru-key">API Key</Label>
+                <Input id="chatguru-key" type="password" placeholder="••••••••" value={chatguruKey} onChange={(e) => setChatguruKey(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="chatguru-account">Account ID</Label>
+                <Input id="chatguru-account" placeholder="ID da conta ChatGuru" value={chatguruAccountId} onChange={(e) => setChatguruAccountId(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>Telefones</Label>
+                <p className="text-xs text-muted-foreground">
+                  Cadastre os telefones vinculados à conta ChatGuru com seus respectivos phone_id.
+                </p>
+                {chatguruPhones.map((phone, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <Input
+                      className="flex-1"
+                      placeholder="Telefone (ex: +5511999...)"
+                      value={phone.telefone}
+                      onChange={(e) => {
+                        const phones = [...chatguruPhones];
+                        phones[i] = { ...phone, telefone: e.target.value };
+                        setChatguruPhones(phones);
+                      }}
+                    />
+                    <Input
+                      className="flex-1"
+                      placeholder="phone_id"
+                      value={phone.phone_id}
+                      onChange={(e) => {
+                        const phones = [...chatguruPhones];
+                        phones[i] = { ...phone, phone_id: e.target.value };
+                        setChatguruPhones(phones);
+                      }}
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="shrink-0 text-destructive hover:text-destructive"
+                      onClick={() => setChatguruPhones(chatguruPhones.filter((_, idx) => idx !== i))}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full gap-1"
+                  onClick={() => setChatguruPhones([...chatguruPhones, { telefone: "", phone_id: "" }])}
+                >
+                  <Plus className="h-4 w-4" /> Adicionar telefone
+                </Button>
+              </div>
+              <Button className="gradient-primary text-primary-foreground" disabled={!chatguruKey || !chatguruAccountId || savingChatguru} onClick={saveChatguru}>
+                {savingChatguru && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Salvar
+              </Button>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* ── Geral ── */}
+        <motion.div custom={6} variants={cardVariants} initial="hidden" animate="visible">
           <Card>
             <CardHeader>
               <div className="flex items-center gap-3">
