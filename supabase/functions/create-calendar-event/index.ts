@@ -502,10 +502,16 @@ Deno.serve(async (req) => {
         .then(() => {});
     }
 
+    // Extract Meet link from conference data (if created)
+    const meetLink = eventData.conferenceData?.entryPoints?.find(
+      (ep: any) => ep.entryPointType === "video"
+    )?.uri || null;
+
     return respond({
       created: true,
       event_id: eventData.id,
       html_link: eventData.htmlLink,
+      meet_link: meetLink,
       calendar_id: calendarId,
       google_connection_id: effectiveConnectionId || null,
     });

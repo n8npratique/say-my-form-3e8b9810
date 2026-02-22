@@ -271,15 +271,44 @@ const FormRunner = () => {
       body: { form_id: formId, response_id: responseId, session_token: sessionToken, event: "response.completed" },
     }).catch(() => {});
 
-    // 2) Run integrations BEFORE marking completed (RLS only allows update while status='in_progress')
-    const integrationResults = await Promise.allSettled([
-      supabase.functions.invoke("send-email", {
+    // 2) Run calendar FIRST (email needs the calendar/meet links)
+    let calendarMeta: Record<string, any> = {};
+    const integrationStatus: Record<string, string> = {};
+
+    try {
+      const calRes = await supabase.functions.invoke("create-calendar-event", {
         body: { form_id: formId, response_id: responseId },
+      });
+      const d = calRes.data;
+      if (d?.created && d?.event_id) {
+        integrationStatus.calendar = "ok";
+        calendarMeta = {
+          calendar_event_id: d.event_id,
+          calendar_html_link: d.html_link || null,
+          calendar_meet_link: d.meet_link || null,
+          calendar_id: d.calendar_id || null,
+          google_connection_id: d.google_connection_id || null,
+        };
+      } else if (d?.reason === "not_configured") {
+        // skip
+      } else {
+        integrationStatus.calendar = "erro";
+      }
+    } catch {
+      integrationStatus.calendar = "erro";
+    }
+
+    // 3) Run remaining integrations in parallel (email gets calendar links)
+    const otherResults = await Promise.allSettled([
+      supabase.functions.invoke("send-email", {
+        body: {
+          form_id: formId,
+          response_id: responseId,
+          calendar_link: calendarMeta.calendar_html_link || "",
+          meet_link: calendarMeta.calendar_meet_link || "",
+        },
       }),
       supabase.functions.invoke("send-whatsapp", {
-        body: { form_id: formId, response_id: responseId },
-      }),
-      supabase.functions.invoke("create-calendar-event", {
         body: { form_id: formId, response_id: responseId },
       }),
       supabase.functions.invoke("sync-unnichat", {
@@ -287,38 +316,22 @@ const FormRunner = () => {
       }),
     ]).catch(() => []) as PromiseSettledResult<any>[] | [];
 
-    // 3) Parse integration statuses for the Sheets log
-    const integrationNames = ["email", "whatsapp", "calendar", "unnichat"];
-    const integrationStatus: Record<string, string> = {};
-    for (let i = 0; i < integrationNames.length; i++) {
-      const result = (integrationResults as any[])?.[i];
+    // 4) Parse integration statuses
+    const otherNames = ["email", "whatsapp", "unnichat"];
+    for (let i = 0; i < otherNames.length; i++) {
+      const result = (otherResults as any[])?.[i];
       if (!result) continue;
       if (result.status === "fulfilled") {
         const d = result.value?.data;
         if (d?.sent || d?.synced || d?.created || d?.success) {
-          integrationStatus[integrationNames[i]] = "ok";
+          integrationStatus[otherNames[i]] = "ok";
         } else if (d?.reason === "not_configured" || d?.reason === "no_templates" || d?.reason === "no_phone") {
-          // Not configured = skip, don't log
+          // skip
         } else {
-          integrationStatus[integrationNames[i]] = "erro";
+          integrationStatus[otherNames[i]] = "erro";
         }
       } else {
-        integrationStatus[integrationNames[i]] = "erro";
-      }
-    }
-
-    // 4) Extract calendar event_id from create-calendar-event result
-    const calendarResult = (integrationResults as any[])?.[2];
-    let calendarMeta: Record<string, any> = {};
-    if (calendarResult?.status === "fulfilled") {
-      const d = calendarResult.value?.data;
-      if (d?.created && d?.event_id) {
-        calendarMeta = {
-          calendar_event_id: d.event_id,
-          calendar_html_link: d.html_link || null,
-          calendar_id: d.calendar_id || null,
-          google_connection_id: d.google_connection_id || null,
-        };
+        integrationStatus[otherNames[i]] = "erro";
       }
     }
 

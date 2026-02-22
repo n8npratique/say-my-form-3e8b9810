@@ -290,7 +290,7 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { form_id, response_id, test_mode, test_email, test_template } = body;
+    const { form_id, response_id, test_mode, test_email, test_template, calendar_link, meet_link } = body;
 
     if (!form_id) {
       return new Response(
@@ -344,7 +344,7 @@ Deno.serve(async (req) => {
       if (customBody.trim()) {
         bodyParts.push(customBody.trim());
       }
-      bodyParts.push("Caso precise cancelar, clique no link abaixo:\n{{cancel_url}}\n\nObrigado!");
+      bodyParts.push("{{event_links}}Caso precise cancelar, clique no link abaixo:\n{{cancel_url}}\n\nObrigado!");
       appointmentEmailTemplate = {
         id: "appointment_confirmation",
         enabled: true,
@@ -518,6 +518,14 @@ Deno.serve(async (req) => {
       answers: answersHtml,
       cancel_url: cancelUrl,
       appointment_datetime: appointmentDatetime,
+      calendar_link: calendar_link || "",
+      meet_link: meet_link || "",
+      event_links: (() => {
+        const parts: string[] = [];
+        if (calendar_link) parts.push(`Ver no Google Calendar: ${calendar_link}`);
+        if (meet_link) parts.push(`Link do Google Meet: ${meet_link}`);
+        return parts.length > 0 ? parts.join("\n") + "\n\n" : "";
+      })(),
     };
 
     // Buscar email do owner
