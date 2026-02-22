@@ -445,15 +445,21 @@ Deno.serve(async (req) => {
         body: JSON.stringify({
           properties: { title: `TecForms — ${form.name}` },
           sheets: [{
-            properties: { title: "Respostas" },
+            properties: {
+              title: "Respostas",
+              gridProperties: { frozenRowCount: 1 },
+            },
             data: [{
               startRow: 0, startColumn: 0,
               rowData: [{
                 values: headers.map((h) => ({
                   userEnteredValue: { stringValue: h },
                   userEnteredFormat: {
-                    backgroundColor: { red: 0.23, green: 0.47, blue: 0.85 },
-                    textFormat: { foregroundColor: { red: 1, green: 1, blue: 1 }, bold: true },
+                    backgroundColor: { red: 0.318, green: 0.176, blue: 0.659 },
+                    textFormat: { foregroundColor: { red: 1, green: 1, blue: 1 }, bold: true, fontSize: 10 },
+                    horizontalAlignment: "CENTER",
+                    verticalAlignment: "MIDDLE",
+                    wrapStrategy: "CLIP",
                   },
                 })),
               }],
@@ -464,6 +470,39 @@ Deno.serve(async (req) => {
       const createData = await createRes.json();
       const newId = createData.spreadsheetId;
       if (!newId) throw new Error(`Sheets create failed: ${JSON.stringify(createData)}`);
+
+      // Apply formatting: basic filter + auto-resize columns + row height
+      const sheetId = createData.sheets?.[0]?.properties?.sheetId || 0;
+      await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${newId}:batchUpdate`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          requests: [
+            // Basic filter (dropdown arrows on headers)
+            {
+              setBasicFilter: {
+                filter: {
+                  range: { sheetId, startRowIndex: 0, startColumnIndex: 0, endColumnIndex: headers.length },
+                },
+              },
+            },
+            // Header row height
+            {
+              updateDimensionProperties: {
+                range: { sheetId, dimension: "ROWS", startIndex: 0, endIndex: 1 },
+                properties: { pixelSize: 40 },
+                fields: "pixelSize",
+              },
+            },
+            // Auto-resize columns to fit header content
+            {
+              autoResizeDimensions: {
+                dimensions: { sheetId, dimension: "COLUMNS", startIndex: 0, endIndex: headers.length },
+              },
+            },
+          ],
+        }),
+      });
 
       // Busca config mais recente do banco antes de salvar para não perder campos
       const { data: freshInteg } = await supabase
@@ -542,6 +581,50 @@ Deno.serve(async (req) => {
           body: JSON.stringify({ values: [updatedHeaders] }),
         }
       );
+
+      // 5. Apply purple formatting to new header cells + update filter range
+      const startCol = currentHeaders.length;
+      const endCol = updatedHeaders.length;
+
+      // Get sheetId
+      const metaRes = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets.properties`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      const metaData = await metaRes.json();
+      const sheetId = metaData.sheets?.[0]?.properties?.sheetId || 0;
+
+      await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          requests: [
+            // Format new header cells with purple background
+            {
+              repeatCell: {
+                range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: startCol, endColumnIndex: endCol },
+                cell: {
+                  userEnteredFormat: {
+                    backgroundColor: { red: 0.318, green: 0.176, blue: 0.659 },
+                    textFormat: { foregroundColor: { red: 1, green: 1, blue: 1 }, bold: true, fontSize: 10 },
+                    horizontalAlignment: "CENTER",
+                    verticalAlignment: "MIDDLE",
+                  },
+                },
+                fields: "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment)",
+              },
+            },
+            // Update basic filter to include new columns
+            {
+              setBasicFilter: {
+                filter: {
+                  range: { sheetId, startRowIndex: 0, startColumnIndex: 0, endColumnIndex: endCol },
+                },
+              },
+            },
+          ],
+        }),
+      });
 
       return updatedHeaders;
     }
@@ -637,6 +720,57 @@ Deno.serve(async (req) => {
           body: JSON.stringify({ values: [expectedHeaders] }),
         }
       );
+
+      // Apply full header formatting (purple, filter, frozen row)
+      const batchMetaRes = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets.properties`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      const batchMetaData = await batchMetaRes.json();
+      const batchSheetId = batchMetaData.sheets?.[0]?.properties?.sheetId || 0;
+
+      await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          requests: [
+            {
+              repeatCell: {
+                range: { sheetId: batchSheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: expectedHeaders.length },
+                cell: {
+                  userEnteredFormat: {
+                    backgroundColor: { red: 0.318, green: 0.176, blue: 0.659 },
+                    textFormat: { foregroundColor: { red: 1, green: 1, blue: 1 }, bold: true, fontSize: 10 },
+                    horizontalAlignment: "CENTER",
+                    verticalAlignment: "MIDDLE",
+                  },
+                },
+                fields: "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment)",
+              },
+            },
+            {
+              updateSheetProperties: {
+                properties: { sheetId: batchSheetId, gridProperties: { frozenRowCount: 1 } },
+                fields: "gridProperties.frozenRowCount",
+              },
+            },
+            {
+              setBasicFilter: {
+                filter: {
+                  range: { sheetId: batchSheetId, startRowIndex: 0, startColumnIndex: 0, endColumnIndex: expectedHeaders.length },
+                },
+              },
+            },
+            {
+              updateDimensionProperties: {
+                range: { sheetId: batchSheetId, dimension: "ROWS", startIndex: 0, endIndex: 1 },
+                properties: { pixelSize: 40 },
+                fields: "pixelSize",
+              },
+            },
+          ],
+        }),
+      });
 
       // Montar todas as linhas na ordem dos headers atuais
       const rows = allResponses.map((resp: any) =>
