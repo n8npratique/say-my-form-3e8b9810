@@ -19,6 +19,9 @@ export interface AppointmentConfig {
   add_respondent: boolean;       // adicionar respondente como participante
   add_meet: boolean;             // gerar link Google Meet
   timezone: string;              // IANA timezone (ex: "America/Sao_Paulo")
+  confirmation_email_enabled: boolean;   // enviar email ao respondente (default: true)
+  confirmation_email_subject: string;    // default: "Confirmação de agendamento - {{form_name}}"
+  confirmation_email_body: string;       // mensagem extra do usuario (default: "")
 }
 
 export interface FormField {

@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AlertTriangle, Loader2, Video, Calendar } from "lucide-react";
+import { AlertTriangle, Loader2, Video, Calendar, Mail, Info } from "lucide-react";
 import type { FormField, AppointmentConfig } from "@/types/workflow";
 
 /** Field types that don't produce useful variable values */
@@ -37,6 +37,9 @@ const DEFAULT_APPOINTMENT_CONFIG: AppointmentConfig = {
   add_respondent: true,
   add_meet: false,
   timezone: "America/Sao_Paulo",
+  confirmation_email_enabled: true,
+  confirmation_email_subject: "Confirmação de agendamento - {{form_name}}",
+  confirmation_email_body: "",
 };
 
 const WEEKDAYS = [
@@ -486,6 +489,59 @@ export const AppointmentConfigSection = ({ field, onChange, workspaceId, fields 
             onCheckedChange={(v) => update({ add_meet: v })}
           />
         </div>
+      </div>
+
+      {/* ── BOX 3: Email de Confirmação ── */}
+      <div className="space-y-4 rounded-lg border p-3">
+        <div className="flex items-center gap-2">
+          <Mail className="h-4 w-4 text-muted-foreground" />
+          <Label className="text-sm font-medium">Email de Confirmação</Label>
+        </div>
+
+        {/* Toggle */}
+        <div className="flex items-center justify-between rounded-md bg-muted/50 p-2">
+          <div>
+            <Label className="text-xs">Enviar email ao respondente</Label>
+            <p className="text-[10px] text-muted-foreground">Email automático com dados do agendamento</p>
+          </div>
+          <Switch
+            checked={config.confirmation_email_enabled}
+            onCheckedChange={(v) => update({ confirmation_email_enabled: v })}
+          />
+        </div>
+
+        {config.confirmation_email_enabled && (
+          <>
+            {/* Subject */}
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Assunto</Label>
+              <Input
+                value={config.confirmation_email_subject}
+                onChange={(e) => update({ confirmation_email_subject: e.target.value })}
+                placeholder="Confirmação de agendamento - {{form_name}}"
+                className="h-8 text-xs"
+              />
+            </div>
+
+            {/* Custom Body */}
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Mensagem personalizada <span className="text-muted-foreground/60">(opcional)</span></Label>
+              <Textarea
+                value={config.confirmation_email_body}
+                onChange={(e) => update({ confirmation_email_body: e.target.value })}
+                placeholder="Texto extra que aparecerá no email..."
+                className="text-xs min-h-[60px] resize-none"
+                rows={3}
+              />
+            </div>
+
+            {/* Info */}
+            <div className="flex items-start gap-2 text-[11px] text-muted-foreground bg-muted/30 rounded-md p-2">
+              <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+              <span>Data, horário e link de cancelamento são incluídos automaticamente no email.</span>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

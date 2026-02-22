@@ -98,7 +98,7 @@ const FormWorkflow = () => {
     if (error) {
       toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
     } else {
-      toast({ title: "Workflow salvo!" });
+      toast({ title: "Integrações salvas!" });
     }
     setSaving(false);
   };
@@ -117,7 +117,7 @@ const FormWorkflow = () => {
         <span className="text-muted-foreground">/</span>
         <button onClick={() => navigate(`/workspace/${workspaceId}/form/${formId}/edit`)} className="font-medium text-sm truncate max-w-[200px] hover:text-primary transition cursor-pointer">{formName}</button>
         <span className="text-muted-foreground">/</span>
-        <span className="text-sm text-primary font-medium">Workflow</span>
+        <span className="text-sm text-primary font-medium">Integrações</span>
         <div className="ml-auto">
           <Button
             size="sm"
@@ -125,7 +125,7 @@ const FormWorkflow = () => {
             onClick={saveWorkflow}
             disabled={saving}
           >
-            <Save className="h-4 w-4 mr-1" /> {saving ? "Salvando..." : "Salvar Workflow"}
+            <Save className="h-4 w-4 mr-1" /> {saving ? "Salvando..." : "Salvar Integrações"}
           </Button>
         </div>
       </header>

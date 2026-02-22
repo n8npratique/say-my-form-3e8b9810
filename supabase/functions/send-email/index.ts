@@ -325,31 +325,48 @@ Deno.serve(async (req) => {
     const allTemplates: any[] = schema.email_templates || [];
     const fields: any[] = schema.fields || [];
 
-    // Auto-generate appointment confirmation template if none configured
-    const hasAppointment = fields.some((f: any) => f.type === "appointment");
+    // Check for appointment field and its confirmation_email config
+    const appointmentField = fields.find((f: any) => f.type === "appointment");
+    const appointmentConfig = appointmentField?.appointment_config;
+    const confirmationEmailEnabled = appointmentConfig?.confirmation_email_enabled !== false; // default true
 
     // Em modo teste usa o template passado
     let templates = test_mode
       ? [{ ...test_template, enabled: true }]
       : allTemplates.filter((t: any) => t.enabled);
 
-    if (templates.length === 0 && hasAppointment && !test_mode) {
-      // Auto-generate confirmation email for appointment forms
-      templates = [{
-        id: "auto_appointment_confirmation",
+    // Build appointment confirmation template from appointment_config (not from email_templates)
+    let appointmentEmailTemplate: any = null;
+    if (!test_mode && appointmentField && confirmationEmailEnabled) {
+      const subject = appointmentConfig?.confirmation_email_subject || "Confirmação de agendamento - {{form_name}}";
+      const customBody = appointmentConfig?.confirmation_email_body || "";
+      const bodyParts = ["Olá!\n\nSeu agendamento no formulário {{form_name}} foi confirmado com sucesso.\n\nData: {{appointment_datetime}}"];
+      if (customBody.trim()) {
+        bodyParts.push(customBody.trim());
+      }
+      bodyParts.push("Caso precise cancelar, clique no link abaixo:\n{{cancel_url}}\n\nObrigado!");
+      appointmentEmailTemplate = {
+        id: "appointment_confirmation",
         enabled: true,
         recipient: "respondent",
-        subject: "Confirmação de agendamento - {{form_name}}",
-        body: "Olá!\n\nSeu agendamento no formulário {{form_name}} foi confirmado com sucesso.\n\nData: {{appointment_datetime}}\n\nCaso precise cancelar, clique no link abaixo:\n{{cancel_url}}\n\nObrigado!",
+        subject,
+        body: bodyParts.join("\n\n"),
         footer: "Enviado automaticamente via TecForms",
-      }];
+      };
     }
 
-    if (templates.length === 0) {
+    if (templates.length === 0 && !appointmentEmailTemplate) {
       return new Response(
         JSON.stringify({ sent: false, reason: "no_templates" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // Merge: appointment confirmation first, then extra templates
+    if (appointmentEmailTemplate) {
+      // Remove any legacy auto_appointment_confirmation from email_templates to avoid duplicates
+      templates = templates.filter((t: any) => t.id !== "auto_appointment_confirmation");
+      templates = [appointmentEmailTemplate, ...templates];
     }
 
     // 2. Buscar config de email do workspace
@@ -435,33 +452,34 @@ Deno.serve(async (req) => {
       };
     }
 
-    // Fallback: extract respondent email from answers if not in meta
-    if (!meta.respondent_email) {
-      for (const f of fields) {
-        const ft = (f.type || "").toLowerCase();
-        if (ft === "email" || ft === "email_input") {
-          const val = answerMap[f.id];
-          if (val && val.includes("@")) {
-            meta.respondent_email = val;
-            break;
-          }
-        } else if (ft === "contact_info") {
-          // Try raw value first (JSON object with .email)
-          const raw = rawAnswerMap[f.id];
-          const parsed = typeof raw === "string" ? (() => { try { return JSON.parse(raw); } catch { return null; } })() : raw;
-          if (parsed && typeof parsed === "object" && parsed.email && String(parsed.email).includes("@")) {
-            meta.respondent_email = String(parsed.email);
-            break;
-          }
-          // Fallback: check value_text for email pattern
-          const text = answerMap[f.id] || "";
-          const emailMatch = text.match(/[\w.+-]+@[\w-]+\.[\w.-]+/);
-          if (emailMatch) {
-            meta.respondent_email = emailMatch[0];
-            break;
-          }
+    // Extract respondent email from form answers (priority over meta.respondent_email)
+    // The email field answer is the explicit contact email the respondent entered
+    let emailFromAnswers = "";
+    for (const f of fields) {
+      const ft = (f.type || "").toLowerCase();
+      if (ft === "email" || ft === "email_input") {
+        const val = answerMap[f.id];
+        if (val && val.includes("@")) {
+          emailFromAnswers = val;
+          break;
+        }
+      } else if (ft === "contact_info") {
+        const raw = rawAnswerMap[f.id];
+        const parsed = typeof raw === "string" ? (() => { try { return JSON.parse(raw); } catch { return null; } })() : raw;
+        if (parsed && typeof parsed === "object" && parsed.email && String(parsed.email).includes("@")) {
+          emailFromAnswers = String(parsed.email);
+          break;
+        }
+        const text = answerMap[f.id] || "";
+        const emailMatch = text.match(/[\w.+-]+@[\w-]+\.[\w.-]+/);
+        if (emailMatch) {
+          emailFromAnswers = emailMatch[0];
+          break;
         }
       }
+    }
+    if (emailFromAnswers) {
+      meta.respondent_email = emailFromAnswers;
     }
 
     // Montar HTML de respostas

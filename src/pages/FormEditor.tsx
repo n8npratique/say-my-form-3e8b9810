@@ -9,7 +9,7 @@ import { FieldItem, type FormField } from "@/components/form-editor/FieldItem";
 import { FieldConfigPanel } from "@/components/form-editor/FieldConfigPanel";
 import { ShareDialog } from "@/components/form-editor/ShareDialog";
 import { ThemePanel } from "@/components/form-editor/ThemePanel";
-import { ArrowLeft, Plus, Save, Eye, Share2, Rocket, GitBranch, ClipboardList, Palette, Globe, Languages, Loader2 } from "lucide-react";
+import { ArrowLeft, Plus, Save, Eye, Share2, Rocket, Plug, ClipboardList, Palette, Globe, Languages, Loader2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import logoPratique from "@/assets/logo-pratique.png";
 import type { FieldTranslation } from "@/types/workflow";
@@ -170,22 +170,6 @@ const FormEditor = () => {
 
     const existingSchema = (currentVersion?.schema as any) || {};
 
-    // Auto-create appointment confirmation email template if needed
-    if (hasAppointment) {
-      const existingTemplates: any[] = existingSchema.email_templates || [];
-      if (existingTemplates.length === 0) {
-        existingSchema.email_templates = [{
-          id: "auto_appointment_confirmation",
-          name: "Confirmação de Agendamento",
-          enabled: true,
-          recipient: "respondent",
-          subject: "Confirmação de agendamento - {{form_name}}",
-          body: "Olá!\n\nSeu agendamento no formulário {{form_name}} foi confirmado com sucesso.\n\nData: {{appointment_datetime}}\n\nCaso precise cancelar, clique no link abaixo:\n{{cancel_url}}\n\nObrigado!",
-          footer: "Enviado automaticamente via TecForms",
-        }];
-      }
-    }
-
     await supabase
       .from("form_versions")
       .update({ schema: { ...existingSchema, fields, theme, locale, field_translations: fieldTranslations } as any })
@@ -310,7 +294,7 @@ const FormEditor = () => {
             size="sm"
             onClick={() => navigate(`/workspace/${workspaceId}/form/${formId}/workflow`)}
           >
-            <GitBranch className="h-4 w-4 mr-1" /> Workflow
+            <Plug className="h-4 w-4 mr-1" /> Integrações
           </Button>
           <Button variant="outline" size="sm" onClick={handlePreview}>
             <Eye className="h-4 w-4 mr-1" /> Preview
