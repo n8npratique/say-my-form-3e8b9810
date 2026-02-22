@@ -133,10 +133,16 @@ Deno.serve(async (req) => {
 
   const meetLink = bodyMeetLink || meta.meet_link || "";
 
-  // ── Helper: format phone ──
+  // ── Helper: format phone → "5511999999999@c.us" ──
   const formatPhone = (raw: string): string => {
-    const digits = raw.replace(/\D/g, "");
-    return digits.endsWith("@c.us") ? digits : `${digits}@c.us`;
+    // Strip @c.us if already present, then work with digits only
+    const cleaned = raw.replace(/@c\.us$/i, "");
+    const digits = cleaned.replace(/\D/g, "");
+    if (!digits) return "";
+    // 10-11 digits = Brazilian local (DDD + number) → prepend 55
+    // 12-13 digits starting with 55 = already international
+    const international = (digits.length <= 11) ? `55${digits}` : digits;
+    return `${international}@c.us`;
   };
 
   // ── Helper: extract phone from field value ──
@@ -244,11 +250,15 @@ Deno.serve(async (req) => {
   };
 
   // ── Helper: send WAHA message ──
+  const wahaApiKey = waha.api_key || "";
+
   const sendWaha = async (chatId: string, text: string): Promise<boolean> => {
     try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (wahaApiKey) headers["X-Api-Key"] = wahaApiKey;
       const res = await fetch(`${wahaUrl}/api/sendText`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ chatId, text, session: wahaSession }),
       });
       return res.ok;

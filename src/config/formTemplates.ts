@@ -145,9 +145,7 @@ export const FORM_TEMPLATES: FormTemplate[] = [
     themeColors: ["#FAFAFA", "#18181B", "#71717A"],
     buildSchema: (): FormSchema => ({
       fields: [
-        { id: crypto.randomUUID(), type: "contact_info", label: "Informações de Contato", required: true, contact_fields: ["first_name", "last_name"] },
-        { id: crypto.randomUUID(), type: "email", label: "E-mail", required: true },
-        { id: crypto.randomUUID(), type: "phone", label: "Telefone", required: false },
+        { id: crypto.randomUUID(), type: "contact_info", label: "Informações de Contato", required: true, contact_fields: ["first_name", "last_name", "email", "phone"] },
         { id: crypto.randomUUID(), type: "short_text", label: "Empresa", required: false, placeholder: "Nome da sua empresa" },
         { id: crypto.randomUUID(), type: "dropdown", label: "Como nos conheceu?", required: false, options: ["Redes Sociais", "Google", "Indicação de amigo", "Evento", "Outro"] },
         { id: crypto.randomUUID(), type: "legal", label: "Aceito os termos de uso e política de privacidade.", required: true },
@@ -201,8 +199,7 @@ export const FORM_TEMPLATES: FormTemplate[] = [
     themeColors: ["#F0FDF4", "#16A34A", "#166534"],
     buildSchema: (): FormSchema => ({
       fields: [
-        { id: crypto.randomUUID(), type: "contact_info", label: "Seus dados", required: true, contact_fields: ["first_name", "last_name", "phone"] },
-        { id: crypto.randomUUID(), type: "email", label: "E-mail", required: true },
+        { id: crypto.randomUUID(), type: "contact_info", label: "Seus dados", required: true, contact_fields: ["first_name", "last_name", "email", "phone"] },
         { id: crypto.randomUUID(), type: "dropdown", label: "Tipo de aula", required: true, options: ["Musculação", "Funcional", "Pilates", "Yoga", "Spinning"] },
         {
           id: crypto.randomUUID(),
