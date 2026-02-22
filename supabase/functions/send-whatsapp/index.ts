@@ -143,6 +143,13 @@ Deno.serve(async (req) => {
   const extractPhone = (val: any): string => {
     if (!val) return "";
     if (typeof val === "object" && val.phone) return val.phone;
+    // Try parsing JSON string (contact_info stores as JSON)
+    if (typeof val === "string" && val.startsWith("{")) {
+      try {
+        const parsed = JSON.parse(val);
+        if (parsed.phone) return parsed.phone;
+      } catch { /* not JSON */ }
+    }
     return String(val);
   };
 
@@ -197,10 +204,35 @@ Deno.serve(async (req) => {
       .replace(/\{\{meet_link\}\}/g, meetLink)
       .replace(/\{\{cancel_url\}\}/g, cancelUrl);
 
-    // {{field:LABEL}} → value of field with that label
-    result = result.replace(/\{\{field:([^}]+)\}\}/g, (_match, label: string) => {
+    // {{field:LABEL}} or {{field:LABEL.SUBFIELD}} → value of field
+    const SUBFIELD_MAP: Record<string, string> = {
+      nome: "first_name", sobrenome: "last_name",
+      email: "email", telefone: "phone",
+      cpf: "cpf", cep: "cep", "endereço": "address", endereco: "address",
+      first_name: "first_name", last_name: "last_name", phone: "phone", address: "address",
+    };
+
+    result = result.replace(/\{\{field:([^}]+)\}\}/g, (_match, fullLabel: string) => {
+      const dotIdx = fullLabel.indexOf(".");
+      if (dotIdx > 0) {
+        // {{field:Label.Subfield}} — contact_info subfield
+        const parentLabel = fullLabel.substring(0, dotIdx);
+        const subLabel = fullLabel.substring(dotIdx + 1).toLowerCase();
+        const field = schemaFields.find(
+          (f) => (f.label || "").toLowerCase() === parentLabel.toLowerCase()
+        );
+        if (!field) return "";
+        const raw = answers[field.id];
+        const parsed = typeof raw === "string" ? (() => { try { return JSON.parse(raw); } catch { return null; } })() : raw;
+        if (parsed && typeof parsed === "object") {
+          const key = SUBFIELD_MAP[subLabel] || subLabel;
+          return parsed[key] ?? "";
+        }
+        return typeof raw === "object" ? JSON.stringify(raw) : String(raw || "");
+      }
+      // {{field:LABEL}} — simple field
       const field = schemaFields.find(
-        (f) => (f.label || "").toLowerCase() === label.toLowerCase()
+        (f) => (f.label || "").toLowerCase() === fullLabel.toLowerCase()
       );
       if (!field) return "";
       const val = answers[field.id];

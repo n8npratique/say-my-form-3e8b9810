@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import type { FormField } from "@/types/workflow";
 
 interface WhatsAppTemplate {
   id: string;
@@ -26,16 +27,35 @@ interface WhatsAppConfig {
   templates: WhatsAppTemplate[];
 }
 
-const VARIABLES = [
-  { key: "{{form_name}}", label: "Nome do form" },
-  { key: "{{score}}", label: "Score" },
-  { key: "{{outcome}}", label: "Outcome" },
-  { key: "{{tags}}", label: "Tags" },
-  { key: "{{respondent_email}}", label: "Email" },
-  { key: "{{answers}}", label: "Respostas" },
-  { key: "{{appointment_datetime}}", label: "Data/hora agendamento" },
-  { key: "{{meet_link}}", label: "Link Meet" },
-  { key: "{{cancel_url}}", label: "Link cancelar" },
+/** Field types that don't produce useful variable values */
+const NON_VARIABLE_TYPES = ["end_screen", "appointment", "statement"];
+
+/** Sub-field labels for contact_info */
+const CONTACT_SUBFIELD_LABELS: Record<string, string> = {
+  first_name: "Nome", last_name: "Sobrenome",
+  email: "Email", phone: "Telefone",
+  cpf: "CPF", cep: "CEP", address: "Endereço",
+};
+
+interface VariableItem {
+  key: string;
+  label: string;
+  group: "system" | "appointment" | "fields";
+}
+
+const SYSTEM_VARIABLES: VariableItem[] = [
+  { key: "{{form_name}}", label: "Nome do form", group: "system" },
+  { key: "{{score}}", label: "Score", group: "system" },
+  { key: "{{outcome}}", label: "Outcome", group: "system" },
+  { key: "{{tags}}", label: "Tags", group: "system" },
+  { key: "{{respondent_email}}", label: "Email respondente", group: "system" },
+  { key: "{{answers}}", label: "Respostas", group: "system" },
+];
+
+const APPOINTMENT_VARIABLES: VariableItem[] = [
+  { key: "{{appointment_datetime}}", label: "Data/hora", group: "appointment" },
+  { key: "{{meet_link}}", label: "Link Meet", group: "appointment" },
+  { key: "{{cancel_url}}", label: "Link cancelar", group: "appointment" },
 ];
 
 const emptyTemplate = (): WhatsAppTemplate => ({
@@ -50,9 +70,11 @@ const DEFAULT_CONFIG: WhatsAppConfig = { enabled: false, templates: [] };
 
 interface WhatsAppPanelProps {
   formId: string;
+  fields?: FormField[];
+  hasAppointment?: boolean;
 }
 
-export const WhatsAppPanel = ({ formId }: WhatsAppPanelProps) => {
+export const WhatsAppPanel = ({ formId, fields = [], hasAppointment = false }: WhatsAppPanelProps) => {
   const { toast } = useToast();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -64,6 +86,32 @@ export const WhatsAppPanel = ({ formId }: WhatsAppPanelProps) => {
   const [sendingTest, setSendingTest] = useState(false);
 
   const editing = config.templates.find((t) => t.id === editingId) || null;
+
+  // ── Build dynamic variables list ──
+  const variables = useMemo((): VariableItem[] => {
+    const result: VariableItem[] = [...SYSTEM_VARIABLES];
+    if (hasAppointment) result.push(...APPOINTMENT_VARIABLES);
+    for (const f of fields) {
+      if (NON_VARIABLE_TYPES.includes(f.type) || !f.label?.trim()) continue;
+      if (f.type === "contact_info") {
+        const subFields = f.contact_fields || ["first_name", "email"];
+        for (const key of subFields) {
+          result.push({
+            key: `{{field:${f.label}.${CONTACT_SUBFIELD_LABELS[key] || key}}}`,
+            label: `${f.label}.${CONTACT_SUBFIELD_LABELS[key] || key}`,
+            group: "fields",
+          });
+        }
+      } else {
+        result.push({ key: `{{field:${f.label}}}`, label: f.label, group: "fields" });
+      }
+    }
+    return result;
+  }, [fields, hasAppointment]);
+
+  const systemVars = variables.filter((v) => v.group === "system");
+  const appointmentVars = variables.filter((v) => v.group === "appointment");
+  const fieldVars = variables.filter((v) => v.group === "fields");
 
   useEffect(() => {
     if (!formId) return;
@@ -286,21 +334,49 @@ export const WhatsAppPanel = ({ formId }: WhatsAppPanelProps) => {
           )}
         </div>
 
-        {/* Variables */}
-        <div>
+        {/* Variables — grouped */}
+        <div className="space-y-2">
           <Label className="text-xs mb-1 block">Variáveis (clique para inserir)</Label>
-          <div className="flex flex-wrap gap-1">
-            {VARIABLES.map((v) => (
-              <Badge
-                key={v.key}
-                variant="secondary"
-                className="cursor-pointer text-[10px] hover:bg-primary hover:text-primary-foreground transition-colors"
-                onClick={() => insertVariable(v.key)}
-              >
-                {v.label}
-              </Badge>
-            ))}
+
+          {/* Sistema */}
+          <div className="space-y-1">
+            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Sistema</span>
+            <div className="flex flex-wrap gap-1">
+              {systemVars.map((v) => (
+                <Badge key={v.key} variant="secondary" className="cursor-pointer text-[10px] hover:bg-primary hover:text-primary-foreground transition-colors" onClick={() => insertVariable(v.key)}>
+                  {v.label}
+                </Badge>
+              ))}
+            </div>
           </div>
+
+          {/* Agendamento */}
+          {appointmentVars.length > 0 && (
+            <div className="space-y-1">
+              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Agendamento</span>
+              <div className="flex flex-wrap gap-1">
+                {appointmentVars.map((v) => (
+                  <Badge key={v.key} variant="secondary" className="cursor-pointer text-[10px] hover:bg-green-600 hover:text-white transition-colors border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-400" onClick={() => insertVariable(v.key)}>
+                    {v.label}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Campos */}
+          {fieldVars.length > 0 && (
+            <div className="space-y-1">
+              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Campos</span>
+              <div className="flex flex-wrap gap-1">
+                {fieldVars.map((v) => (
+                  <Badge key={v.key} variant="outline" className="cursor-pointer text-[10px] hover:bg-primary hover:text-primary-foreground transition-colors" onClick={() => insertVariable(v.key)}>
+                    {v.label}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Message */}

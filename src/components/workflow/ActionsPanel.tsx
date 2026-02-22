@@ -31,11 +31,15 @@ export const ActionsPanel = ({
 }: ActionsPanelProps) => {
   const hasEmailField = fields.some((f) => {
     const t = f.type?.toLowerCase();
-    return t === "email" || t === "email_input";
+    if (t === "email" || t === "email_input") return true;
+    if (t === "contact_info" && f.contact_fields?.includes("email")) return true;
+    return false;
   });
   const hasPhoneField = fields.some((f) => {
     const t = f.type?.toLowerCase();
-    return t === "phone" || t === "phone_input";
+    if (t === "phone" || t === "phone_input") return true;
+    if (t === "contact_info" && f.contact_fields?.includes("phone")) return true;
+    return false;
   });
   const hasAppointment = fields.some((f) => f.type === "appointment");
 
@@ -113,7 +117,7 @@ export const ActionsPanel = ({
         </TabsContent>
         <TabsContent value="whatsapp" className="mt-0">
           {hasPhoneField ? (
-            <WhatsAppPanel formId={formId} />
+            <WhatsAppPanel formId={formId} fields={fields} hasAppointment={hasAppointment} />
           ) : (
             <MissingFieldWarning fieldType="telefone" integration="WhatsApp" />
           )}
