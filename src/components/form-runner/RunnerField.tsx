@@ -35,6 +35,7 @@ export const RunnerField = ({ field, index, total, onAnswer, formId, locale, fie
   const [contactTouched, setContactTouched] = useState<Record<string, boolean>>({});
   const [cepLoading, setCepLoading] = useState(false);
   const [cepError, setCepError] = useState("");
+  const [cepResolved, setCepResolved] = useState("");
   const [phoneValid, setPhoneValid] = useState(false);
   const [emailValid, setEmailValid] = useState(false);
 
@@ -80,11 +81,13 @@ export const RunnerField = ({ field, index, total, onAnswer, formId, locale, fie
       const data = await res.json();
       if (data.erro) {
         setCepError("CEP não encontrado");
+        setCepResolved("");
       } else {
+        const addr = [data.logradouro, data.bairro].filter(Boolean).join(", ");
+        const full = addr ? `${addr} - ${data.localidade}/${data.uf}` : `${data.localidade}/${data.uf}`;
+        setCepResolved(full);
         const activeFields = field.contact_fields || ["first_name", "email"];
         if (activeFields.includes("address" as ContactFieldKey)) {
-          const addr = [data.logradouro, data.bairro].filter(Boolean).join(", ");
-          const full = addr ? `${addr} - ${data.localidade}/${data.uf}` : `${data.localidade}/${data.uf}`;
           setContactValues(prev => ({ ...prev, address: full }));
         }
       }
@@ -195,6 +198,9 @@ export const RunnerField = ({ field, index, total, onAnswer, formId, locale, fie
                       <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
                     )}
                     {cepError && <p className="text-xs text-red-500">{cepError}</p>}
+                    {cepResolved && !cepError && (
+                      <p className="text-xs text-green-600 mt-1">{cepResolved}</p>
+                    )}
                   </div>
                 ) : key === "phone" ? (
                   <PhoneInput
