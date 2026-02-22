@@ -32,7 +32,7 @@ type ConnectionStatus = "idle" | "loading" | "ok" | "error";
 
 interface WorkspaceSettings {
   waha?: { url: string; api_key: string; session: string; default_number: string };
-  email?: { provider: "gmail" | "resend"; resend_api_key?: string; sender_email: string; gmail_email?: string; gmail_app_password?: string };
+  email?: { provider: "google_oauth" | "resend"; resend_api_key?: string; sender_email?: string };
   unnichat?: { url: string; token: string };
   timezone?: string;
 }
@@ -69,11 +69,9 @@ const WorkspaceSettings = () => {
   const [wahaStatusLabel, setWahaStatusLabel] = useState("");
 
   // Email
-  const [emailProvider, setEmailProvider] = useState<"gmail" | "resend">("gmail");
+  const [emailProvider, setEmailProvider] = useState<"google_oauth" | "resend">("google_oauth");
   const [resendKey, setResendKey] = useState("");
   const [senderEmail, setSenderEmail] = useState("");
-  const [gmailEmail, setGmailEmail] = useState("");
-  const [gmailAppPassword, setGmailAppPassword] = useState("");
   const [savingEmail, setSavingEmail] = useState(false);
   const [sendingTest, setSendingTest] = useState(false);
 
@@ -126,7 +124,7 @@ const WorkspaceSettings = () => {
       setWorkspaceName(ws.name);
       const s = ((ws as any).settings as WorkspaceSettings) || {};
       if (s.waha) { setWahaUrl(s.waha.url); setWahaKey(s.waha.api_key); setWahaSession(s.waha.session || "default"); setWahaNumber(s.waha.default_number); }
-      if (s.email) { setEmailProvider(s.email.provider); setResendKey(s.email.resend_api_key || ""); setSenderEmail(s.email.sender_email); setGmailEmail(s.email.gmail_email || ""); setGmailAppPassword(s.email.gmail_app_password || ""); }
+      if (s.email) { setEmailProvider(s.email.provider === "resend" ? "resend" : "google_oauth"); setResendKey(s.email.resend_api_key || ""); setSenderEmail(s.email.sender_email || ""); }
       if (s.unnichat) { setUnnichatUrl(s.unnichat.url); setUnnichatToken(s.unnichat.token); }
       if (s.timezone) setTimezone(s.timezone);
     }
@@ -304,8 +302,8 @@ const WorkspaceSettings = () => {
     await supabase.from("workspaces").update({
       settings: {
         ...current,
-        email: emailProvider === "gmail"
-          ? { provider: "gmail", gmail_email: gmailEmail, gmail_app_password: gmailAppPassword, sender_email: gmailEmail }
+        email: emailProvider === "google_oauth"
+          ? { provider: "google_oauth" }
           : { provider: "resend", resend_api_key: resendKey || undefined, sender_email: senderEmail },
       },
     } as any).eq("id", workspaceId!);
@@ -624,35 +622,21 @@ const WorkspaceSettings = () => {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="email-provider">Provedor</Label>
-                <Select value={emailProvider} onValueChange={(v) => setEmailProvider(v as "gmail" | "resend")}>
+                <Select value={emailProvider} onValueChange={(v) => setEmailProvider(v as "google_oauth" | "resend")}>
                   <SelectTrigger id="email-provider">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="gmail">Gmail (App Password)</SelectItem>
-                    <SelectItem value="resend">Resend</SelectItem>
+                    <SelectItem value="google_oauth">Google OAuth (conectado)</SelectItem>
+                    <SelectItem value="resend">Resend (domínio próprio)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              {emailProvider === "gmail" ? (
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="gmail-email">Email do Gmail</Label>
-                    <Input id="gmail-email" type="email" placeholder="seuemail@gmail.com" value={gmailEmail} onChange={(e) => setGmailEmail(e.target.value)} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="gmail-app-password">Senha de App</Label>
-                    <Input id="gmail-app-password" type="password" placeholder="xxxx xxxx xxxx xxxx" value={gmailAppPassword} onChange={(e) => setGmailAppPassword(e.target.value)} />
-                    <p className="text-xs text-muted-foreground">
-                      Gere uma Senha de App em{" "}
-                      <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer" className="underline">
-                        myaccount.google.com/apppasswords
-                      </a>{" "}
-                      (requer 2FA ativado)
-                    </p>
-                  </div>
-                </div>
+              {emailProvider === "google_oauth" ? (
+                <p className="text-sm text-muted-foreground">
+                  Emails serão enviados pela conta Google conectada via OAuth. Nenhuma configuração adicional necessária.
+                </p>
               ) : (
                 <div className="space-y-4">
                   <div className="space-y-2">
@@ -661,7 +645,10 @@ const WorkspaceSettings = () => {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="sender-email">Email remetente</Label>
-                    <Input id="sender-email" type="email" placeholder="noreply@suaempresa.com" value={senderEmail} onChange={(e) => setSenderEmail(e.target.value)} />
+                    <Input id="sender-email" type="email" placeholder="avisos@suaempresa.com" value={senderEmail} onChange={(e) => setSenderEmail(e.target.value)} />
+                    <p className="text-xs text-muted-foreground">
+                      Requer domínio verificado no Resend
+                    </p>
                   </div>
                 </div>
               )}

@@ -379,42 +379,31 @@ Deno.serve(async (req) => {
     const emailConfig = (workspace?.settings as any)?.email || {};
 
     // 3. Determine email sending method
-    // Priority: workspace config (resend/gmail SMTP) → Google OAuth (Gmail API)
+    // Priority: Google OAuth (always try first) → Resend (fallback)
     let oauthConnection: { accessToken: string; email: string } | null = null;
 
-    if (!emailConfig.provider) {
-      // No workspace email config — try Google OAuth as fallback
-      const { data: connections } = await supabase
-        .from("google_oauth_connections")
-        .select("id, scopes")
-        .eq("workspace_id", form.workspace_id)
-        .limit(1)
-        .maybeSingle();
+    // Always try OAuth first (most common case)
+    const { data: oauthConn } = await supabase
+      .from("google_oauth_connections")
+      .select("id, scopes")
+      .eq("workspace_id", form.workspace_id)
+      .limit(1)
+      .maybeSingle();
 
-      if (connections) {
-        try {
-          oauthConnection = await getOAuthAccessToken(supabase, connections.id);
-        } catch (oauthErr: any) {
-          console.warn("OAuth email fallback failed:", oauthErr.message);
-        }
-      }
-
-      if (!oauthConnection) {
-        return new Response(
-          JSON.stringify({ sent: false, reason: "not_configured" }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+    if (oauthConn) {
+      try {
+        oauthConnection = await getOAuthAccessToken(supabase, oauthConn.id);
+      } catch (oauthErr: any) {
+        console.warn("OAuth email failed:", oauthErr.message);
       }
     }
 
-    // Validate Gmail SMTP config if using that provider
-    if (emailConfig.provider === "gmail") {
-      if (!emailConfig.gmail_email || !emailConfig.gmail_app_password) {
-        return new Response(
-          JSON.stringify({ sent: false, reason: "gmail_not_configured" }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
+    // If no OAuth and no alternative provider configured, fail
+    if (!oauthConnection && emailConfig.provider !== "resend") {
+      return new Response(
+        JSON.stringify({ sent: false, reason: "not_configured" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     // 4. Buscar resposta (se não for teste)
@@ -514,7 +503,7 @@ Deno.serve(async (req) => {
 
     // Build cancel URL (for appointment forms, always include — event will exist by the time user clicks)
     const siteUrl = Deno.env.get("SITE_URL") || req.headers.get("origin") || "";
-    const cancelUrl = (sessionToken && hasAppointment && siteUrl)
+    const cancelUrl = (sessionToken && appointmentField && siteUrl)
       ? `${siteUrl}/cancel/${sessionToken}`
       : "";
 
@@ -570,20 +559,13 @@ Deno.serve(async (req) => {
 
       const html = buildEmailHtml(template, vars);
       const subject = replaceVars(template.subject || form.name, vars);
-      const senderEmail = oauthConnection
-        ? oauthConnection.email
-        : emailConfig.provider === "gmail"
-          ? emailConfig.gmail_email
-          : (emailConfig.sender_email || "noreply@tecforms.com");
-
       try {
         if (oauthConnection) {
-          // Use Gmail API via OAuth
+          // Use Gmail API via OAuth (primary)
           await sendViaGmailAPI(oauthConnection.accessToken, oauthConnection.email, recipientEmail, subject, html);
         } else if (emailConfig.provider === "resend") {
+          const senderEmail = emailConfig.sender_email || "noreply@tecforms.com";
           await sendViaResend(emailConfig.resend_api_key, senderEmail, recipientEmail, subject, html);
-        } else if (emailConfig.provider === "gmail") {
-          await sendViaGmailSMTP(emailConfig.gmail_email, emailConfig.gmail_app_password, recipientEmail, subject, html);
         }
         details.push({ template_id: template.id, recipient: recipientEmail, status: "sent" });
       } catch (err: any) {

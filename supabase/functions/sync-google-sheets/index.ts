@@ -308,6 +308,16 @@ Deno.serve(async (req) => {
       return v;
     }
 
+    // ── Helper: construir headers esperados (reutilizável) ──
+    function buildExpectedHeaders(): string[] {
+      const fieldHeaders = fields.map((f: any) => f.label || f.id);
+      return [
+        ...metaCols.map((col) => col.header),
+        ...fieldHeaders,
+        ...statusCols.map((col) => col.header),
+      ];
+    }
+
     // ── Helper: montar uma linha de dados ──
     function buildRow(resp: any, ans: any[]): string[] {
       const meta = (resp?.meta as any) || {};
@@ -337,16 +347,97 @@ Deno.serve(async (req) => {
       ];
     }
 
+    // ── Helper: parse JSON safely ──
+    function tryParseJSON(val: any): any {
+      if (typeof val === "object" && val !== null) return val;
+      if (typeof val !== "string") return null;
+      try { return JSON.parse(val); } catch { return null; }
+    }
+
+    // ── Helper: formatar valor de campo especial para Sheets ──
+    function formatFieldForSheets(field: any, rawValue: any, textValue: string): string {
+      const ft = (field.type || "").toLowerCase();
+
+      // Appointment: show "25/02/2026 às 11:00" instead of raw pipe-separated ISO strings
+      if (ft === "appointment") {
+        const parsed = tryParseJSON(rawValue);
+        if (parsed?.slot_start) {
+          const dt = new Date(parsed.slot_start);
+          return dt.toLocaleString("pt-BR", {
+            day: "2-digit", month: "2-digit", year: "numeric",
+            hour: "2-digit", minute: "2-digit",
+            timeZone: "America/Sao_Paulo",
+          });
+        }
+      }
+
+      // Contact info: show "Nome | email | telefone" in a readable way
+      if (ft === "contact_info") {
+        const parsed = tryParseJSON(rawValue);
+        if (parsed && typeof parsed === "object") {
+          const parts: string[] = [];
+          const name = [parsed.first_name, parsed.last_name].filter(Boolean).join(" ");
+          if (name) parts.push(name);
+          if (parsed.email) parts.push(parsed.email);
+          if (parsed.phone) parts.push(parsed.phone);
+          if (parsed.cpf) parts.push(`CPF: ${parsed.cpf}`);
+          return parts.join(" | ");
+        }
+      }
+
+      // Default: use value_text as-is
+      return textValue;
+    }
+
+    // ── Helper: montar linha na ordem dos headers da planilha ──
+    function buildRowByHeaders(resp: any, ans: any[], headerOrder: string[]): string[] {
+      const meta = (resp?.meta as any) || {};
+
+      // Build map: headerName → value
+      const valueMap: Record<string, string> = {};
+
+      // Meta columns
+      for (const col of metaCols) {
+        valueMap[col.header] = sanitize(col.getValue(resp, meta));
+      }
+
+      // Field columns — use raw value for special field types
+      const textMap: Record<string, string> = {};
+      const rawMap: Record<string, any> = {};
+      for (const a of ans) {
+        textMap[a.field_key] = a.value_text ?? (a.value != null ? String(a.value) : "");
+        rawMap[a.field_key] = a.value;
+      }
+      for (const f of fields) {
+        const header = f.label || f.id;
+        const text = textMap[f.id] ?? "";
+        const raw = rawMap[f.id];
+        if (raw == null && !text) {
+          valueMap[header] = "";
+        } else {
+          const formatted = formatFieldForSheets(f, raw, text);
+          valueMap[header] = sanitize(formatted);
+        }
+      }
+
+      // Status columns
+      const integStatus = meta.integration_status || {};
+      for (const col of statusCols) {
+        const st = integStatus[col.metaKey];
+        if (st === "ok") valueMap[col.header] = "Sim";
+        else if (st === "erro") valueMap[col.header] = "Erro";
+        else valueMap[col.header] = "";
+      }
+
+      // Return values in header order (empty string for unknown headers)
+      return headerOrder.map((h) => valueMap[h] ?? "");
+    }
+
     // ── Helper: criar planilha se não existir ──
     async function ensureSpreadsheet(currentSpreadsheetId: string | undefined): Promise<string> {
       if (currentSpreadsheetId) return currentSpreadsheetId;
 
-      const fieldHeaders = fields.map((f: any) => f.label || f.id);
-      const headers = [
-        ...metaCols.map((col) => col.header),
-        ...fieldHeaders,
-        ...statusCols.map((col) => col.header),
-      ];
+      const headers = buildExpectedHeaders();
 
       const createRes = await fetch("https://sheets.googleapis.com/v4/spreadsheets", {
         method: "POST",
@@ -417,6 +508,42 @@ Deno.serve(async (req) => {
       }
 
       return newId;
+    }
+
+    // ── Helper: sincronizar headers (detectar colunas novas) ──
+    async function syncHeaders(
+      spreadsheetId: string,
+      expectedHeaders: string[]
+    ): Promise<string[]> {
+      // 1. Fetch current header row
+      const res = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Respostas!1:1`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      const data = await res.json();
+      const currentHeaders: string[] = data.values?.[0] || [];
+
+      // 2. Find new headers (in expected but not in current sheet)
+      const newHeaders = expectedHeaders.filter((h) => !currentHeaders.includes(h));
+
+      // 3. If no changes, return current order
+      if (newHeaders.length === 0) return currentHeaders;
+
+      // 4. Append new headers to the end of header row
+      const updatedHeaders = [...currentHeaders, ...newHeaders];
+      await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Respostas!1:1?valueInputOption=RAW`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ values: [updatedHeaders] }),
+        }
+      );
+
+      return updatedHeaders;
     }
 
     // ── MODO FIX PERMISSIONS: reaplicar permissões numa planilha já existente ──
@@ -498,12 +625,25 @@ Deno.serve(async (req) => {
         answersByResponse[ans.response_id].push(ans);
       }
 
-      // Montar todas as linhas
-      const rows = allResponses.map((resp: any) =>
-        buildRow(resp, answersByResponse[resp.id] || [])
+      // Batch reescreve tudo: atualizar header row + dados
+      const expectedHeaders = buildExpectedHeaders();
+
+      // PUT header row completo (substitui o antigo com headers atuais)
+      await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Respostas!1:1?valueInputOption=RAW`,
+        {
+          method: "PUT",
+          headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ values: [expectedHeaders] }),
+        }
       );
 
-      // Limpar planilha (manter apenas o cabeçalho) e reescrever tudo
+      // Montar todas as linhas na ordem dos headers atuais
+      const rows = allResponses.map((resp: any) =>
+        buildRowByHeaders(resp, answersByResponse[resp.id] || [], expectedHeaders)
+      );
+
+      // Reescrever todas as rows (a partir da linha 2)
       await fetch(
         `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Respostas!A2:ZZ?valueInputOption=USER_ENTERED`,
         {
@@ -536,7 +676,13 @@ Deno.serve(async (req) => {
       .eq("response_id", response_id);
 
     const spreadsheetId = await ensureSpreadsheet(config.spreadsheet_id);
-    const row = buildRow(response, answers || []);
+
+    // Sync headers: detecta colunas novas e retorna a ordem real da planilha
+    const expectedHeaders = buildExpectedHeaders();
+    const headerOrder = await syncHeaders(spreadsheetId, expectedHeaders);
+
+    // Build row na ordem dos headers da planilha (não desalinha dados antigos)
+    const row = buildRowByHeaders(response, answers || [], headerOrder);
 
     await fetch(
       `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Respostas!A:ZZ:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
