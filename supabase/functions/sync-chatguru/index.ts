@@ -74,27 +74,23 @@ Deno.serve(async (req) => {
   }
 
   // 4. Extract phone and name from mapped fields
-  const getPhone = (fieldId: string): string => {
-    const raw = answers[fieldId];
+  // Supports "fieldId::subkey" notation for explicit sub-field access,
+  // with heuristic fallback for legacy configs without "::"
+  const resolveField = (fieldId: string): string => {
+    const [id, subkey] = fieldId.split("::");
+    const raw = answers[id];
     if (raw == null) return "";
-    if (typeof raw === "object" && raw.phone) return raw.phone;
-    return String(raw).replace(/\D/g, "");
-  };
-
-  const getName = (fieldId: string): string => {
-    const raw = answers[fieldId];
-    if (raw == null) return "";
+    if (subkey && typeof raw === "object") return String(raw[subkey] ?? "");
     if (typeof raw === "object") {
-      if (raw.first_name || raw.last_name) {
-        return `${raw.first_name ?? ""} ${raw.last_name ?? ""}`.trim();
-      }
+      if (raw.first_name || raw.last_name) return `${raw.first_name ?? ""} ${raw.last_name ?? ""}`.trim();
+      if (raw.phone) return raw.phone;
       return JSON.stringify(raw);
     }
     return String(raw);
   };
 
   const chatNumber = integConfig.chat_number_field_id
-    ? getPhone(integConfig.chat_number_field_id)
+    ? resolveField(integConfig.chat_number_field_id).replace(/\D/g, "")
     : "";
 
   if (!chatNumber) {
@@ -102,7 +98,7 @@ Deno.serve(async (req) => {
   }
 
   const name = integConfig.name_field_id
-    ? getName(integConfig.name_field_id)
+    ? resolveField(integConfig.name_field_id)
     : chatNumber;
 
   // 5. Call ChatGuru API

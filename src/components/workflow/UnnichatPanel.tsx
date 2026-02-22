@@ -13,6 +13,7 @@ import {
   AlertTriangle, CheckCircle2, Play, Unlink
 } from "lucide-react";
 import type { FormField, ScoringConfig, TaggingConfig, OutcomesConfig } from "@/types/workflow";
+import { expandFieldOptions } from "@/lib/fieldUtils";
 
 interface UnnichatConfig {
   enabled: boolean;
@@ -246,9 +247,9 @@ export const UnnichatPanel = ({ formId, fields, scoring, tagging, outcomes }: Un
   };
 
   // Field helpers
-  const answerableFields = fields.filter((f) => !["welcome_screen", "end_screen", "statement"].includes(f.type));
-  const nameFields = fields.filter((f) => ["short_text", "contact_info"].includes(f.type));
-  const phoneFields = fields.filter((f) => ["phone", "short_text", "contact_info"].includes(f.type));
+  const allOptions = expandFieldOptions(fields, "all");
+  const nameOptions = expandFieldOptions(fields, "name");
+  const phoneOptions = expandFieldOptions(fields, "phone");
   const numberFields = fields.filter((f) => f.type === "number");
 
   // Conditional tag options
@@ -311,8 +312,8 @@ export const UnnichatPanel = ({ formId, fields, scoring, tagging, outcomes }: Un
                         <SelectValue placeholder="Selecionar campo..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {nameFields.map((f) => (
-                          <SelectItem key={f.id} value={f.id}>{f.label || f.type}</SelectItem>
+                        {nameOptions.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -324,8 +325,8 @@ export const UnnichatPanel = ({ formId, fields, scoring, tagging, outcomes }: Un
                         <SelectValue placeholder="Selecionar campo..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {phoneFields.map((f) => (
-                          <SelectItem key={f.id} value={f.id}>{f.label || f.type}</SelectItem>
+                        {phoneOptions.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -381,8 +382,8 @@ export const UnnichatPanel = ({ formId, fields, scoring, tagging, outcomes }: Un
                           <SelectValue placeholder="Campo do form" />
                         </SelectTrigger>
                         <SelectContent>
-                          {answerableFields.map((f) => (
-                            <SelectItem key={f.id} value={f.id}>{f.label || f.type}</SelectItem>
+                          {allOptions.map((opt) => (
+                            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>

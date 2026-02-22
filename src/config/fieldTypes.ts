@@ -1,5 +1,5 @@
 import {
-  Type, AlignLeft, Mail, Phone, MapPin, Globe, Hash, Calendar,
+  Type, AlignLeft, Globe, Hash, Calendar,
   ListChecks, ChevronDown, Image, ToggleLeft, Scale, Star, ThumbsUp,
   MessageSquare, FileUp, CheckSquare, Users, Sparkles, LayoutList,
   SplitSquareVertical, Grid3X3, Award, BarChart3, ListOrdered,
@@ -33,9 +33,6 @@ export const FIELD_CATEGORIES = [
 export const FIELD_TYPES: FieldTypeConfig[] = [
   // Informações de contato
   { type: "contact_info", label: "Informações de contato", icon: Users, category: "Informações de contato", color: "text-primary" },
-  { type: "email", label: "E-mail", icon: Mail, category: "Informações de contato", color: "text-primary" },
-  { type: "phone", label: "Número de telefone", icon: Phone, category: "Informações de contato", color: "text-success" },
-  { type: "address", label: "Endereço", icon: MapPin, category: "Informações de contato", color: "text-accent" },
   { type: "website", label: "Site", icon: Globe, category: "Informações de contato", color: "text-secondary" },
 
   // Texto

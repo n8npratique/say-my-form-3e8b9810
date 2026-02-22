@@ -96,25 +96,19 @@ Deno.serve(async (req) => {
     }
   }
 
-  const getFieldValue = (fieldId: string): string => {
-    const raw = answers[fieldId];
+  // Supports "fieldId::subkey" notation for explicit sub-field access,
+  // with heuristic fallback for legacy configs without "::"
+  const resolveField = (fieldId: string): string => {
+    const [id, subkey] = fieldId.split("::");
+    const raw = answers[id];
     if (raw == null) return "";
+    if (subkey && typeof raw === "object") return String(raw[subkey] ?? "");
     if (typeof raw === "object") {
-      // contact_info: extract name or phone
-      if (raw.first_name || raw.last_name) {
-        return `${raw.first_name ?? ""} ${raw.last_name ?? ""}`.trim();
-      }
+      if (raw.first_name || raw.last_name) return `${raw.first_name ?? ""} ${raw.last_name ?? ""}`.trim();
       if (raw.phone) return raw.phone;
       return JSON.stringify(raw);
     }
     return String(raw);
-  };
-
-  const getPhone = (fieldId: string): string => {
-    const raw = answers[fieldId];
-    if (raw == null) return "";
-    if (typeof raw === "object" && raw.phone) return raw.phone;
-    return String(raw).replace(/\D/g, "");
   };
 
   const stepsCompleted: string[] = [];
@@ -122,9 +116,9 @@ Deno.serve(async (req) => {
 
   // ── STEP A: Create contact ──
   if (integConfig.create_contact && integConfig.contact_phone_field_id) {
-    const phone = getPhone(integConfig.contact_phone_field_id);
+    const phone = resolveField(integConfig.contact_phone_field_id).replace(/\D/g, "");
     const name = integConfig.contact_name_field_id
-      ? getFieldValue(integConfig.contact_name_field_id)
+      ? resolveField(integConfig.contact_name_field_id)
       : phone;
 
     if (phone) {
@@ -165,7 +159,7 @@ Deno.serve(async (req) => {
   if (integConfig.send_custom_fields && integConfig.custom_field_mappings?.length) {
     for (const mapping of integConfig.custom_field_mappings) {
       if (!mapping.form_field_id || !mapping.unnichat_field_id) continue;
-      const value = getFieldValue(mapping.form_field_id);
+      const value = resolveField(mapping.form_field_id);
       if (!value) continue;
       try {
         await fetch(`${baseUrl}/contact/${contactId}/customFields`, {

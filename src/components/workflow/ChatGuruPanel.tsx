@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { AlertTriangle, CheckCircle2, Loader2, Play, Unlink } from "lucide-react";
 import type { FormField } from "@/types/workflow";
+import { expandFieldOptions } from "@/lib/fieldUtils";
 
 interface ChatGuruConfig {
   enabled: boolean;
@@ -163,8 +164,8 @@ export const ChatGuruPanel = ({ formId, fields }: ChatGuruPanelProps) => {
   };
 
   // Field helpers
-  const phoneFields = fields.filter((f) => ["phone", "phone_input", "short_text", "contact_info"].includes(f.type));
-  const nameFields = fields.filter((f) => ["short_text", "contact_info"].includes(f.type));
+  const phoneOptions = expandFieldOptions(fields, "phone");
+  const nameOptions = expandFieldOptions(fields, "name");
 
   return (
     <div className="space-y-4">
@@ -249,8 +250,8 @@ export const ChatGuruPanel = ({ formId, fields }: ChatGuruPanelProps) => {
                 <SelectValue placeholder="Selecionar campo..." />
               </SelectTrigger>
               <SelectContent>
-                {phoneFields.map((f) => (
-                  <SelectItem key={f.id} value={f.id}>{f.label || f.type}</SelectItem>
+                {phoneOptions.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -264,8 +265,8 @@ export const ChatGuruPanel = ({ formId, fields }: ChatGuruPanelProps) => {
                 <SelectValue placeholder="Selecionar campo..." />
               </SelectTrigger>
               <SelectContent>
-                {nameFields.map((f) => (
-                  <SelectItem key={f.id} value={f.id}>{f.label || f.type}</SelectItem>
+                {nameOptions.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
