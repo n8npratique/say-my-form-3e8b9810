@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -6,26 +6,78 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Mail, Plus, Trash2, ArrowLeft, Eye, Send, User, Shield, CheckCircle, AlertCircle } from "lucide-react";
+import { Mail, Plus, Trash2, ArrowLeft, Eye, Send, User, Shield, CheckCircle, AlertCircle, Calendar, Lock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import type { EmailTemplate } from "@/types/workflow";
+import type { EmailTemplate, FormField } from "@/types/workflow";
+
+/** Field types that don't produce useful variable values */
+const NON_VARIABLE_TYPES = ["end_screen", "appointment", "statement"];
+
+/** Sub-field labels for contact_info */
+const CONTACT_SUBFIELD_LABELS: Record<string, string> = {
+  first_name: "Nome",
+  last_name: "Sobrenome",
+  email: "Email",
+  phone: "Telefone",
+  cpf: "CPF",
+  cep: "CEP",
+  address: "Endereço",
+};
+
+interface VariableItem {
+  key: string;
+  label: string;
+  group: "system" | "appointment" | "fields";
+}
 
 interface MessagesPanelProps {
   templates: EmailTemplate[];
   onUpdateTemplates: (templates: EmailTemplate[]) => void;
   formId?: string;
+  fields?: FormField[];
+  hasAppointment?: boolean;
 }
 
-const VARIABLES = [
-  { key: "{{form_name}}", label: "Nome do form" },
-  { key: "{{respondent_email}}", label: "Email" },
-  { key: "{{score}}", label: "Score" },
-  { key: "{{outcome}}", label: "Outcome" },
-  { key: "{{tags}}", label: "Tags" },
-  { key: "{{date}}", label: "Data" },
-  { key: "{{answers}}", label: "Respostas" },
+const SYSTEM_VARIABLES: VariableItem[] = [
+  { key: "{{form_name}}", label: "Nome do form", group: "system" },
+  { key: "{{respondent_email}}", label: "Email", group: "system" },
+  { key: "{{score}}", label: "Score", group: "system" },
+  { key: "{{outcome}}", label: "Outcome", group: "system" },
+  { key: "{{tags}}", label: "Tags", group: "system" },
+  { key: "{{date}}", label: "Data", group: "system" },
+  { key: "{{answers}}", label: "Respostas", group: "system" },
 ];
+
+const APPOINTMENT_VARIABLES: VariableItem[] = [
+  { key: "{{appointment_datetime}}", label: "Data/hora", group: "appointment" },
+  { key: "{{calendar_link}}", label: "Link Calendar", group: "appointment" },
+  { key: "{{meet_link}}", label: "Link Meet", group: "appointment" },
+  { key: "{{cancel_url}}", label: "Link cancelar", group: "appointment" },
+  { key: "{{event_links}}", label: "Links do evento", group: "appointment" },
+];
+
+const AUTO_APPOINTMENT_ID = "auto_appointment";
+
+function createAutoAppointmentTemplate(
+  subject?: string,
+  body?: string,
+): EmailTemplate {
+  return {
+    id: AUTO_APPOINTMENT_ID,
+    name: "Confirmação de Agendamento",
+    enabled: true,
+    recipient: "respondent",
+    subject: subject || "Confirmação de agendamento - {{form_name}}",
+    header_image_url: "",
+    body:
+      body ||
+      "Olá!\n\nSeu agendamento no formulário {{form_name}} foi confirmado com sucesso.\n\nData: {{appointment_datetime}}\n\n{{event_links}}Caso precise cancelar, clique no link abaixo:\n{{cancel_url}}\n\nObrigado!",
+    cta_text: "",
+    cta_url: "",
+    footer: "Enviado automaticamente via TecForms",
+  };
+}
 
 const emptyTemplate = (): EmailTemplate => ({
   id: crypto.randomUUID(),
@@ -48,7 +100,14 @@ const PREVIEW_VARS: Record<string, string> = {
   outcome: "Perfil A",
   tags: "lead, qualificado",
   date: new Date().toLocaleDateString("pt-BR"),
-  answers: "<strong>Pergunta 1:</strong> Resposta exemplo<br><strong>Pergunta 2:</strong> Outra resposta",
+  answers:
+    "<strong>Pergunta 1:</strong> Resposta exemplo<br><strong>Pergunta 2:</strong> Outra resposta",
+  appointment_datetime: "segunda-feira, 24 de fevereiro de 2026 às 14:00",
+  calendar_link: "https://calendar.google.com/calendar/event?eid=exemplo",
+  meet_link: "https://meet.google.com/abc-defg-hij",
+  cancel_url: "https://tecforms.com/cancel/exemplo-token",
+  event_links:
+    "Ver no Google Calendar: https://calendar.google.com/...\nLink do Google Meet: https://meet.google.com/...\n\n",
 };
 
 function replaceVarsForPreview(text: string): string {
@@ -56,6 +115,8 @@ function replaceVarsForPreview(text: string): string {
   for (const [key, val] of Object.entries(PREVIEW_VARS)) {
     result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), val);
   }
+  // Replace {{field:...}} with placeholder
+  result = result.replace(/\{\{field:([^}]+)\}\}/g, "[Valor do campo]");
   return result;
 }
 
@@ -108,7 +169,6 @@ function EmailConfigBadge({ formId }: { formId?: string }) {
         .maybeSingle();
       if (!form?.workspace_id) { setStatus("none"); return; }
 
-      // Check workspace email provider
       const { data: ws } = await supabase
         .from("workspaces")
         .select("settings")
@@ -121,7 +181,6 @@ function EmailConfigBadge({ formId }: { formId?: string }) {
         return;
       }
 
-      // Check Google OAuth connection (gmail.send scope)
       const { data: connections } = await supabase
         .from("google_oauth_connections")
         .select("id, google_email")
@@ -160,7 +219,13 @@ function EmailConfigBadge({ formId }: { formId?: string }) {
   );
 }
 
-export const MessagesPanel = ({ templates, onUpdateTemplates, formId }: MessagesPanelProps) => {
+export const MessagesPanel = ({
+  templates,
+  onUpdateTemplates,
+  formId,
+  fields = [],
+  hasAppointment = false,
+}: MessagesPanelProps) => {
   const { toast } = useToast();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
@@ -169,7 +234,56 @@ export const MessagesPanel = ({ templates, onUpdateTemplates, formId }: Messages
   const subjectRef = useRef<HTMLInputElement>(null);
   const [activeField, setActiveField] = useState<"subject" | "body">("body");
 
+  // ── Auto-create appointment template if needed ──
+  useEffect(() => {
+    if (!hasAppointment) return;
+    const hasAutoTemplate = templates.some((t) => t.id === AUTO_APPOINTMENT_ID);
+    if (hasAutoTemplate) return;
+
+    // Try to migrate from appointment_config confirmation_email fields
+    const appointmentField = fields.find((f) => f.type === "appointment");
+    const cfg = appointmentField?.appointment_config;
+    const migratedSubject = cfg?.confirmation_email_subject || undefined;
+    const migratedBody = cfg?.confirmation_email_body || undefined;
+
+    const autoTemplate = createAutoAppointmentTemplate(migratedSubject, migratedBody);
+    onUpdateTemplates([autoTemplate, ...templates]);
+  }, [hasAppointment]); // Only run when hasAppointment changes (initial render)
+
+  // ── Build dynamic variables list ──
+  const variables = useMemo((): VariableItem[] => {
+    const result: VariableItem[] = [...SYSTEM_VARIABLES];
+
+    if (hasAppointment) {
+      result.push(...APPOINTMENT_VARIABLES);
+    }
+
+    // Field variables
+    for (const f of fields) {
+      if (NON_VARIABLE_TYPES.includes(f.type) || !f.label.trim()) continue;
+      if (f.type === "contact_info") {
+        const subFields = f.contact_fields || ["first_name", "email"];
+        for (const key of subFields) {
+          result.push({
+            key: `{{field:${f.label}.${CONTACT_SUBFIELD_LABELS[key] || key}}}`,
+            label: `${f.label}.${CONTACT_SUBFIELD_LABELS[key] || key}`,
+            group: "fields",
+          });
+        }
+      } else {
+        result.push({
+          key: `{{field:${f.label}}}`,
+          label: f.label,
+          group: "fields",
+        });
+      }
+    }
+
+    return result;
+  }, [fields, hasAppointment]);
+
   const editing = templates.find((t) => t.id === editingId) || null;
+  const isAutoAppointment = editing?.id === AUTO_APPOINTMENT_ID;
 
   const addTemplate = () => {
     const t = emptyTemplate();
@@ -182,6 +296,7 @@ export const MessagesPanel = ({ templates, onUpdateTemplates, formId }: Messages
   };
 
   const deleteTemplate = (id: string) => {
+    if (id === AUTO_APPOINTMENT_ID) return; // Can't delete auto template
     onUpdateTemplates(templates.filter((t) => t.id !== id));
     if (editingId === id) setEditingId(null);
   };
@@ -238,6 +353,11 @@ export const MessagesPanel = ({ templates, onUpdateTemplates, formId }: Messages
     setSendingTest(false);
   };
 
+  // ── Group variables for rendering ──
+  const systemVars = variables.filter((v) => v.group === "system");
+  const appointmentVars = variables.filter((v) => v.group === "appointment");
+  const fieldVars = variables.filter((v) => v.group === "fields");
+
   // List view
   if (!editing) {
     return (
@@ -259,38 +379,46 @@ export const MessagesPanel = ({ templates, onUpdateTemplates, formId }: Messages
             <p className="text-xs">Nenhum template configurado.</p>
           </div>
         ) : (
-          templates.map((t) => (
-            <div key={t.id} className="border rounded-lg p-3 flex items-center gap-2">
-              <Switch
-                checked={t.enabled}
-                onCheckedChange={(v) => updateTemplate(t.id, { enabled: v })}
-              />
-              <button
-                className="flex-1 text-left min-w-0"
-                onClick={() => setEditingId(t.id)}
-              >
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-xs font-medium">{t.name || "Sem nome"}</span>
-                  <Badge
-                    variant={t.enabled ? "default" : "secondary"}
-                    className="text-[9px] px-1 py-0 h-4"
-                  >
-                    {t.enabled ? "Ativo" : "Inativo"}
-                  </Badge>
-                </div>
-                <div className="flex items-center gap-1 text-[10px] text-muted-foreground mt-0.5">
-                  {t.recipient === "respondent" ? (
-                    <><User className="h-3 w-3" /> Respondente</>
-                  ) : (
-                    <><Shield className="h-3 w-3" /> Proprietário</>
-                  )}
-                </div>
-              </button>
-              <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => deleteTemplate(t.id)}>
-                <Trash2 className="h-3 w-3 text-destructive" />
-              </Button>
-            </div>
-          ))
+          templates.map((t) => {
+            const isAuto = t.id === AUTO_APPOINTMENT_ID;
+            return (
+              <div key={t.id} className={`border rounded-lg p-3 flex items-center gap-2 ${isAuto ? "border-blue-500/30 bg-blue-500/5" : ""}`}>
+                <Switch
+                  checked={t.enabled}
+                  onCheckedChange={(v) => updateTemplate(t.id, { enabled: v })}
+                />
+                <button
+                  className="flex-1 text-left min-w-0"
+                  onClick={() => setEditingId(t.id)}
+                >
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {isAuto && <Calendar className="h-3 w-3 text-blue-600 shrink-0" />}
+                    <span className="text-xs font-medium">{t.name || "Sem nome"}</span>
+                    <Badge
+                      variant={t.enabled ? "default" : "secondary"}
+                      className="text-[9px] px-1 py-0 h-4"
+                    >
+                      {t.enabled ? "Ativo" : "Inativo"}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-1 text-[10px] text-muted-foreground mt-0.5">
+                    {t.recipient === "respondent" ? (
+                      <><User className="h-3 w-3" /> Respondente</>
+                    ) : (
+                      <><Shield className="h-3 w-3" /> Proprietário</>
+                    )}
+                  </div>
+                </button>
+                {isAuto ? (
+                  <Lock className="h-3 w-3 text-muted-foreground shrink-0" />
+                ) : (
+                  <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => deleteTemplate(t.id)}>
+                    <Trash2 className="h-3 w-3 text-destructive" />
+                  </Button>
+                )}
+              </div>
+            );
+          })
         )}
 
         <Button variant="outline" size="sm" className="w-full" onClick={addTemplate}>
@@ -317,6 +445,16 @@ export const MessagesPanel = ({ templates, onUpdateTemplates, formId }: Messages
           <Eye className="h-3 w-3" /> {showPreview ? "Fechar" : "Preview"}
         </Button>
       </div>
+
+      {/* Auto-appointment badge */}
+      {isAutoAppointment && (
+        <div className="flex items-center gap-1.5 rounded-md border border-blue-500/30 bg-blue-500/10 px-2.5 py-1.5">
+          <Calendar className="h-3.5 w-3.5 text-blue-600" />
+          <span className="text-xs text-blue-700 dark:text-blue-400">
+            Template de agendamento (não pode ser excluído)
+          </span>
+        </div>
+      )}
 
       {/* Preview em iframe isolado */}
       {showPreview && (
@@ -376,21 +514,64 @@ export const MessagesPanel = ({ templates, onUpdateTemplates, formId }: Messages
         </Select>
       </div>
 
-      {/* Variables */}
-      <div>
+      {/* Variables — grouped */}
+      <div className="space-y-2">
         <Label className="text-xs mb-1 block">Variáveis (clique para inserir)</Label>
-        <div className="flex flex-wrap gap-1">
-          {VARIABLES.map((v) => (
-            <Badge
-              key={v.key}
-              variant="secondary"
-              className="cursor-pointer text-[10px] hover:bg-primary hover:text-primary-foreground transition-colors"
-              onClick={() => insertVariable(v.key)}
-            >
-              {v.label}
-            </Badge>
-          ))}
+
+        {/* Sistema */}
+        <div className="space-y-1">
+          <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Sistema</span>
+          <div className="flex flex-wrap gap-1">
+            {systemVars.map((v) => (
+              <Badge
+                key={v.key}
+                variant="secondary"
+                className="cursor-pointer text-[10px] hover:bg-primary hover:text-primary-foreground transition-colors"
+                onClick={() => insertVariable(v.key)}
+              >
+                {v.label}
+              </Badge>
+            ))}
+          </div>
         </div>
+
+        {/* Agendamento */}
+        {appointmentVars.length > 0 && (
+          <div className="space-y-1">
+            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Agendamento</span>
+            <div className="flex flex-wrap gap-1">
+              {appointmentVars.map((v) => (
+                <Badge
+                  key={v.key}
+                  variant="secondary"
+                  className="cursor-pointer text-[10px] hover:bg-blue-600 hover:text-white transition-colors border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-400"
+                  onClick={() => insertVariable(v.key)}
+                >
+                  {v.label}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Campos */}
+        {fieldVars.length > 0 && (
+          <div className="space-y-1">
+            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Campos</span>
+            <div className="flex flex-wrap gap-1">
+              {fieldVars.map((v) => (
+                <Badge
+                  key={v.key}
+                  variant="outline"
+                  className="cursor-pointer text-[10px] hover:bg-primary hover:text-primary-foreground transition-colors"
+                  onClick={() => insertVariable(v.key)}
+                >
+                  {v.label}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Subject */}
