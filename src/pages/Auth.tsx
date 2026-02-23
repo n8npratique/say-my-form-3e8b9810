@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mail, Lock, User, ArrowRight, KeyRound } from "lucide-react";
+import { Mail, Lock, User, ArrowRight, KeyRound, ShieldAlert } from "lucide-react";
 import logoPratique from "@/assets/logo-pratique.png";
 
 type AuthMode = "login" | "signup" | "forgot";
@@ -20,6 +20,49 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [searchParams] = useSearchParams();
+
+  // Invite system
+  const inviteToken = searchParams.get("invite");
+  const [inviteValid, setInviteValid] = useState<boolean | null>(null); // null = loading
+  const [inviteChecked, setInviteChecked] = useState(false);
+
+  useEffect(() => {
+    if (!inviteToken) {
+      setInviteChecked(true);
+      setInviteValid(false);
+      return;
+    }
+
+    // Validate invite token
+    const checkInvite = async () => {
+      const { data, error } = await supabase
+        .from("invitations")
+        .select("email, status, expires_at")
+        .eq("token", inviteToken)
+        .maybeSingle();
+
+      if (error || !data) {
+        setInviteValid(false);
+        setInviteChecked(true);
+        return;
+      }
+
+      const isExpired = new Date(data.expires_at) < new Date();
+      const isPending = data.status === "pending";
+
+      if (isPending && !isExpired) {
+        setInviteValid(true);
+        setEmail(data.email);
+        setMode("signup");
+      } else {
+        setInviteValid(false);
+      }
+      setInviteChecked(true);
+    };
+
+    checkInvite();
+  }, [inviteToken]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,12 +109,15 @@ const Auth = () => {
     }
   };
 
+  // Can only signup with valid invite
+  const canSignup = inviteToken && inviteValid;
+
   const title = mode === "forgot" ? "Recuperar senha" : mode === "login" ? "Entrar" : "Criar conta";
   const description = mode === "forgot"
     ? "Informe seu e-mail para receber o link de redefinição"
     : mode === "login"
       ? "Entre para gerenciar seus formulários"
-      : "Crie sua conta e comece a construir";
+      : "Crie sua conta com o convite recebido";
 
   return (
     <div className="flex min-h-screen">
@@ -112,6 +158,23 @@ const Auth = () => {
             <img src={logoPratique} alt="TecForms" className="h-10 w-10 rounded-full" />
             <h1 className="text-3xl font-display font-bold gradient-text">TecForms</h1>
           </div>
+
+          {/* Invalid/expired invite alert */}
+          {inviteToken && inviteChecked && !inviteValid && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-4 p-4 bg-destructive/10 border border-destructive/30 rounded-lg flex items-start gap-3"
+            >
+              <ShieldAlert className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-destructive">Convite inválido ou expirado</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Solicite um novo convite ao administrador.
+                </p>
+              </div>
+            </motion.div>
+          )}
 
           <Card className="border-0 shadow-xl">
             <CardHeader className="space-y-1 pb-4">
@@ -158,6 +221,7 @@ const Auth = () => {
                       onChange={(e) => setEmail(e.target.value)}
                       className="pl-10"
                       required
+                      readOnly={mode === "signup" && !!canSignup}
                     />
                   </div>
                 </div>
@@ -219,15 +283,24 @@ const Auth = () => {
                   >
                     Voltar para login
                   </button>
-                ) : (
+                ) : canSignup ? (
                   <button
                     type="button"
                     onClick={() => setMode(mode === "login" ? "signup" : "login")}
                     className="text-sm text-muted-foreground hover:text-primary transition-colors"
                   >
-                    {mode === "login" ? "Não tem conta? Cadastre-se" : "Já tem conta? Entre"}
+                    {mode === "login" ? "Usar convite para cadastrar" : "Já tem conta? Entre"}
                   </button>
-                )}
+                ) : mode === "signup" ? (
+                  // Got here somehow without invite — go back to login
+                  <button
+                    type="button"
+                    onClick={() => setMode("login")}
+                    className="text-sm text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    Já tem conta? Entre
+                  </button>
+                ) : null}
               </div>
             </CardContent>
           </Card>

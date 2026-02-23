@@ -14,6 +14,7 @@ import CancelAppointment from "./pages/CancelAppointment";
 import FormWorkflow from "./pages/FormWorkflow";
 import FormResponses from "./pages/FormResponses";
 import WorkspaceSettings from "./pages/WorkspaceSettings";
+import AdminInvites from "./pages/AdminInvites";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -72,6 +73,14 @@ const App = () => (
             element={
               <ProtectedRoute>
                 <WorkspaceSettings />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/invites"
+            element={
+              <ProtectedRoute>
+                <AdminInvites />
               </ProtectedRoute>
             }
           />
