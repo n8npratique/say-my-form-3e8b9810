@@ -10,7 +10,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Mail, Lock, User, ArrowRight, KeyRound, ShieldAlert } from "lucide-react";
 import logoPratique from "@/assets/logo-pratique.png";
 
-type AuthMode = "login" | "signup" | "forgot";
+type AuthMode = "login" | "signup" | "forgot" | "reset";
 
 const Auth = () => {
   const [mode, setMode] = useState<AuthMode>("login");
@@ -26,6 +26,16 @@ const Auth = () => {
   const inviteToken = searchParams.get("invite");
   const [inviteValid, setInviteValid] = useState<boolean | null>(null); // null = loading
   const [inviteChecked, setInviteChecked] = useState(false);
+
+  // Listen for PASSWORD_RECOVERY event (user clicked reset link)
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") {
+        setMode("reset");
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   useEffect(() => {
     if (!inviteToken) {
@@ -69,7 +79,16 @@ const Auth = () => {
     setLoading(true);
 
     try {
-      if (mode === "forgot") {
+      if (mode === "reset") {
+        const { error } = await supabase.auth.updateUser({ password });
+        if (error) throw error;
+        toast({
+          title: "Senha atualizada!",
+          description: "Sua senha foi redefinida com sucesso.",
+        });
+        navigate("/dashboard");
+        return;
+      } else if (mode === "forgot") {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
           redirectTo: `${window.location.origin}/auth`,
         });
@@ -112,12 +131,14 @@ const Auth = () => {
   // Can only signup with valid invite
   const canSignup = inviteToken && inviteValid;
 
-  const title = mode === "forgot" ? "Recuperar senha" : mode === "login" ? "Entrar" : "Criar conta";
-  const description = mode === "forgot"
-    ? "Informe seu e-mail para receber o link de redefinição"
-    : mode === "login"
-      ? "Entre para gerenciar seus formulários"
-      : "Crie sua conta com o convite recebido";
+  const title = mode === "reset" ? "Nova senha" : mode === "forgot" ? "Recuperar senha" : mode === "login" ? "Entrar" : "Criar conta";
+  const description = mode === "reset"
+    ? "Defina sua nova senha"
+    : mode === "forgot"
+      ? "Informe seu e-mail para receber o link de redefinição"
+      : mode === "login"
+        ? "Entre para gerenciar seus formulários"
+        : "Crie sua conta com o convite recebido";
 
   return (
     <div className="flex min-h-screen">
@@ -209,26 +230,28 @@ const Auth = () => {
                   )}
                 </AnimatePresence>
 
-                <div className="space-y-2">
-                  <Label htmlFor="email">E-mail</Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="seu@email.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="pl-10"
-                      required
-                      readOnly={mode === "signup" && !!canSignup}
-                    />
+                {mode !== "reset" && (
+                  <div className="space-y-2">
+                    <Label htmlFor="email">E-mail</Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="email"
+                        type="email"
+                        placeholder="seu@email.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="pl-10"
+                        required
+                        readOnly={mode === "signup" && !!canSignup}
+                      />
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {mode !== "forgot" && (
                   <div className="space-y-2">
-                    <Label htmlFor="password">Senha</Label>
+                    <Label htmlFor="password">{mode === "reset" ? "Nova senha" : "Senha"}</Label>
                     <div className="relative">
                       <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                       <Input
@@ -265,17 +288,19 @@ const Auth = () => {
                 >
                   {loading
                     ? "Carregando..."
-                    : mode === "forgot"
-                      ? "Enviar link de redefinição"
-                      : mode === "login"
-                        ? "Entrar"
-                        : "Criar conta"}
+                    : mode === "reset"
+                      ? "Salvar nova senha"
+                      : mode === "forgot"
+                        ? "Enviar link de redefinição"
+                        : mode === "login"
+                          ? "Entrar"
+                          : "Criar conta"}
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </form>
 
               <div className="mt-6 text-center space-y-2">
-                {mode === "forgot" ? (
+                {mode === "reset" ? null : mode === "forgot" ? (
                   <button
                     type="button"
                     onClick={() => setMode("login")}
