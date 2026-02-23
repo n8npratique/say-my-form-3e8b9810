@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, SUPABASE_URL } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -149,7 +149,7 @@ const AdminInvites = () => {
       // 3. Try to send email via edge function
       const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-invite`,
+        `${SUPABASE_URL}/functions/v1/send-invite`,
         {
           method: "POST",
           headers: {
@@ -195,7 +195,7 @@ const AdminInvites = () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-invite`,
+        `${SUPABASE_URL}/functions/v1/send-invite`,
         {
           method: "POST",
           headers: {
