@@ -140,15 +140,21 @@ Deno.serve(async (req) => {
 
   const meetLink = bodyMeetLink || meta.meet_link || "";
 
-  // ── Helper: format phone → "5511999999999@c.us" ──
+  // ── Helper: format phone → "553198131935@c.us" ──
+  // WhatsApp Brazil uses 12-digit format: 55 + DDD(2) + 8-digit number
+  // But users often enter 13-digit: 55 + DDD(2) + 9 + 8-digit number
+  // We normalize to 12-digit by stripping the extra 9 after DDD
   const formatPhone = (raw: string): string => {
-    // Strip @c.us if already present, then work with digits only
     const cleaned = raw.replace(/@c\.us$/i, "");
     const digits = cleaned.replace(/\D/g, "");
     if (!digits) return "";
-    // 10-11 digits = Brazilian local (DDD + number) → prepend 55
-    // 12-13 digits starting with 55 = already international
-    const international = (digits.length <= 11) ? `55${digits}` : digits;
+    // Prepend 55 if local Brazilian (10-11 digits)
+    let international = (digits.length <= 11) ? `55${digits}` : digits;
+    // Brazilian 13-digit mobile → strip the 9 after DDD to get 12-digit
+    // 55 + DD + 9XXXXXXXX (13) → 55 + DD + XXXXXXXX (12)
+    if (international.length === 13 && international.startsWith("55") && international.charAt(4) === "9") {
+      international = international.substring(0, 4) + international.substring(5);
+    }
     return `${international}@c.us`;
   };
 
@@ -291,13 +297,18 @@ Deno.serve(async (req) => {
   }
 
   let sentCount = 0;
+  let skippedNoPhone = 0;
 
   for (const tmpl of activeTemplates) {
     let chatId = "";
 
     if (tmpl.recipient === "respondent") {
       const phone = getRespondentPhone();
-      if (!phone) continue; // no phone found, skip
+      if (!phone) {
+        console.warn("send-whatsapp: no phone found for respondent template:", tmpl.name);
+        skippedNoPhone++;
+        continue;
+      }
       chatId = formatPhone(phone);
     } else {
       // owner
@@ -305,9 +316,12 @@ Deno.serve(async (req) => {
       chatId = formatPhone(defaultNumber);
     }
 
+    if (!chatId) continue;
+
     const message = substituteVars(tmpl.message || "");
     if (!message) continue;
 
+    console.log(`send-whatsapp: sending to ${chatId} via session ${wahaSession}`);
     const ok = await sendWaha(chatId, message);
     if (ok) sentCount++;
 
@@ -315,6 +329,10 @@ Deno.serve(async (req) => {
     if (activeTemplates.length > 1) {
       await new Promise((r) => setTimeout(r, 500));
     }
+  }
+
+  if (sentCount === 0 && skippedNoPhone > 0) {
+    return respond({ sent: false, reason: "no_phone", skipped: skippedNoPhone });
   }
 
   return respond({ sent: sentCount > 0, count: sentCount });
