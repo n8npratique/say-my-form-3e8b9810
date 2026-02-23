@@ -515,6 +515,26 @@ Deno.serve(async (req) => {
       (ep: any) => ep.entryPointType === "video"
     )?.uri || null;
 
+    // Update response meta with calendar integration status
+    if (response_id) {
+      try {
+        const currentMeta = (response?.meta as any) || {};
+        const integrationStatus = currentMeta.integration_status || {};
+        await supabase
+          .from("responses")
+          .update({
+            meta: {
+              ...currentMeta,
+              integration_status: { ...integrationStatus, calendar: "ok" },
+              calendar_event_id: eventData.id,
+            },
+          })
+          .eq("id", response_id);
+      } catch (metaErr) {
+        console.warn("Failed to update integration_status:", metaErr);
+      }
+    }
+
     return respond({
       created: true,
       event_id: eventData.id,

@@ -634,8 +634,33 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Update response meta with email integration status
+    const sentCount = details.filter((d) => d.status === "sent").length;
+    if (!test_mode && response_id && sentCount > 0) {
+      try {
+        const { data: currentResp } = await supabase
+          .from("responses")
+          .select("meta")
+          .eq("id", response_id)
+          .maybeSingle();
+        const currentMeta = (currentResp?.meta as any) || {};
+        const integrationStatus = currentMeta.integration_status || {};
+        await supabase
+          .from("responses")
+          .update({
+            meta: {
+              ...currentMeta,
+              integration_status: { ...integrationStatus, email: "ok" },
+            },
+          })
+          .eq("id", response_id);
+      } catch (metaErr) {
+        console.warn("Failed to update integration_status:", metaErr);
+      }
+    }
+
     return new Response(
-      JSON.stringify({ sent: true, count: details.filter((d) => d.status === "sent").length, details }),
+      JSON.stringify({ sent: true, count: sentCount, details }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err: any) {

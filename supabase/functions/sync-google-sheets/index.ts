@@ -289,17 +289,30 @@ Deno.serve(async (req) => {
     // Only add status columns for integrations that are enabled
     const statusCols: { header: string; metaKey: string }[] = [];
 
-    // Email is stored in schema.email_templates, not in integrations table
+    // Email: check email_templates OR appointment confirmation_email
     const emailTemplates: any[] = schema.email_templates || [];
-    if (emailTemplates.length > 0) {
+    const hasAppointmentEmail = fields.some((f: any) =>
+      (f.type || "").toLowerCase() === "appointment" &&
+      f.appointment_config?.confirmation_email_enabled !== false
+    );
+    if (emailTemplates.length > 0 || hasAppointmentEmail) {
       statusCols.push({ header: "Email Enviado", metaKey: "email" });
+    }
+
+    // Calendar: check if any appointment field exists (always creates event)
+    const hasAppointmentField = fields.some((f: any) => (f.type || "").toLowerCase() === "appointment");
+    if (hasAppointmentField) {
+      statusCols.push({ header: "Agenda Criada", metaKey: "calendar" });
     }
 
     for (const integ of activeIntegrations || []) {
       const cfg = (integ.config as any) || {};
       if (cfg.enabled === false) continue;
       const mapped = integrationMap[integ.type];
-      if (mapped) statusCols.push({ header: mapped.label, metaKey: mapped.metaKey });
+      if (!mapped) continue;
+      // Skip calendar if already added from appointment field detection
+      if (mapped.metaKey === "calendar" && hasAppointmentField) continue;
+      statusCols.push({ header: mapped.label, metaKey: mapped.metaKey });
     }
 
     // ── Sanitizar valores para o Sheets não interpretar como fórmula ──
@@ -308,9 +321,30 @@ Deno.serve(async (req) => {
       return v;
     }
 
+    // ── Labels para sub-campos de contact_info ──
+    const CONTACT_SUB_LABELS: Record<string, string> = {
+      first_name: "Nome",
+      last_name: "Sobrenome",
+      email: "E-mail",
+      phone: "Telefone",
+      cpf: "CPF",
+      cep: "CEP",
+      address: "Endereço",
+    };
+
     // ── Helper: construir headers esperados (reutilizável) ──
     function buildExpectedHeaders(): string[] {
-      const fieldHeaders = fields.map((f: any) => f.label || f.id);
+      const fieldHeaders: string[] = [];
+      for (const f of fields) {
+        if ((f.type || "").toLowerCase() === "contact_info") {
+          const subFields: string[] = f.contact_fields || ["first_name", "email"];
+          for (const sf of subFields) {
+            fieldHeaders.push(`${f.label || f.id} - ${CONTACT_SUB_LABELS[sf] || sf}`);
+          }
+        } else {
+          fieldHeaders.push(f.label || f.id);
+        }
+      }
       return [
         ...metaCols.map((col) => col.header),
         ...fieldHeaders,
@@ -322,15 +356,29 @@ Deno.serve(async (req) => {
     function buildRow(resp: any, ans: any[]): string[] {
       const meta = (resp?.meta as any) || {};
       const answerMap: Record<string, any> = {};
+      const rawAnswerMap: Record<string, any> = {};
       for (const a of ans) {
         answerMap[a.field_key] = a.value_text ?? a.value;
+        rawAnswerMap[a.field_key] = a.value;
       }
-      const fieldValues = fields.map((f: any) => {
-        const val = answerMap[f.id];
-        if (val === null || val === undefined) return "";
-        if (typeof val === "object") return JSON.stringify(val);
-        return sanitize(String(val));
-      });
+      const fieldValues: string[] = [];
+      for (const f of fields) {
+        const ft = (f.type || "").toLowerCase();
+        if (ft === "contact_info") {
+          const parsed = tryParseJSON(rawAnswerMap[f.id]);
+          const subFields: string[] = f.contact_fields || ["first_name", "email"];
+          for (const sf of subFields) {
+            let val = "";
+            if (parsed && typeof parsed === "object") val = parsed[sf] || "";
+            fieldValues.push(sanitize(String(val)));
+          }
+        } else {
+          const val = answerMap[f.id];
+          if (val === null || val === undefined) { fieldValues.push(""); continue; }
+          if (typeof val === "object") { fieldValues.push(JSON.stringify(val)); continue; }
+          fieldValues.push(sanitize(String(val)));
+        }
+      }
       // Integration status columns
       const integStatus = meta.integration_status || {};
       const statusValues = statusCols.map((col) => {
@@ -409,14 +457,30 @@ Deno.serve(async (req) => {
         rawMap[a.field_key] = a.value;
       }
       for (const f of fields) {
-        const header = f.label || f.id;
-        const text = textMap[f.id] ?? "";
+        const ft = (f.type || "").toLowerCase();
         const raw = rawMap[f.id];
-        if (raw == null && !text) {
-          valueMap[header] = "";
+        const text = textMap[f.id] ?? "";
+
+        if (ft === "contact_info") {
+          // Expand contact_info into separate sub-columns
+          const parsed = tryParseJSON(raw);
+          const subFields: string[] = f.contact_fields || ["first_name", "email"];
+          for (const sf of subFields) {
+            const header = `${f.label || f.id} - ${CONTACT_SUB_LABELS[sf] || sf}`;
+            let val = "";
+            if (parsed && typeof parsed === "object") {
+              val = parsed[sf] || "";
+            }
+            valueMap[header] = sanitize(String(val));
+          }
         } else {
-          const formatted = formatFieldForSheets(f, raw, text);
-          valueMap[header] = sanitize(formatted);
+          const header = f.label || f.id;
+          if (raw == null && !text) {
+            valueMap[header] = "";
+          } else {
+            const formatted = formatFieldForSheets(f, raw, text);
+            valueMap[header] = sanitize(formatted);
+          }
         }
       }
 
@@ -455,8 +519,8 @@ Deno.serve(async (req) => {
                 values: headers.map((h) => ({
                   userEnteredValue: { stringValue: h },
                   userEnteredFormat: {
-                    backgroundColor: { red: 0.318, green: 0.176, blue: 0.659 },
-                    textFormat: { foregroundColor: { red: 1, green: 1, blue: 1 }, bold: true, fontSize: 10 },
+                    backgroundColor: { red: 0.94, green: 0.94, blue: 0.94 },
+                    textFormat: { foregroundColor: { red: 0.15, green: 0.15, blue: 0.15 }, bold: true, fontSize: 10 },
                     horizontalAlignment: "CENTER",
                     verticalAlignment: "MIDDLE",
                     wrapStrategy: "CLIP",
@@ -605,8 +669,8 @@ Deno.serve(async (req) => {
                 range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: startCol, endColumnIndex: endCol },
                 cell: {
                   userEnteredFormat: {
-                    backgroundColor: { red: 0.318, green: 0.176, blue: 0.659 },
-                    textFormat: { foregroundColor: { red: 1, green: 1, blue: 1 }, bold: true, fontSize: 10 },
+                    backgroundColor: { red: 0.94, green: 0.94, blue: 0.94 },
+                    textFormat: { foregroundColor: { red: 0.15, green: 0.15, blue: 0.15 }, bold: true, fontSize: 10 },
                     horizontalAlignment: "CENTER",
                     verticalAlignment: "MIDDLE",
                   },
@@ -739,8 +803,8 @@ Deno.serve(async (req) => {
                 range: { sheetId: batchSheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: expectedHeaders.length },
                 cell: {
                   userEnteredFormat: {
-                    backgroundColor: { red: 0.318, green: 0.176, blue: 0.659 },
-                    textFormat: { foregroundColor: { red: 1, green: 1, blue: 1 }, bold: true, fontSize: 10 },
+                    backgroundColor: { red: 0.94, green: 0.94, blue: 0.94 },
+                    textFormat: { foregroundColor: { red: 0.15, green: 0.15, blue: 0.15 }, bold: true, fontSize: 10 },
                     horizontalAlignment: "CENTER",
                     verticalAlignment: "MIDDLE",
                   },
