@@ -519,8 +519,9 @@ Deno.serve(async (req) => {
                 values: headers.map((h) => ({
                   userEnteredValue: { stringValue: h },
                   userEnteredFormat: {
-                    backgroundColor: { red: 0.94, green: 0.94, blue: 0.94 },
-                    textFormat: { foregroundColor: { red: 0.15, green: 0.15, blue: 0.15 }, bold: true, fontSize: 10 },
+                    backgroundColor: { red: 1, green: 1, blue: 1 },
+                    textFormat: { foregroundColor: { red: 0.2, green: 0.2, blue: 0.2 }, bold: true, fontSize: 10 },
+                    borders: { bottom: { style: "SOLID", width: 2, color: { red: 0.8, green: 0.8, blue: 0.8 } } },
                     horizontalAlignment: "CENTER",
                     verticalAlignment: "MIDDLE",
                     wrapStrategy: "CLIP",
@@ -669,13 +670,14 @@ Deno.serve(async (req) => {
                 range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: startCol, endColumnIndex: endCol },
                 cell: {
                   userEnteredFormat: {
-                    backgroundColor: { red: 0.94, green: 0.94, blue: 0.94 },
-                    textFormat: { foregroundColor: { red: 0.15, green: 0.15, blue: 0.15 }, bold: true, fontSize: 10 },
+                    backgroundColor: { red: 1, green: 1, blue: 1 },
+                    textFormat: { foregroundColor: { red: 0.2, green: 0.2, blue: 0.2 }, bold: true, fontSize: 10 },
+                    borders: { bottom: { style: "SOLID", width: 2, color: { red: 0.8, green: 0.8, blue: 0.8 } } },
                     horizontalAlignment: "CENTER",
                     verticalAlignment: "MIDDLE",
                   },
                 },
-                fields: "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment)",
+                fields: "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment,borders)",
               },
             },
             // Update basic filter to include new columns
@@ -803,13 +805,14 @@ Deno.serve(async (req) => {
                 range: { sheetId: batchSheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: expectedHeaders.length },
                 cell: {
                   userEnteredFormat: {
-                    backgroundColor: { red: 0.94, green: 0.94, blue: 0.94 },
-                    textFormat: { foregroundColor: { red: 0.15, green: 0.15, blue: 0.15 }, bold: true, fontSize: 10 },
+                    backgroundColor: { red: 1, green: 1, blue: 1 },
+                    textFormat: { foregroundColor: { red: 0.2, green: 0.2, blue: 0.2 }, bold: true, fontSize: 10 },
+                    borders: { bottom: { style: "SOLID", width: 2, color: { red: 0.8, green: 0.8, blue: 0.8 } } },
                     horizontalAlignment: "CENTER",
                     verticalAlignment: "MIDDLE",
                   },
                 },
-                fields: "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment)",
+                fields: "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment,borders)",
               },
             },
             {
