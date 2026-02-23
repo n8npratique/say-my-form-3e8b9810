@@ -443,7 +443,7 @@ Deno.serve(async (req) => {
         method: "POST",
         headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          properties: { title: `TecForms — ${form.name}` },
+          properties: { title: `TecForms — ${form!.name}` },
           sheets: [{
             properties: {
               title: "Respostas",
