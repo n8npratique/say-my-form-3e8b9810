@@ -176,7 +176,7 @@ function EmailConfigBadge({ formId }: { formId?: string }) {
         .maybeSingle();
       const emailCfg = (ws?.settings as any)?.email;
       if (emailCfg?.provider) {
-        setProviderName(emailCfg.provider === "gmail" ? "Gmail API" : "Resend");
+        setProviderName(emailCfg.provider === "google_oauth" ? "Gmail API" : "Resend");
         setStatus("provider");
         return;
       }
