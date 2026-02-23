@@ -28,7 +28,7 @@ interface WhatsAppConfig {
 }
 
 /** Field types that don't produce useful variable values */
-const NON_VARIABLE_TYPES = ["end_screen", "appointment", "statement"];
+const NON_VARIABLE_TYPES = ["end_screen", "appointment", "statement", "redirect_url"];
 
 /** Sub-field labels for contact_info */
 const CONTACT_SUBFIELD_LABELS: Record<string, string> = {

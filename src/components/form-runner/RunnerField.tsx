@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Star, ArrowRight, Check, Loader2 } from "lucide-react";
+import { Star, ArrowRight, Check, Loader2, ExternalLink } from "lucide-react";
 import { motion } from "framer-motion";
 import type { FormField, ContactFieldKey, FieldTranslation } from "@/types/workflow";
 import type { Locale } from "@/lib/i18n";
@@ -109,6 +109,11 @@ export const RunnerField = ({ field, index, total, onAnswer, formId, locale, fie
   };
 
   const submit = () => {
+    if (field.type === "redirect_url" && field.redirect_url) {
+      window.open(field.redirect_url, "_blank", "noopener,noreferrer");
+      onAnswer(field.redirect_url);
+      return;
+    }
     if (field.type === "contact_info") {
       onAnswer(contactValues);
     } else if (field.type === "checkbox" || field.type === "ranking") {
@@ -418,6 +423,7 @@ export const RunnerField = ({ field, index, total, onAnswer, formId, locale, fie
           />
         ) : null;
 
+      case "redirect_url":
       case "statement":
       case "welcome_screen":
       case "end_screen":
@@ -437,7 +443,7 @@ export const RunnerField = ({ field, index, total, onAnswer, formId, locale, fie
     }
   };
 
-  const isPassthrough = ["statement", "welcome_screen", "end_screen"].includes(field.type);
+  const isPassthrough = ["statement", "welcome_screen", "end_screen", "redirect_url"].includes(field.type);
 
   return (
     <motion.div
@@ -456,7 +462,7 @@ export const RunnerField = ({ field, index, total, onAnswer, formId, locale, fie
         <h2 className="text-2xl font-bold">
           {displayLabel || `Pergunta ${index + 1}`}
         </h2>
-        {displayPlaceholder && field.type === "statement" && (
+        {displayPlaceholder && (field.type === "statement" || field.type === "redirect_url") && (
           <p style={{ color: "var(--runner-text-secondary)" }}>{displayPlaceholder}</p>
         )}
       </div>
@@ -468,7 +474,10 @@ export const RunnerField = ({ field, index, total, onAnswer, formId, locale, fie
         disabled={!isPassthrough && !canSubmit()}
         style={{ backgroundColor: "var(--runner-btn-bg)", color: "var(--runner-btn-text)" }}
       >
-        {isPassthrough ? i.continue : i.ok} <Check className="h-4 w-4 ml-1" />
+        {field.type === "redirect_url"
+          ? <>{field.redirect_button_text || "Acessar link"} <ExternalLink className="h-4 w-4 ml-1" /></>
+          : <>{isPassthrough ? i.continue : i.ok} <Check className="h-4 w-4 ml-1" /></>
+        }
       </Button>
     </motion.div>
   );

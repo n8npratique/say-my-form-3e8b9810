@@ -38,6 +38,8 @@ export interface FormField {
   media_type?: "video" | "image";
   contact_fields?: ContactFieldKey[];
   appointment_config?: AppointmentConfig;
+  redirect_url?: string;
+  redirect_button_text?: string;
 }
 
 // ── Logic / Branching ──

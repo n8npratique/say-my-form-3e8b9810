@@ -10,7 +10,7 @@ import { AlertTriangle, Loader2, Video, Calendar, Mail, Info } from "lucide-reac
 import type { FormField, AppointmentConfig } from "@/types/workflow";
 
 /** Field types that don't produce useful variable values */
-const NON_VARIABLE_TYPES = ["end_screen", "appointment", "statement"];
+const NON_VARIABLE_TYPES = ["end_screen", "appointment", "statement", "redirect_url"];
 
 /** Sub-field labels for contact_info — maps key to Portuguese display name */
 const CONTACT_SUBFIELD_LABELS: Record<string, string> = {

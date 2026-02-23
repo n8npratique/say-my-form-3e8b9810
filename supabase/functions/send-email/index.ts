@@ -157,12 +157,79 @@ function buildEmailHtml(
         </td></tr>` : ""}
         <tr><td style="padding:32px 32px 24px;">
           <h1 style="margin:0 0 16px;font-size:22px;color:#111;">${subject}</h1>
-          <p style="margin:0;font-size:15px;color:#444;line-height:1.6;">${body}</p>
+          <div style="margin:0;font-size:15px;color:#444;line-height:1.6;">${body}</div>
           ${ctaText && ctaUrl ? `
           <div style="text-align:center;margin-top:28px;">
             <a href="${ctaUrl}" style="display:inline-block;background:#3B72D9;color:#fff;text-decoration:none;padding:12px 28px;border-radius:6px;font-size:15px;font-weight:600;">${ctaText}</a>
           </div>` : ""}
         </td></tr>
+        ${footer ? `
+        <tr><td style="padding:16px 32px;border-top:1px solid #eee;">
+          <p style="margin:0;font-size:12px;color:#999;">${footer}</p>
+        </td></tr>` : ""}
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+// ── Build appointment confirmation email with styled HTML blocks ──
+function buildAppointmentEmailHtml(
+  vars: Record<string, string>,
+  customBody: string,
+  footer: string
+): string {
+  const formName = vars.form_name || "Formulário";
+  const datetime = vars.appointment_datetime || "";
+  const calendarLink = vars.calendar_link || "";
+  const meetLink = vars.meet_link || "";
+  const cancelUrl = vars.cancel_url || "";
+  const subject = vars._subject || `Confirmação de agendamento - ${formName}`;
+  const customHtml = customBody.trim() ? `<p style="margin:16px 0 0;font-size:15px;color:#444;line-height:1.6;">${customBody.trim().replace(/\n/g, "<br>")}</p>` : "";
+
+  // Build action buttons
+  const buttons: string[] = [];
+  if (calendarLink) {
+    buttons.push(`<a href="${calendarLink}" style="display:inline-block;background:#1a73e8;color:#ffffff;text-decoration:none;padding:10px 20px;border-radius:6px;font-size:14px;font-weight:600;margin-right:8px;">&#128197; Ver no Calendar</a>`);
+  }
+  if (meetLink) {
+    buttons.push(`<a href="${meetLink}" style="display:inline-block;background:#00897b;color:#ffffff;text-decoration:none;padding:10px 20px;border-radius:6px;font-size:14px;font-weight:600;">&#127909; Entrar no Meet</a>`);
+  }
+  const buttonsHtml = buttons.length > 0
+    ? `<div style="text-align:center;margin-top:24px;">${buttons.join(" ")}</div>`
+    : "";
+
+  const cancelHtml = cancelUrl
+    ? `<div style="text-align:center;margin-top:20px;"><a href="${cancelUrl}" style="font-size:13px;color:#999;text-decoration:underline;">Cancelar agendamento</a></div>`
+    : "";
+
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:32px 0;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;max-width:600px;width:100%;">
+        <!-- Green accent bar -->
+        <tr><td style="height:4px;background:linear-gradient(90deg,#34a853,#1a73e8);font-size:0;line-height:0;">&nbsp;</td></tr>
+        <tr><td style="padding:32px 32px 8px;">
+          <div style="font-size:13px;color:#999;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Agendamento confirmado</div>
+          <h1 style="margin:0;font-size:22px;color:#111;font-weight:700;">${formName}</h1>
+        </td></tr>
+        <!-- Date/time card -->
+        <tr><td style="padding:16px 32px;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f7ff;border-radius:8px;border:1px solid #d4e5fd;">
+            <tr><td style="padding:20px 24px;">
+              <div style="font-size:13px;color:#5f6368;margin-bottom:6px;">&#128197; Data e Hor&aacute;rio</div>
+              <div style="font-size:20px;font-weight:700;color:#1a73e8;">${datetime}</div>
+            </td></tr>
+          </table>
+        </td></tr>
+        ${customHtml ? `<tr><td style="padding:0 32px 8px;">${customHtml}</td></tr>` : ""}
+        <!-- Action buttons -->
+        ${buttonsHtml ? `<tr><td style="padding:8px 32px 16px;">${buttonsHtml}</td></tr>` : ""}
+        ${cancelHtml ? `<tr><td style="padding:0 32px 24px;">${cancelHtml}</td></tr>` : ""}
         ${footer ? `
         <tr><td style="padding:16px 32px;border-top:1px solid #eee;">
           <p style="margin:0;font-size:12px;color:#999;">${footer}</p>
@@ -383,25 +450,22 @@ Deno.serve(async (req) => {
     const hasAutoAppointmentTemplate = templates.some((t: any) => t.id === "auto_appointment");
 
     if (!test_mode && appointmentField && !hasAutoAppointmentTemplate) {
-      // Legacy fallback: build appointment email from appointment_config
+      // Build appointment email from appointment_config
       const confirmationEmailEnabled = appointmentConfig?.confirmation_email_enabled !== false;
       if (confirmationEmailEnabled) {
         const subject = appointmentConfig?.confirmation_email_subject || "Confirmação de agendamento - {{form_name}}";
         const customBody = appointmentConfig?.confirmation_email_body || "";
-        const bodyParts = ["Olá!\n\nSeu agendamento no formulário {{form_name}} foi confirmado com sucesso.\n\nData: {{appointment_datetime}}"];
-        if (customBody.trim()) {
-          bodyParts.push(customBody.trim());
-        }
-        bodyParts.push("{{event_links}}Caso precise cancelar, clique no link abaixo:\n{{cancel_url}}\n\nObrigado!");
-        const legacyTemplate = {
-          id: "legacy_appointment_confirmation",
+        const appointmentTemplate = {
+          id: "appointment_confirmation",
           enabled: true,
           recipient: "respondent",
           subject,
-          body: bodyParts.join("\n\n"),
+          _appointment: true,
+          _customBody: customBody,
+          body: "",
           footer: "Enviado automaticamente via TecForms",
         };
-        templates = [legacyTemplate, ...templates];
+        templates = [appointmentTemplate, ...templates];
       }
     }
 
@@ -618,7 +682,16 @@ Deno.serve(async (req) => {
         cta_url: resolveFieldVars(template.cta_url || "", fields, answerMap, rawAnswerMap),
       };
 
-      const html = buildEmailHtml(resolvedTemplate, vars);
+      // Use specialized appointment template or generic
+      let html: string;
+      if (template._appointment) {
+        const customBody = resolveFieldVars(template._customBody || "", fields, answerMap, rawAnswerMap);
+        const resolvedFooter = replaceVars(resolvedTemplate.footer || "", vars);
+        const appointmentVars = { ...vars, _subject: replaceVars(resolvedTemplate.subject || form.name, vars) };
+        html = buildAppointmentEmailHtml(appointmentVars, customBody, resolvedFooter);
+      } else {
+        html = buildEmailHtml(resolvedTemplate, vars);
+      }
       const subject = replaceVars(resolvedTemplate.subject || form.name, vars);
       try {
         if (oauthConnection) {

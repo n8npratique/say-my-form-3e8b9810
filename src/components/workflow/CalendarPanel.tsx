@@ -181,7 +181,7 @@ export const CalendarPanel = ({ formId, fields }: CalendarPanelProps) => {
 
   // Field-based variables
   const fieldVars = fields
-    .filter((f) => !["welcome_screen", "end_screen", "statement"].includes(f.type) && f.label)
+    .filter((f) => !["welcome_screen", "end_screen", "statement", "redirect_url"].includes(f.type) && f.label)
     .map((f) => ({ key: `{{field:${f.label}}}`, label: f.label }));
 
   const staticVars = [{ key: "{{form_name}}", label: "Nome do form" }];

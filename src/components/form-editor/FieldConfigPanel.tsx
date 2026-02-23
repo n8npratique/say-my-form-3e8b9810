@@ -209,6 +209,30 @@ export const FieldConfigPanel = ({ field, onChange, workspaceId, fields = [] }: 
               </div>
             )}
 
+            {/* Redirect URL Config */}
+            {field.type === "redirect_url" && (
+              <div className="space-y-3 rounded-lg border p-3">
+                <Label className="text-sm font-medium">Configuração do Redirect</Label>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">URL de destino</Label>
+                  <Input
+                    value={field.redirect_url || ""}
+                    onChange={(e) => onChange({ ...field, redirect_url: e.target.value })}
+                    placeholder="https://exemplo.com/pagina"
+                    type="url"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Texto do botão</Label>
+                  <Input
+                    value={field.redirect_button_text || ""}
+                    onChange={(e) => onChange({ ...field, redirect_button_text: e.target.value })}
+                    placeholder="Acessar link"
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Appointment Config */}
             {field.type === "appointment" && workspaceId && (
               <AppointmentConfigSection field={field} onChange={onChange} workspaceId={workspaceId} fields={fields} />
