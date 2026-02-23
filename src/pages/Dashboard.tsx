@@ -11,7 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
-import { Plus, LogOut, Building2, Bell } from "lucide-react";
+import { Plus, LogOut, Building2, Bell, Shield } from "lucide-react";
 import logoPratique from "@/assets/logo-pratique.png";
 import { useRealtimeResponses } from "@/hooks/useRealtimeResponses";
 import { formatDistanceToNow } from "date-fns";
@@ -34,11 +34,25 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  const [isAdmin, setIsAdmin] = useState(false);
+
   const { newCount, recentResponses, resetCount } = useRealtimeResponses({ formIds: allFormIds });
 
   useEffect(() => {
     fetchWorkspaces();
+    checkAdmin();
   }, []);
+
+  const checkAdmin = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .in("role", ["owner", "admin"])
+      .maybeSingle();
+    setIsAdmin(!!data);
+  };
 
   const fetchWorkspaces = async () => {
     const { data, error } = await supabase
@@ -96,6 +110,18 @@ const Dashboard = () => {
           </div>
           <div className="flex items-center gap-3">
             <span className="text-sm text-muted-foreground">{user?.email}</span>
+
+            {/* Admin link */}
+            {isAdmin && (
+              <Button
+                variant="ghost"
+                size="icon"
+                title="Administração"
+                onClick={() => navigate("/admin/invites")}
+              >
+                <Shield className="h-4 w-4" />
+              </Button>
+            )}
 
             {/* Sino de notificações */}
             <Popover onOpenChange={(open) => { if (open) resetCount(); }}>
