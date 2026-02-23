@@ -66,7 +66,10 @@ async function handleServiceAccount(body: any): Promise<Response> {
       .select("id, client_email, name")
       .single();
 
-    if (error) return respond({ error: error.message }, 500);
+    if (error) {
+      console.error("check-duplicate save error:", error);
+      return respond({ error: "internal_error" }, 500);
+    }
     return respond({ success: true, service_account: data });
   }
 
@@ -167,7 +170,7 @@ Deno.serve(async (req) => {
     });
   } catch (err) {
     console.error("check-duplicate error:", err);
-    return new Response(JSON.stringify({ duplicate: false, error: String(err) }), {
+    return new Response(JSON.stringify({ duplicate: false, error: "internal_error" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

@@ -6,6 +6,13 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+async function fetchWithTimeout(url: string, init: RequestInit, ms = 10000): Promise<Response> {
+  const c = new AbortController();
+  const t = setTimeout(() => c.abort(), ms);
+  try { return await fetch(url, { ...init, signal: c.signal }); }
+  finally { clearTimeout(t); }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -256,7 +263,7 @@ Deno.serve(async (req) => {
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (wahaApiKey) headers["X-Api-Key"] = wahaApiKey;
-      const res = await fetch(`${wahaUrl}/api/sendText`, {
+      const res = await fetchWithTimeout(`${wahaUrl}/api/sendText`, {
         method: "POST",
         headers,
         body: JSON.stringify({ chatId, text, session: wahaSession }),
@@ -313,6 +320,6 @@ Deno.serve(async (req) => {
   return respond({ sent: sentCount > 0, count: sentCount });
   } catch (err: any) {
     console.error("send-whatsapp error:", err);
-    return respond({ sent: false, reason: "error", error: err.message }, 500);
+    return respond({ sent: false, reason: "internal_error" }, 500);
   }
 });

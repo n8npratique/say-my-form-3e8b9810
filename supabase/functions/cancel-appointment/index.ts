@@ -6,6 +6,13 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+async function fetchWithTimeout(url: string, init: RequestInit, ms = 10000): Promise<Response> {
+  const c = new AbortController();
+  const t = setTimeout(() => c.abort(), ms);
+  try { return await fetch(url, { ...init, signal: c.signal }); }
+  finally { clearTimeout(t); }
+}
+
 // ── OAuth helper: get access token from OAuth connection (with auto-refresh) ──
 async function getOAuthAccessToken(
   supabase: any,
@@ -32,7 +39,7 @@ async function getOAuthAccessToken(
     throw new Error("GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET not configured");
   }
 
-  const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+  const tokenRes = await fetchWithTimeout("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
@@ -44,7 +51,7 @@ async function getOAuthAccessToken(
   });
   const tokenData = await tokenRes.json();
   if (!tokenData.access_token) {
-    throw new Error(`OAuth refresh failed: ${JSON.stringify(tokenData)}`);
+    throw new Error("OAuth refresh failed");
   }
 
   const newExpiresAt = new Date(
@@ -118,7 +125,7 @@ Deno.serve(async (req) => {
     const accessToken = await getOAuthAccessToken(supabase, connectionId);
 
     // 3. Delete the event from Google Calendar
-    const deleteRes = await fetch(
+    const deleteRes = await fetchWithTimeout(
       `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,
       {
         method: "DELETE",
@@ -128,8 +135,7 @@ Deno.serve(async (req) => {
 
     // 204 = success, 410 = already deleted
     if (!deleteRes.ok && deleteRes.status !== 410) {
-      const errBody = await deleteRes.text();
-      throw new Error(`Google Calendar delete failed (${deleteRes.status}): ${errBody}`);
+      throw new Error("Google Calendar delete failed");
     }
 
     // 4. Update response status to cancelled
@@ -151,7 +157,7 @@ Deno.serve(async (req) => {
   } catch (err: any) {
     console.error("cancel-appointment error:", err);
     return respond(
-      { cancelled: false, reason: "error", error: err.message },
+      { cancelled: false, reason: "internal_error" },
       500
     );
   }

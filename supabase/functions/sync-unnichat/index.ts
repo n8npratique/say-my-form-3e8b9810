@@ -5,6 +5,13 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+async function fetchWithTimeout(url: string, init: RequestInit, ms = 10000): Promise<Response> {
+  const c = new AbortController();
+  const t = setTimeout(() => c.abort(), ms);
+  try { return await fetch(url, { ...init, signal: c.signal }); }
+  finally { clearTimeout(t); }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -136,7 +143,7 @@ Deno.serve(async (req) => {
     if (phone) {
       try {
         // Try to search existing contact first
-        const searchRes = await fetch(`${baseUrl}/contact/search`, {
+        const searchRes = await fetchWithTimeout(`${baseUrl}/contact/search`, {
           method: "POST",
           headers,
           body: JSON.stringify({ phone }),
@@ -150,7 +157,7 @@ Deno.serve(async (req) => {
         } else {
           const contactBody: any = { name, phone };
           if (email) contactBody.email = email;
-          const createRes = await fetch(`${baseUrl}/contact`, {
+          const createRes = await fetchWithTimeout(`${baseUrl}/contact`, {
             method: "POST",
             headers,
             body: JSON.stringify(contactBody),
@@ -176,7 +183,7 @@ Deno.serve(async (req) => {
       const value = resolveField(mapping.form_field_id);
       if (!value) continue;
       try {
-        await fetch(`${baseUrl}/contact/${contactId}/customFields`, {
+        await fetchWithTimeout(`${baseUrl}/contact/${contactId}/customFields`, {
           method: "POST",
           headers,
           body: JSON.stringify({ field_id: mapping.unnichat_field_id, field_value: value }),
@@ -196,7 +203,7 @@ Deno.serve(async (req) => {
       for (const tagId of integConfig.fixed_tags) {
         if (!tagId) continue;
         try {
-          await fetch(`${baseUrl}/contact/${contactId}/tags`, {
+          await fetchWithTimeout(`${baseUrl}/contact/${contactId}/tags`, {
             method: "POST",
             headers,
             body: JSON.stringify({ tag_id: tagId }),
@@ -248,7 +255,7 @@ Deno.serve(async (req) => {
       if (raw != null) dealValue = Number(raw) || 0;
     }
     try {
-      await fetch(`${baseUrl}/contact/${contactId}/crm`, {
+      await fetchWithTimeout(`${baseUrl}/contact/${contactId}/crm`, {
         method: "POST",
         headers,
         body: JSON.stringify({

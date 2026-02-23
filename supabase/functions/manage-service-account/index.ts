@@ -90,8 +90,9 @@ Deno.serve(async (req) => {
         .single();
 
       if (error) {
+        console.error("manage-service-account save error:", error);
         return new Response(
-          JSON.stringify({ error: error.message }),
+          JSON.stringify({ error: "internal_error" }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
@@ -143,7 +144,7 @@ Deno.serve(async (req) => {
   } catch (err: any) {
     console.error("manage-service-account error:", err);
     return new Response(
-      JSON.stringify({ error: err.message }),
+      JSON.stringify({ error: "internal_error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

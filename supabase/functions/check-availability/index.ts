@@ -6,6 +6,13 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+async function fetchWithTimeout(url: string, init: RequestInit, ms = 10000): Promise<Response> {
+  const c = new AbortController();
+  const t = setTimeout(() => c.abort(), ms);
+  try { return await fetch(url, { ...init, signal: c.signal }); }
+  finally { clearTimeout(t); }
+}
+
 // ── OAuth helper: get access token (same as create-calendar-event) ──
 async function getOAuthAccessToken(
   supabase: any,
@@ -32,7 +39,7 @@ async function getOAuthAccessToken(
     throw new Error("GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET not configured");
   }
 
-  const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+  const tokenRes = await fetchWithTimeout("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
@@ -44,7 +51,7 @@ async function getOAuthAccessToken(
   });
   const tokenData = await tokenRes.json();
   if (!tokenData.access_token) {
-    throw new Error(`OAuth refresh failed: ${JSON.stringify(tokenData)}`);
+    throw new Error("OAuth refresh failed");
   }
 
   const newExpiresAt = new Date(
@@ -198,7 +205,8 @@ Deno.serve(async (req) => {
         .single();
 
       if (holdErr) {
-        return respond({ error: holdErr.message }, 500);
+        console.error("check-availability hold error:", holdErr);
+        return respond({ error: "internal_error" }, 500);
       }
 
       return respond({ held: true, hold_id: hold.id });
@@ -211,13 +219,13 @@ Deno.serve(async (req) => {
         return respond({ error: "No google_connection_id provided" }, 400);
       }
       const accessToken = await getOAuthAccessToken(supabase, google_connection_id);
-      const calRes = await fetch(
+      const calRes = await fetchWithTimeout(
         "https://www.googleapis.com/calendar/v3/users/me/calendarList?minAccessRole=writer",
         { headers: { Authorization: `Bearer ${accessToken}` } }
       );
       const calData = await calRes.json();
       if (!calRes.ok) {
-        throw new Error(`CalendarList API error: ${JSON.stringify(calData)}`);
+        throw new Error("CalendarList API error");
       }
       const calendars = (calData.items || []).map((c: any) => ({
         id: c.id,
@@ -287,7 +295,7 @@ Deno.serve(async (req) => {
     const timeMin = `${candidateDates[0]}T${start_time}:00${tzOffset}`;
     const timeMax = `${candidateDates[candidateDates.length - 1]}T${end_time}:00${tzOffset}`;
 
-    const freeBusyRes = await fetch(
+    const freeBusyRes = await fetchWithTimeout(
       "https://www.googleapis.com/calendar/v3/freeBusy",
       {
         method: "POST",
@@ -306,7 +314,7 @@ Deno.serve(async (req) => {
 
     const freeBusyData = await freeBusyRes.json();
     if (!freeBusyRes.ok) {
-      throw new Error(`FreeBusy API error: ${JSON.stringify(freeBusyData)}`);
+      throw new Error("FreeBusy API error");
     }
 
     const busyPeriods: { start: Date; end: Date }[] = (
@@ -376,6 +384,6 @@ Deno.serve(async (req) => {
     return respond({ available_slots });
   } catch (err: any) {
     console.error("check-availability error:", err);
-    return respond({ error: err.message }, 500);
+    return respond({ error: "internal_error" }, 500);
   }
 });

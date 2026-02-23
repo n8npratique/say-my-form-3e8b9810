@@ -6,6 +6,13 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+async function fetchWithTimeout(url: string, init: RequestInit, ms = 10000): Promise<Response> {
+  const c = new AbortController();
+  const t = setTimeout(() => c.abort(), ms);
+  try { return await fetch(url, { ...init, signal: c.signal }); }
+  finally { clearTimeout(t); }
+}
+
 // ── JWT for Google Service Account (same pattern as sync-google-sheets) ──
 async function importPrivateKey(pem: string): Promise<CryptoKey> {
   const pemContents = pem
@@ -60,7 +67,7 @@ async function getGoogleAccessToken(
   );
   const jwt = `${signingInput}.${base64url(signature)}`;
 
-  const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+  const tokenRes = await fetchWithTimeout("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
@@ -70,7 +77,7 @@ async function getGoogleAccessToken(
   });
   const tokenData = await tokenRes.json();
   if (!tokenData.access_token) {
-    throw new Error(`Google token error: ${JSON.stringify(tokenData)}`);
+    throw new Error("Google token exchange failed");
   }
   return tokenData.access_token;
 }
@@ -101,7 +108,7 @@ async function getOAuthAccessToken(
     throw new Error("GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET not configured");
   }
 
-  const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+  const tokenRes = await fetchWithTimeout("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
@@ -113,7 +120,7 @@ async function getOAuthAccessToken(
   });
   const tokenData = await tokenRes.json();
   if (!tokenData.access_token) {
-    throw new Error(`OAuth refresh failed: ${JSON.stringify(tokenData)}`);
+    throw new Error("OAuth refresh failed");
   }
 
   const newExpiresAt = new Date(
@@ -238,7 +245,7 @@ Deno.serve(async (req) => {
           .eq("workspace_id", form.workspace_id)
           .maybeSingle();
         if (!serviceAccount) {
-          throw new Error(`OAuth failed and no SA: ${oauthErr.message}`);
+          throw new Error("OAuth failed and no service account configured");
         }
         accessToken = await getGoogleAccessToken(
           serviceAccount.client_email,
@@ -423,7 +430,7 @@ Deno.serve(async (req) => {
 
     // ── FreeBusy check: verify slot is still available before creating ──
     if (appointmentValue) {
-      const freeBusyRes = await fetch(
+      const freeBusyRes = await fetchWithTimeout(
         "https://www.googleapis.com/calendar/v3/freeBusy",
         {
           method: "POST",
@@ -461,7 +468,7 @@ Deno.serve(async (req) => {
       calendarUrl.searchParams.set("conferenceDataVersion", "1");
     }
 
-    const createRes = await fetch(calendarUrl.toString(), {
+    const createRes = await fetchWithTimeout(calendarUrl.toString(), {
       method: "POST",
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -473,7 +480,8 @@ Deno.serve(async (req) => {
     const eventData = await createRes.json();
 
     if (!createRes.ok) {
-      throw new Error(`Calendar API error: ${JSON.stringify(eventData)}`);
+      console.error("Calendar API error:", eventData);
+      throw new Error("Calendar API event creation failed");
     }
 
     // 10. Update last_synced_at (only if integration exists)
@@ -517,6 +525,6 @@ Deno.serve(async (req) => {
     });
   } catch (err: any) {
     console.error("create-calendar-event error:", err);
-    return respond({ created: false, reason: "error", error: err.message }, 500);
+    return respond({ created: false, reason: "internal_error" }, 500);
   }
 });

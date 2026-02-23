@@ -6,6 +6,13 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+async function fetchWithTimeout(url: string, init: RequestInit, ms = 10000): Promise<Response> {
+  const c = new AbortController();
+  const t = setTimeout(() => c.abort(), ms);
+  try { return await fetch(url, { ...init, signal: c.signal }); }
+  finally { clearTimeout(t); }
+}
+
 // ── JWT para Google Service Account ──
 async function importPrivateKey(pem: string): Promise<CryptoKey> {
   const pemContents = pem
@@ -60,7 +67,7 @@ async function getGoogleAccessToken(
   );
   const jwt = `${signingInput}.${base64url(signature)}`;
 
-  const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+  const tokenRes = await fetchWithTimeout("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
@@ -70,7 +77,7 @@ async function getGoogleAccessToken(
   });
   const tokenData = await tokenRes.json();
   if (!tokenData.access_token) {
-    throw new Error(`Google token error: ${JSON.stringify(tokenData)}`);
+    throw new Error("Google token exchange failed");
   }
   return tokenData.access_token;
 }
@@ -175,7 +182,7 @@ async function sendViaResend(
   subject: string,
   html: string
 ) {
-  const res = await fetch("https://api.resend.com/emails", {
+  const res = await fetchWithTimeout("https://api.resend.com/emails", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -184,8 +191,7 @@ async function sendViaResend(
     body: JSON.stringify({ from, to, subject, html }),
   });
   if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Resend error: ${err}`);
+    throw new Error("Resend API error");
   }
   return await res.json();
 }
@@ -243,7 +249,7 @@ async function getOAuthAccessToken(
     throw new Error("GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET not configured");
   }
 
-  const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+  const tokenRes = await fetchWithTimeout("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
@@ -255,7 +261,7 @@ async function getOAuthAccessToken(
   });
   const tokenData = await tokenRes.json();
   if (!tokenData.access_token) {
-    throw new Error(`OAuth refresh failed: ${JSON.stringify(tokenData)}`);
+    throw new Error("OAuth refresh failed");
   }
 
   await supabase
@@ -301,7 +307,7 @@ async function sendViaGmailAPI(
     .replace(/\//g, "_")
     .replace(/=+$/, "");
 
-  const res = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
+  const res = await fetchWithTimeout("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -311,8 +317,7 @@ async function sendViaGmailAPI(
   });
 
   if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Gmail API error (${res.status}): ${err}`);
+    throw new Error("Gmail API send failed");
   }
   return await res.json();
 }
@@ -636,7 +641,7 @@ Deno.serve(async (req) => {
   } catch (err: any) {
     console.error("send-email error:", err);
     return new Response(
-      JSON.stringify({ sent: false, reason: "error", error: err.message }),
+      JSON.stringify({ sent: false, reason: "internal_error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

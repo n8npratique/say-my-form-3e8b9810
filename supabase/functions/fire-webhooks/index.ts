@@ -21,6 +21,26 @@ async function hmacSign(secret: string, payload: string): Promise<string> {
     .join("");
 }
 
+// SSRF protection: block requests to private/internal networks
+function isValidWebhookUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    if (!['http:', 'https:'].includes(parsed.protocol)) return false;
+    const h = parsed.hostname.toLowerCase();
+    if (/^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.|0\.)/.test(h)) return false;
+    if (h === '::1' || h === '[::1]') return false;
+    return true;
+  } catch { return false; }
+}
+
+// Fetch with timeout to prevent hanging connections
+async function fetchWithTimeout(url: string, init: RequestInit, ms = 10000): Promise<Response> {
+  const c = new AbortController();
+  const t = setTimeout(() => c.abort(), ms);
+  try { return await fetch(url, { ...init, signal: c.signal }); }
+  finally { clearTimeout(t); }
+}
+
 // UUID v4 format validation
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -205,14 +225,17 @@ Deno.serve(async (req) => {
 
     const payload = JSON.stringify(payloadObj);
 
-    // Fire all matched webhooks
+    // Fire all matched webhooks (with SSRF + timeout protection)
     const results = await Promise.allSettled(
       matched.map(async (wh: any) => {
+        if (!isValidWebhookUrl(wh.url)) {
+          throw new Error("blocked_url");
+        }
         const headers: Record<string, string> = { "Content-Type": "application/json" };
         if (wh.secret) {
           headers["X-Webhook-Signature"] = await hmacSign(wh.secret, payload);
         }
-        return fetch(wh.url, { method: "POST", headers, body: payload });
+        return fetchWithTimeout(wh.url, { method: "POST", headers, body: payload });
       })
     );
 
@@ -221,7 +244,8 @@ Deno.serve(async (req) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
-    return new Response(JSON.stringify({ error: String(err) }), {
+    console.error("fire-webhooks error:", err);
+    return new Response(JSON.stringify({ error: "internal_error" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
