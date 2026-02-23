@@ -1,7 +1,8 @@
 -- ============================================================
 -- TecForms - Schema Completo (Consolidado)
 -- Execute este SQL no SQL Editor do Supabase para recriar tudo
--- Atualizado: 2026-02-19
+-- Atualizado: 2026-02-23
+-- Inclui: base + security hardening + invite system + oauth + holds
 -- ============================================================
 
 -- ============================================================
@@ -71,7 +72,7 @@ CREATE TABLE IF NOT EXISTS public.form_versions (
 );
 ALTER TABLE public.form_versions ENABLE ROW LEVEL SECURITY;
 
--- FK: forms.published_version_id → form_versions.id
+-- FK: forms.published_version_id -> form_versions.id
 DO $$ BEGIN
   ALTER TABLE public.forms
     ADD CONSTRAINT forms_published_version_id_fkey
@@ -79,12 +80,12 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
--- Responses
+-- Responses (inclui status 'cancelled')
 CREATE TABLE IF NOT EXISTS public.responses (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   form_id UUID NOT NULL REFERENCES public.forms(id) ON DELETE CASCADE,
   form_version_id UUID NOT NULL REFERENCES public.form_versions(id) ON DELETE CASCADE,
-  status TEXT NOT NULL DEFAULT 'in_progress' CHECK (status IN ('in_progress', 'completed')),
+  status TEXT NOT NULL DEFAULT 'in_progress' CHECK (status IN ('in_progress', 'completed', 'cancelled')),
   session_token UUID DEFAULT gen_random_uuid(),
   meta JSONB DEFAULT '{}',
   started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -138,7 +139,7 @@ CREATE TABLE IF NOT EXISTS public.google_service_accounts (
 );
 ALTER TABLE public.google_service_accounts ENABLE ROW LEVEL SECURITY;
 
--- FK: integrations.service_account_id → google_service_accounts.id
+-- FK: integrations.service_account_id -> google_service_accounts.id
 DO $$ BEGIN
   ALTER TABLE public.integrations
     ADD CONSTRAINT integrations_service_account_id_fkey
@@ -156,17 +157,57 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 );
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
--- ============================================================
--- 3. COLUNAS EXTRAS (ADD IF NOT EXISTS)
--- ============================================================
-ALTER TABLE public.workspaces ADD COLUMN IF NOT EXISTS settings JSONB DEFAULT '{}';
-ALTER TABLE public.forms ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
-ALTER TABLE public.responses ADD COLUMN IF NOT EXISTS session_token UUID DEFAULT gen_random_uuid();
-ALTER TABLE public.integrations ADD COLUMN IF NOT EXISTS last_synced_at TIMESTAMPTZ;
-ALTER TABLE public.integrations ADD COLUMN IF NOT EXISTS service_account_id UUID;
+-- Google OAuth Connections (OAuth tokens for Google Calendar/Sheets/Gmail)
+CREATE TABLE IF NOT EXISTS public.google_oauth_connections (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id UUID NOT NULL REFERENCES public.workspaces(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  google_email TEXT NOT NULL,
+  access_token TEXT NOT NULL,
+  refresh_token TEXT NOT NULL DEFAULT '',
+  token_expires_at TIMESTAMPTZ NOT NULL,
+  scopes TEXT[] DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(workspace_id, google_email)
+);
+ALTER TABLE public.google_oauth_connections ENABLE ROW LEVEL SECURITY;
+
+-- Appointment Holds (temporary slot locks - 10min expiry, race condition protection)
+CREATE TABLE IF NOT EXISTS public.appointment_holds (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  form_id UUID NOT NULL REFERENCES public.forms(id) ON DELETE CASCADE,
+  field_id TEXT NOT NULL,
+  slot_start TIMESTAMPTZ NOT NULL,
+  slot_end TIMESTAMPTZ NOT NULL,
+  session_id TEXT NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE public.appointment_holds ENABLE ROW LEVEL SECURITY;
+
+CREATE INDEX IF NOT EXISTS idx_appointment_holds_lookup
+  ON public.appointment_holds(form_id, field_id, expires_at);
+
+-- Invitations (invite-only signup system)
+CREATE TABLE IF NOT EXISTS public.invitations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT NOT NULL,
+  token UUID NOT NULL DEFAULT gen_random_uuid(),
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'expired')),
+  invited_by UUID REFERENCES auth.users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  accepted_at TIMESTAMPTZ,
+  expires_at TIMESTAMPTZ NOT NULL DEFAULT (now() + interval '7 days')
+);
+ALTER TABLE public.invitations ENABLE ROW LEVEL SECURITY;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_invitations_token ON public.invitations(token);
+CREATE INDEX IF NOT EXISTS idx_invitations_email ON public.invitations(email);
+CREATE INDEX IF NOT EXISTS idx_invitations_status ON public.invitations(status);
 
 -- ============================================================
--- 4. HELPER FUNCTIONS (SECURITY DEFINER)
+-- 3. HELPER FUNCTIONS (SECURITY DEFINER)
 -- ============================================================
 
 CREATE OR REPLACE FUNCTION public.is_workspace_member(_workspace_id UUID)
@@ -228,7 +269,7 @@ AS $$
 $$;
 
 -- ============================================================
--- 5. RLS POLICIES
+-- 4. RLS POLICIES
 -- ============================================================
 
 -- ---- Profiles ----
@@ -291,7 +332,7 @@ CREATE POLICY "Anyone can view published form versions" ON public.form_versions 
   EXISTS (SELECT 1 FROM public.forms WHERE id = form_id AND status = 'published' AND published_version_id = form_versions.id)
 );
 
--- ---- Responses ----
+-- ---- Responses (security hardened) ----
 DROP POLICY IF EXISTS "Anyone can create response" ON public.responses;
 DROP POLICY IF EXISTS "Members can view responses" ON public.responses;
 DROP POLICY IF EXISTS "Anyone can update own response" ON public.responses;
@@ -303,7 +344,7 @@ CREATE POLICY "Members can view responses" ON public.responses FOR SELECT TO aut
 CREATE POLICY "Owner can update in_progress response" ON public.responses FOR UPDATE TO anon, authenticated
   USING (status = 'in_progress') WITH CHECK (status = 'in_progress');
 
--- ---- Response answers ----
+-- ---- Response answers (security hardened) ----
 DROP POLICY IF EXISTS "Anyone can create answer" ON public.response_answers;
 DROP POLICY IF EXISTS "Members can view answers" ON public.response_answers;
 CREATE POLICY "Anyone can create answer" ON public.response_answers FOR INSERT TO anon, authenticated
@@ -328,9 +369,7 @@ CREATE POLICY "Owner/admin can manage integrations" ON public.integrations FOR A
   public.can_manage_workspace((SELECT workspace_id FROM public.forms WHERE id = form_id))
 );
 
--- ---- Google Service Accounts ----
--- NOTE: encrypted_key column is revoked from authenticated role (column-level security).
--- Only service_role (edge functions) can read it. Frontend sees id, workspace_id, name, client_email.
+-- ---- Google Service Accounts (column-level security) ----
 REVOKE SELECT (encrypted_key) ON public.google_service_accounts FROM authenticated;
 DROP POLICY IF EXISTS "Allow all for service accounts" ON public.google_service_accounts;
 DROP POLICY IF EXISTS "Members can view service accounts" ON public.google_service_accounts;
@@ -342,8 +381,34 @@ CREATE POLICY "Owner/admin can insert service accounts" ON public.google_service
 CREATE POLICY "Owner/admin can update service accounts" ON public.google_service_accounts FOR UPDATE TO authenticated USING (public.can_manage_workspace(workspace_id));
 CREATE POLICY "Owner/admin can delete service accounts" ON public.google_service_accounts FOR DELETE TO authenticated USING (public.can_manage_workspace(workspace_id));
 
+-- ---- Google OAuth Connections ----
+DROP POLICY IF EXISTS "Members can view oauth connections" ON public.google_oauth_connections;
+DROP POLICY IF EXISTS "Service role manages oauth" ON public.google_oauth_connections;
+CREATE POLICY "Members can view oauth connections" ON public.google_oauth_connections FOR SELECT TO authenticated
+  USING (public.is_workspace_member(workspace_id));
+-- Edge functions use service_role for insert/update/delete (bypasses RLS)
+
+-- ---- Appointment Holds ----
+DROP POLICY IF EXISTS "Anyone can manage holds" ON public.appointment_holds;
+CREATE POLICY "Anyone can manage holds" ON public.appointment_holds FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+-- Holds are managed by edge functions (check-availability) via service_role
+-- Anon access needed so form respondents can create holds
+
+-- ---- Invitations ----
+DROP POLICY IF EXISTS "admins_read_invitations" ON public.invitations;
+DROP POLICY IF EXISTS "admins_insert_invitations" ON public.invitations;
+DROP POLICY IF EXISTS "admins_update_invitations" ON public.invitations;
+DROP POLICY IF EXISTS "anon_read_invitation_by_token" ON public.invitations;
+CREATE POLICY "admins_read_invitations" ON public.invitations FOR SELECT TO authenticated
+  USING (EXISTS (SELECT 1 FROM public.user_roles WHERE user_roles.user_id = auth.uid() AND user_roles.role IN ('owner', 'admin')));
+CREATE POLICY "admins_insert_invitations" ON public.invitations FOR INSERT TO authenticated
+  WITH CHECK (EXISTS (SELECT 1 FROM public.user_roles WHERE user_roles.user_id = auth.uid() AND user_roles.role IN ('owner', 'admin')));
+CREATE POLICY "admins_update_invitations" ON public.invitations FOR UPDATE TO authenticated
+  USING (EXISTS (SELECT 1 FROM public.user_roles WHERE user_roles.user_id = auth.uid() AND user_roles.role IN ('owner', 'admin')));
+CREATE POLICY "anon_read_invitation_by_token" ON public.invitations FOR SELECT TO anon USING (true);
+
 -- ============================================================
--- 6. TRIGGERS
+-- 5. TRIGGERS
 -- ============================================================
 
 -- Auto-create profile on signup
@@ -396,8 +461,46 @@ CREATE TRIGGER update_forms_updated_at
   BEFORE UPDATE ON public.forms
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
+-- Invite-only signup: block signup without valid invite
+CREATE OR REPLACE FUNCTION public.handle_invite_on_signup()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  _invite RECORD;
+BEGIN
+  SELECT * INTO _invite
+  FROM public.invitations
+  WHERE email = NEW.email
+    AND status = 'pending'
+    AND expires_at > now()
+  ORDER BY created_at DESC
+  LIMIT 1;
+
+  IF _invite.id IS NOT NULL THEN
+    UPDATE public.invitations
+    SET status = 'accepted', accepted_at = now()
+    WHERE id = _invite.id;
+  ELSE
+    UPDATE auth.users
+    SET banned_until = '2999-01-01 00:00:00+00'
+    WHERE id = NEW.id;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS on_auth_user_created_invite_check ON auth.users;
+CREATE TRIGGER on_auth_user_created_invite_check
+  AFTER INSERT ON auth.users
+  FOR EACH ROW
+  EXECUTE FUNCTION public.handle_invite_on_signup();
+
 -- ============================================================
--- 7. STORAGE (form-assets bucket)
+-- 6. STORAGE (form-assets bucket)
 -- ============================================================
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('form-assets', 'form-assets', true)
@@ -419,5 +522,19 @@ CREATE POLICY "Owner can delete own form-assets" ON storage.objects FOR DELETE T
   USING (bucket_id = 'form-assets' AND (select auth.uid()) = owner);
 
 -- ============================================================
--- FIM - Schema completo do TecForms
+-- 7. SEED: Admin role for initial user
+-- ============================================================
+-- Descomente e ajuste o email do admin apos criar o primeiro usuario:
+-- DO $$
+-- DECLARE _uid uuid;
+-- BEGIN
+--   SELECT id INTO _uid FROM auth.users WHERE email = 'rafamelopratique@gmail.com' LIMIT 1;
+--   IF _uid IS NOT NULL THEN
+--     INSERT INTO public.user_roles (user_id, role) VALUES (_uid, 'owner') ON CONFLICT DO NOTHING;
+--   END IF;
+-- END;
+-- $$;
+
+-- ============================================================
+-- FIM - Schema completo do TecForms (15 tabelas)
 -- ============================================================

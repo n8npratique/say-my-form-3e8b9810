@@ -40,8 +40,11 @@ const Dashboard = () => {
 
   useEffect(() => {
     fetchWorkspaces();
-    checkAdmin();
   }, []);
+
+  useEffect(() => {
+    if (user) checkAdmin();
+  }, [user]);
 
   const checkAdmin = async () => {
     if (!user) return;
