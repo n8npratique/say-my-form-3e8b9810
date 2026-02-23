@@ -181,16 +181,17 @@ function EmailConfigBadge({ formId }: { formId?: string }) {
         return;
       }
 
-      const { data: connections } = await supabase
-        .from("google_oauth_connections")
-        .select("id, google_email")
-        .eq("workspace_id", form.workspace_id)
-        .limit(1);
-      if (connections && connections.length > 0) {
-        setProviderName(`Gmail (${connections[0].google_email})`);
-        setStatus("oauth");
-        return;
-      }
+      // google_oauth_connections table doesn't exist yet; skip OAuth check
+      // const { data: connections } = await supabase
+      //   .from("google_oauth_connections")
+      //   .select("id, google_email")
+      //   .eq("workspace_id", form.workspace_id)
+      //   .limit(1);
+      // if (connections && connections.length > 0) {
+      //   setProviderName(`Gmail (${connections[0].google_email})`);
+      //   setStatus("oauth");
+      //   return;
+      // }
 
       setStatus("none");
     })();
