@@ -1,30 +1,41 @@
 
+# Imagem Introdutoria na Tela de Boas-vindas
 
-## Plan: Import TecForms via GitHub Reverse Sync
+## O que sera feito
+Adicionar um campo na aba "Boas-vindas" do painel de Aparencia para que o usuario possa anexar uma imagem (logomarca, ilustracao, etc.) que aparecera **acima do titulo** na tela de boas-vindas do formulario. Essa imagem e independente da imagem de fundo -- ela e exibida em primeiro plano como elemento visual de destaque.
 
-Since the repository can't be accessed directly, we'll use Lovable's GitHub integration in reverse — connect this project to GitHub, then you'll push your existing code into the created repo.
+## Como vai funcionar
+- Na configuracao (ThemePanel, aba Boas-vindas), um novo campo "Imagem / Logo" aparecera antes do campo de titulo, permitindo:
+  - Upload de arquivo local (usando o bucket `form-assets` ja existente)
+  - Colar uma URL de imagem externa
+  - Remover a imagem
+- Na tela de boas-vindas do formulario (WelcomeScreen), a imagem sera renderizada acima do titulo com animacao suave, centralizada, com tamanho maximo controlado (max-h-40, max-w-xs) e bordas arredondadas
 
-### Step 1: Connect this Lovable project to GitHub
-- Go to **Settings** (click the project name in the top left) → **GitHub** → **Connect project**
-- Authorize the Lovable GitHub App if you haven't already
-- Select your GitHub account and **create a new repository** (e.g., `tecforms-lovable`)
+## Detalhes Tecnicos
 
-### Step 2: Clone the new repo locally and replace with your code
-- Clone the newly created Lovable repo to your local machine
-- Copy all files from your existing TecForms project into this cloned repo (replacing the default Lovable files)
-- Commit and push to the `main` branch
+### 1. `src/lib/formTheme.ts`
+- Adicionar campo `logo_url?: string` na interface `WelcomeScreen`
 
-### Step 3: Lovable auto-syncs your code
-- Lovable will automatically detect the push and sync all your files
-- Your TecForms app will appear in the Lovable editor and preview
+### 2. `src/components/form-editor/ThemePanel.tsx`
+- Na secao de boas-vindas (quando `welcome.enabled`), adicionar antes do campo "Titulo":
+  - Label "Imagem / Logo"
+  - Preview da imagem atual (se houver) com botao de remover
+  - Botao de upload (reutilizando logica do BackgroundPicker para enviar ao bucket `form-assets`)
+  - Input de URL alternativo
+- Usar `updateWelcome({ logo_url: ... })` para salvar
 
-### Step 4: Configure external Supabase connection
-- After the code is synced, we'll add your Supabase URL (`https://adgjmkkiaeffonyzsyjw.supabase.co`) and anon key as secrets in Lovable's project settings
-- This ensures your app connects to your own Supabase project, not Lovable Cloud
+### 3. `src/components/form-runner/WelcomeScreen.tsx`
+- Antes do `<motion.h1>`, renderizar condicionalmente a imagem:
+  ```
+  {welcome.logo_url && (
+    <motion.img src={welcome.logo_url} ... />
+  )}
+  ```
+- Imagem centralizada, com `max-h-40 max-w-xs object-contain rounded-lg`
 
-### What you need to do now
-1. Click **Settings** → **GitHub** → **Connect project** in the Lovable editor
-2. Create the repository
-3. Push your existing TecForms code to it
-4. Come back here and let me know once the sync is complete — I'll help configure the Supabase connection
-
+### Arquivos modificados:
+| Arquivo | Alteracao |
+|---------|-----------|
+| `src/lib/formTheme.ts` | Adicionar `logo_url` ao `WelcomeScreen` |
+| `src/components/form-editor/ThemePanel.tsx` | Campo de upload/URL para logo |
+| `src/components/form-runner/WelcomeScreen.tsx` | Renderizar logo acima do titulo |

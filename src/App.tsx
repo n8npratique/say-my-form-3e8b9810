@@ -3,7 +3,18 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
+import Auth from "./pages/Auth";
+import Dashboard from "./pages/Dashboard";
+import WorkspaceForms from "./pages/WorkspaceForms";
+import FormEditor from "./pages/FormEditor";
+import FormRunner from "./pages/FormRunner";
+import CancelAppointment from "./pages/CancelAppointment";
+import FormWorkflow from "./pages/FormWorkflow";
+import FormResponses from "./pages/FormResponses";
+import WorkspaceSettings from "./pages/WorkspaceSettings";
+import AdminInvites from "./pages/AdminInvites";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -16,7 +27,65 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+          <Route path="/auth" element={<Auth />} />
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/workspace/:workspaceId"
+            element={
+              <ProtectedRoute>
+                <WorkspaceForms />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/workspace/:workspaceId/form/:formId/edit"
+            element={
+              <ProtectedRoute>
+                <FormEditor />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/workspace/:workspaceId/form/:formId/workflow"
+            element={
+              <ProtectedRoute>
+                <FormWorkflow />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/workspace/:workspaceId/form/:formId/responses"
+            element={
+              <ProtectedRoute>
+                <FormResponses />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/workspace/:workspaceId/settings"
+            element={
+              <ProtectedRoute>
+                <WorkspaceSettings />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/invites"
+            element={
+              <ProtectedRoute>
+                <AdminInvites />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="/f/:slug" element={<FormRunner />} />
+          <Route path="/cancel/:token" element={<CancelAppointment />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
