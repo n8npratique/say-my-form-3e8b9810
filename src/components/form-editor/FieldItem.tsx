@@ -59,6 +59,9 @@ export const FieldItem = ({
         variant="ghost"
         size="icon"
         className="h-7 w-7 shrink-0 opacity-40 hover:opacity-100 transition-opacity"
+        draggable={false}
+        onMouseDown={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => { e.stopPropagation(); onDelete(); }}
       >
         <Trash2 className="h-3.5 w-3.5 text-destructive" />

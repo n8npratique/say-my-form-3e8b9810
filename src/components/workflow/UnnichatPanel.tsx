@@ -17,10 +17,12 @@ import { expandFieldOptions } from "@/lib/fieldUtils";
 
 interface UnnichatConfig {
   enabled: boolean;
+  phone_id: string; // ID do telefone Unnichat selecionado para este form
   // Section 1 - Contact
   create_contact: boolean;
   contact_name_field_id: string;
   contact_phone_field_id: string;
+  contact_email_field_id: string;
   // Section 2 - Custom fields
   send_custom_fields: boolean;
   custom_field_mappings: Array<{ form_field_id: string; unnichat_field_id: string }>;
@@ -42,9 +44,11 @@ interface UnnichatConfig {
 
 const DEFAULT_CONFIG: UnnichatConfig = {
   enabled: false,
+  phone_id: "",
   create_contact: false,
   contact_name_field_id: "",
   contact_phone_field_id: "",
+  contact_email_field_id: "",
   send_custom_fields: false,
   custom_field_mappings: [],
   add_tags: false,
@@ -80,7 +84,7 @@ export const UnnichatPanel = ({ formId, fields, scoring, tagging, outcomes }: Un
 
   const [config, setConfig] = useState<UnnichatConfig>(DEFAULT_CONFIG);
   const [integrationId, setIntegrationId] = useState<string | null>(null);
-  const [workspaceConfig, setWorkspaceConfig] = useState<{ url: string; token: string } | null>(null);
+  const [workspaceConfig, setWorkspaceConfig] = useState<{ url: string; phones: Array<{ label: string; phone_id: string; token: string }> } | null>(null);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
 
@@ -126,8 +130,11 @@ export const UnnichatPanel = ({ formId, fields, scoring, tagging, outcomes }: Un
 
       if (ws) {
         const s = ws.settings as any;
-        if (s?.unnichat?.url && s?.unnichat?.token) {
-          setWorkspaceConfig({ url: s.unnichat.url, token: s.unnichat.token });
+        if (s?.unnichat?.url && s?.unnichat?.phones?.length) {
+          setWorkspaceConfig({ url: s.unnichat.url, phones: s.unnichat.phones });
+        } else if (s?.unnichat?.url && s?.unnichat?.token) {
+          // backwards compat: legacy single token
+          setWorkspaceConfig({ url: s.unnichat.url, phones: [{ label: "Principal", phone_id: "", token: s.unnichat.token }] });
         }
       }
     }
@@ -137,14 +144,18 @@ export const UnnichatPanel = ({ formId, fields, scoring, tagging, outcomes }: Un
     setConfig((prev) => ({ ...prev, ...partial }));
   };
 
+  // Resolve the active phone's token based on selected phone_id
+  const activePhone = workspaceConfig?.phones.find(p => p.phone_id === config.phone_id) || workspaceConfig?.phones[0];
+  const activeToken = activePhone?.token || "";
+
   const loadUnnichatFields = async () => {
-    if (!workspaceConfig) return;
+    if (!workspaceConfig || !activeToken) return;
     setLoadingFields(true);
     try {
       const res = await fetch(`${workspaceConfig.url}/customFields/search`, {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${workspaceConfig.token}`,
+          "Authorization": `Bearer ${activeToken}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({}),
@@ -161,13 +172,13 @@ export const UnnichatPanel = ({ formId, fields, scoring, tagging, outcomes }: Un
   };
 
   const loadUnnichatTags = async () => {
-    if (!workspaceConfig) return;
+    if (!workspaceConfig || !activeToken) return;
     setLoadingTags(true);
     try {
       const res = await fetch(`${workspaceConfig.url}/tags/search`, {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${workspaceConfig.token}`,
+          "Authorization": `Bearer ${activeToken}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ type: "contact" }),
@@ -250,6 +261,7 @@ export const UnnichatPanel = ({ formId, fields, scoring, tagging, outcomes }: Un
   const allOptions = expandFieldOptions(fields, "all");
   const nameOptions = expandFieldOptions(fields, "name");
   const phoneOptions = expandFieldOptions(fields, "phone");
+  const emailOptions = expandFieldOptions(fields, "email");
   const numberFields = fields.filter((f) => f.type === "number");
 
   // Conditional tag options
@@ -266,7 +278,7 @@ export const UnnichatPanel = ({ formId, fields, scoring, tagging, outcomes }: Un
         <div className="flex items-start gap-2 p-3 rounded-lg bg-warning/10 border border-warning/30">
           <AlertTriangle className="h-4 w-4 text-warning mt-0.5 shrink-0" />
           <p className="text-xs text-warning">
-            Configure a URL e o Token do Unnichat nas <strong>Configurações do Workspace</strong> antes de continuar.
+            Configure a URL e os telefones do Unnichat nas <strong>Configurações do Workspace</strong> antes de continuar.
           </p>
         </div>
       ) : (
@@ -285,6 +297,32 @@ export const UnnichatPanel = ({ formId, fields, scoring, tagging, outcomes }: Un
       )}
 
       {config.enabled && workspaceConfig && (
+        <>
+        {/* Phone selector */}
+        {workspaceConfig.phones.length > 1 && (
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Telefone Unnichat</Label>
+            <Select
+              value={config.phone_id || workspaceConfig.phones[0]?.phone_id || ""}
+              onValueChange={(v) => update({ phone_id: v })}
+            >
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="Selecionar telefone..." />
+              </SelectTrigger>
+              <SelectContent>
+                {workspaceConfig.phones.map((p) => (
+                  <SelectItem key={p.phone_id} value={p.phone_id}>
+                    {p.label || p.phone_id}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Cada formulário pode usar um telefone diferente do Unnichat.
+            </p>
+          </div>
+        )}
+
         <Accordion type="multiple" className="space-y-2">
           {/* Section 1 — Create Contact */}
           <AccordionItem value="contact" className="border rounded-lg px-3">
@@ -326,6 +364,20 @@ export const UnnichatPanel = ({ formId, fields, scoring, tagging, outcomes }: Un
                       </SelectTrigger>
                       <SelectContent>
                         {phoneOptions.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Campo do email <span className="font-normal">(opcional)</span></Label>
+                    <Select value={config.contact_email_field_id || "__none__"} onValueChange={(v) => update({ contact_email_field_id: v === "__none__" ? "" : v })}>
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="Nenhum" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">Nenhum</SelectItem>
+                        {emailOptions.map((opt) => (
                           <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                         ))}
                       </SelectContent>
@@ -648,6 +700,7 @@ export const UnnichatPanel = ({ formId, fields, scoring, tagging, outcomes }: Un
             </AccordionContent>
           </AccordionItem>
         </Accordion>
+        </>
       )}
 
       {/* Footer actions */}

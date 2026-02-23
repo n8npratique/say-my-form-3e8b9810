@@ -34,7 +34,7 @@ export const FORM_TEMPLATES: FormTemplate[] = [
           { id: f1, type: "rating", label: "Como você avalia nosso atendimento?", required: true },
           { id: f2, type: "opinion_scale", label: "Qual a probabilidade de nos recomendar?", required: true, options: ["0","1","2","3","4","5","6","7","8","9","10"] },
           { id: f3, type: "long_text", label: "O que podemos melhorar?", required: false },
-          { id: f4, type: "email", label: "Seu e-mail (opcional)", required: false },
+          { id: f4, type: "contact_info", label: "Dados de Contato", required: false, contact_fields: ["first_name", "email", "phone"] },
         ],
         scoring: {
           enabled: true,
@@ -72,7 +72,7 @@ export const FORM_TEMPLATES: FormTemplate[] = [
           { id: f1, type: "nps", label: "Em uma escala de 0 a 10, qual a probabilidade de recomendar nossa empresa a um amigo?", required: true },
           { id: f2, type: "multiple_choice", label: "Qual o principal motivo da sua nota?", required: false, options },
           { id: f3, type: "long_text", label: "Comentários adicionais", required: false },
-          { id: f4, type: "email", label: "Seu e-mail (opcional)", required: false },
+          { id: f4, type: "contact_info", label: "Dados de Contato", required: false, contact_fields: ["first_name", "email", "phone"] },
         ],
         tagging: {
           enabled: true,
@@ -177,7 +177,7 @@ export const FORM_TEMPLATES: FormTemplate[] = [
           { id: crypto.randomUUID(), type: "rating", label: "Como você avalia essa área?", required: true },
           { id: crypto.randomUUID(), type: "long_text", label: "Descreva sua experiência", required: false },
           { id: crypto.randomUUID(), type: "yes_no", label: "Podemos entrar em contato para saber mais?", required: false },
-          { id: crypto.randomUUID(), type: "email", label: "Seu e-mail", required: false },
+          { id: crypto.randomUUID(), type: "contact_info", label: "Dados de Contato", required: false, contact_fields: ["first_name", "email", "phone"] },
         ],
         tagging: {
           enabled: true,

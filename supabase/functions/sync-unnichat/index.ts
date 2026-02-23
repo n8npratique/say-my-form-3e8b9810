@@ -55,13 +55,22 @@ Deno.serve(async (req) => {
   const wsSettings = (ws?.settings as any) ?? {};
   const unnichatCreds = wsSettings?.unnichat;
 
-  if (!unnichatCreds?.url || !unnichatCreds?.token) {
+  if (!unnichatCreds?.url) {
     return respond({ synced: false, reason: "not_configured" });
+  }
+
+  // Resolve token: use phone_id from integration config, fallback to first phone, then legacy token
+  const phones: any[] = unnichatCreds.phones || [];
+  const selectedPhone = phones.find((p: any) => p.phone_id === integConfig.phone_id) || phones[0];
+  const token = selectedPhone?.token || unnichatCreds.token; // backwards compat
+
+  if (!token) {
+    return respond({ synced: false, reason: "no_token" });
   }
 
   const baseUrl = unnichatCreds.url.replace(/\/$/, "");
   const headers = {
-    "Authorization": `Bearer ${unnichatCreds.token}`,
+    "Authorization": `Bearer ${token}`,
     "Content-Type": "application/json",
   };
 
@@ -120,6 +129,9 @@ Deno.serve(async (req) => {
     const name = integConfig.contact_name_field_id
       ? resolveField(integConfig.contact_name_field_id)
       : phone;
+    const email = integConfig.contact_email_field_id
+      ? resolveField(integConfig.contact_email_field_id)
+      : "";
 
     if (phone) {
       try {
@@ -136,10 +148,12 @@ Deno.serve(async (req) => {
           contactId = existing.id;
           stepsCompleted.push("contact_found");
         } else {
+          const contactBody: any = { name, phone };
+          if (email) contactBody.email = email;
           const createRes = await fetch(`${baseUrl}/contact`, {
             method: "POST",
             headers,
-            body: JSON.stringify({ name, phone }),
+            body: JSON.stringify(contactBody),
           });
           const createJson = await createRes.json();
           contactId = createJson?.data?.id ?? createJson?.id ?? null;
