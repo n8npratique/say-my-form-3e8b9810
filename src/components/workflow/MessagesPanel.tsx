@@ -176,15 +176,20 @@ function EmailConfigBadge({ formId }: { formId?: string }) {
         .maybeSingle();
       const emailCfg = (ws?.settings as any)?.email;
 
-      // Check OAuth connections first
+      // Check OAuth connections
       const { data: connections } = await supabase
         .from("google_oauth_connections")
         .select("id, google_email")
-        .eq("workspace_id", form.workspace_id)
-        .limit(1);
+        .eq("workspace_id", form.workspace_id);
+
+      const configuredConnectionId = emailCfg?.google_connection_id;
 
       if (emailCfg?.provider === "google_oauth" && connections && connections.length > 0) {
-        setProviderName(`Google (${connections[0].google_email})`);
+        // Show the specifically configured connection, or first one as fallback
+        const selectedConn = configuredConnectionId
+          ? connections.find((c: any) => c.id === configuredConnectionId)
+          : connections[0];
+        setProviderName(`Google (${selectedConn?.google_email || connections[0].google_email})`);
         setStatus("oauth");
         return;
       }
