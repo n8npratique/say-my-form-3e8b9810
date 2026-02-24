@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -15,6 +15,7 @@ import {
   Plus, ArrowLeft, FileText, MoreHorizontal,
   Eye, Pencil, Trash2, Globe, Settings, Users, Copy, ArchiveRestore,
   Star, ThumbsUp, GraduationCap, UserPlus, MessageSquare, CalendarDays, CalendarClock, Check,
+  Sparkles, Mic, MicOff, Loader2, Send,
 } from "lucide-react";
 import logoPratique from "@/assets/logo-pratique.png";
 import {
@@ -60,9 +61,14 @@ const WorkspaceForms = () => {
   const [loading, setLoading] = useState(true);
   const [newFormName, setNewFormName] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [dialogMode, setDialogMode] = useState<"blank" | "template">("blank");
+  const [dialogMode, setDialogMode] = useState<"blank" | "template" | "ai">("blank");
   const [selectedTemplate, setSelectedTemplate] = useState<FormTemplate | null>(null);
   const [activeTab, setActiveTab] = useState("active");
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiResult, setAiResult] = useState<{ name: string; fields: any[] } | null>(null);
+  const [listening, setListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -128,8 +134,12 @@ const WorkspaceForms = () => {
       return;
     }
 
-    // Build schema: blank or from template (generate fresh UUIDs)
-    const schema = selectedTemplate ? selectedTemplate.buildSchema() : { fields: [] };
+    // Build schema: blank, template, or AI-generated
+    const schema = aiResult
+      ? { fields: aiResult.fields }
+      : selectedTemplate
+        ? selectedTemplate.buildSchema()
+        : { fields: [] };
 
     await supabase.from("form_versions").insert({
       form_id: data.id,
@@ -142,6 +152,8 @@ const WorkspaceForms = () => {
     setDialogOpen(false);
     setSelectedTemplate(null);
     setDialogMode("blank");
+    setAiResult(null);
+    setAiPrompt("");
     fetchForms();
 
     // Navigate straight to editor
@@ -184,6 +196,50 @@ const WorkspaceForms = () => {
       toast({ title: "Formulário excluído permanentemente" });
       fetchTrashedForms();
     }
+  };
+
+  const generateWithAI = async () => {
+    if (!aiPrompt.trim()) return;
+    setAiGenerating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-form", {
+        body: { description: aiPrompt },
+      });
+      if (error) throw error;
+      if (data?.fields) {
+        setAiResult({ name: data.name || "Formulário IA", fields: data.fields });
+        setNewFormName(data.name || "Formulário IA");
+        toast({ title: "Formulário gerado!", description: `${data.fields.length} campos criados pela IA.` });
+      }
+    } catch (err: any) {
+      toast({ title: "Erro na geração", description: err.message, variant: "destructive" });
+    } finally {
+      setAiGenerating(false);
+    }
+  };
+
+  const toggleVoice = () => {
+    if (listening) {
+      recognitionRef.current?.stop();
+      setListening(false);
+      return;
+    }
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) { toast({ title: "Navegador não suporta voz", variant: "destructive" }); return; }
+    const recognition = new SR();
+    recognition.lang = "pt-BR";
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.onresult = (e: any) => {
+      const transcript = e.results[0][0].transcript;
+      setAiPrompt((prev) => prev ? prev + " " + transcript : transcript);
+      setListening(false);
+    };
+    recognition.onerror = () => setListening(false);
+    recognition.onend = () => setListening(false);
+    recognitionRef.current = recognition;
+    recognition.start();
+    setListening(true);
   };
 
   const duplicateForm = async (form: Form) => {
@@ -262,7 +318,7 @@ const WorkspaceForms = () => {
 
           <Dialog open={dialogOpen} onOpenChange={(open) => {
             setDialogOpen(open);
-            if (!open) { setDialogMode("blank"); setSelectedTemplate(null); setNewFormName(""); }
+            if (!open) { setDialogMode("blank"); setSelectedTemplate(null); setNewFormName(""); setAiResult(null); setAiPrompt(""); }
           }}>
             <DialogTrigger asChild>
               <Button className="gradient-primary text-primary-foreground">
@@ -281,7 +337,7 @@ const WorkspaceForms = () => {
                   variant={dialogMode === "blank" ? "default" : "outline"}
                   size="sm"
                   className={dialogMode === "blank" ? "gradient-primary text-primary-foreground" : ""}
-                  onClick={() => { setDialogMode("blank"); setSelectedTemplate(null); }}
+                  onClick={() => { setDialogMode("blank"); setSelectedTemplate(null); setAiResult(null); }}
                 >
                   <FileText className="h-4 w-4 mr-2" />
                   Em branco
@@ -290,12 +346,88 @@ const WorkspaceForms = () => {
                   variant={dialogMode === "template" ? "default" : "outline"}
                   size="sm"
                   className={dialogMode === "template" ? "gradient-primary text-primary-foreground" : ""}
-                  onClick={() => setDialogMode("template")}
+                  onClick={() => { setDialogMode("template"); setAiResult(null); }}
                 >
                   <Star className="h-4 w-4 mr-2" />
                   Usar template
                 </Button>
+                <Button
+                  variant={dialogMode === "ai" ? "default" : "outline"}
+                  size="sm"
+                  className={dialogMode === "ai" ? "gradient-primary text-primary-foreground" : ""}
+                  onClick={() => { setDialogMode("ai"); setSelectedTemplate(null); }}
+                >
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  Criar com IA
+                </Button>
               </div>
+
+              {/* AI generation */}
+              {dialogMode === "ai" && (
+                <div className="space-y-4 mb-4">
+                  <div className="bg-muted/50 rounded-xl p-4 space-y-3">
+                    <p className="text-sm text-muted-foreground">
+                      Descreva o formulário que deseja criar. Seja específico sobre os campos, tipo de perguntas e objetivo.
+                    </p>
+                    <div className="flex gap-2">
+                      <textarea
+                        value={aiPrompt}
+                        onChange={(e) => setAiPrompt(e.target.value)}
+                        placeholder="Ex: Quero um formulário de pesquisa de satisfação para academia com avaliação do atendimento, das instalações, pergunta NPS e campo de sugestões..."
+                        className="flex-1 min-h-[80px] rounded-lg border bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey && !aiGenerating) {
+                            e.preventDefault();
+                            generateWithAI();
+                          }
+                        }}
+                      />
+                      <div className="flex flex-col gap-2">
+                        <button
+                          onClick={toggleVoice}
+                          className={`h-10 w-10 rounded-full flex items-center justify-center transition-all ${
+                            listening
+                              ? "bg-red-500 text-white animate-pulse"
+                              : "bg-muted hover:bg-muted/80 text-muted-foreground"
+                          }`}
+                          title={listening ? "Parar" : "Falar"}
+                        >
+                          {listening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                        </button>
+                        <Button
+                          size="icon"
+                          className="h-10 w-10 rounded-full gradient-primary"
+                          onClick={generateWithAI}
+                          disabled={aiGenerating || !aiPrompt.trim()}
+                        >
+                          {aiGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                    </div>
+                    {listening && (
+                      <p className="text-xs text-red-500 animate-pulse">Ouvindo... fale agora</p>
+                    )}
+                  </div>
+
+                  {aiResult && (
+                    <div className="rounded-xl border bg-green-50 p-4 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-green-600" />
+                        <p className="text-sm font-medium text-green-800">
+                          Formulário gerado: {aiResult.fields.length} campos
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {aiResult.fields.map((f: any, i: number) => (
+                          <span key={i} className="text-xs bg-white rounded px-2 py-0.5 border text-muted-foreground">
+                            {f.label || f.type}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Template gallery */}
               {dialogMode === "template" && (
@@ -364,11 +496,13 @@ const WorkspaceForms = () => {
                 <Button
                   type="submit"
                   className="w-full gradient-primary text-primary-foreground"
-                  disabled={dialogMode === "template" && !selectedTemplate}
+                  disabled={(dialogMode === "template" && !selectedTemplate) || (dialogMode === "ai" && !aiResult)}
                 >
-                  {dialogMode === "template" && selectedTemplate
-                    ? `Criar com template "${selectedTemplate.name}"`
-                    : "Criar formulário em branco"}
+                  {dialogMode === "ai" && aiResult
+                    ? `Criar formulário com IA (${aiResult.fields.length} campos)`
+                    : dialogMode === "template" && selectedTemplate
+                      ? `Criar com template "${selectedTemplate.name}"`
+                      : "Criar formulário em branco"}
                 </Button>
               </form>
             </DialogContent>
