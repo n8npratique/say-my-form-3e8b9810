@@ -438,7 +438,7 @@ const FormEditor = () => {
       {/* Body */}
       <div className="flex flex-1 overflow-hidden">
         {/* Left: field list */}
-        <div className="w-96 min-w-[384px] border-r flex flex-col bg-card/30 overflow-hidden">
+        <div className="w-[340px] shrink-0 border-r flex flex-col bg-card/30 overflow-hidden">
           <div className="p-4 border-b flex items-center justify-between">
             <h2 className="font-display font-semibold text-sm">Campos ({fields.length})</h2>
             <Button size="sm" variant="outline" onClick={() => setDialogOpen(true)}>
