@@ -175,23 +175,37 @@ function EmailConfigBadge({ formId }: { formId?: string }) {
         .eq("id", form.workspace_id)
         .maybeSingle();
       const emailCfg = (ws?.settings as any)?.email;
-      if (emailCfg?.provider) {
-        setProviderName(emailCfg.provider === "gmail" ? "Gmail API" : "Resend");
+
+      // Check OAuth connections first
+      const { data: connections } = await supabase
+        .from("google_oauth_connections")
+        .select("id, google_email")
+        .eq("workspace_id", form.workspace_id)
+        .limit(1);
+
+      if (emailCfg?.provider === "google_oauth" && connections && connections.length > 0) {
+        setProviderName(`Google (${connections[0].google_email})`);
+        setStatus("oauth");
+        return;
+      }
+
+      if (emailCfg?.provider === "google_oauth") {
+        setProviderName("Google OAuth");
         setStatus("provider");
         return;
       }
 
-      // google_oauth_connections table doesn't exist yet; skip OAuth check
-      // const { data: connections } = await supabase
-      //   .from("google_oauth_connections")
-      //   .select("id, google_email")
-      //   .eq("workspace_id", form.workspace_id)
-      //   .limit(1);
-      // if (connections && connections.length > 0) {
-      //   setProviderName(`Gmail (${connections[0].google_email})`);
-      //   setStatus("oauth");
-      //   return;
-      // }
+      if (emailCfg?.provider === "resend") {
+        setProviderName("Resend");
+        setStatus("provider");
+        return;
+      }
+
+      if (connections && connections.length > 0) {
+        setProviderName(`Google (${connections[0].google_email})`);
+        setStatus("oauth");
+        return;
+      }
 
       setStatus("none");
     })();
