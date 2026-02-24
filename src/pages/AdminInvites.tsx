@@ -241,60 +241,76 @@ const AdminInvites = () => {
     setAddingAdmin(true);
 
     try {
-      // Find user by email in profiles (we can't query auth.users from client)
-      // We'll use a workaround: search invitations for accepted ones, or just insert by email
-      // Actually, we need to find user_id. Let's search profiles.
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, full_name");
+      const { data, error } = await supabase.rpc("promote_to_admin", {
+        target_email: adminEmail.trim().toLowerCase(),
+      });
 
-      // Since profiles may not have email, we'll use the admin supabase to query
-      // For now, show error if not found — admin should use user_id or we enhance later
-      // Better approach: we know emails are in invitations table (accepted ones)
-      const { data: inv } = await supabase
-        .from("invitations")
-        .select("email")
-        .eq("email", adminEmail.trim().toLowerCase())
-        .eq("status", "accepted")
-        .maybeSingle();
-
-      if (!inv) {
+      if (error) {
         toast({
-          title: "Usuário não encontrado",
-          description: "O e-mail precisa ter um convite aceito (conta criada).",
+          title: "Erro",
+          description: error.message,
           variant: "destructive",
         });
-        setAddingAdmin(false);
         return;
       }
 
-      // We need the user_id — query workspace_members or profiles to find it
-      // Since RLS may block, let's try a different approach:
-      // The profiles table has user_id but not email directly.
-      // We'll look at workspace_members for users we can see.
-      // Alternative: use the edge function. For now, let's use a service role call.
-      // Actually — we can check auth through supabase client: no, that's admin-only.
+      const result = data as { success: boolean; error?: string; user_id?: string };
 
-      // Simplest approach: the admin enters the user_id directly, or we search
-      // by full_name in profiles. But the best UX is email.
-      // Let's use a pragmatic approach: query all profiles and match via
-      // the invitation email → find in workspace_members
-
-      // For MVP, we can use the invitation system itself:
-      // when invite is accepted, we stored the email. We can find user_id
-      // by checking auth.users via edge function. For now, just show what's available.
+      if (!result.success) {
+        toast({
+          title: "Não foi possível promover",
+          description: result.error,
+          variant: "destructive",
+        });
+        return;
+      }
 
       toast({
-        title: "Funcionalidade em desenvolvimento",
-        description: "Para promover admins, use o SQL Editor do Supabase por enquanto: INSERT INTO user_roles (user_id, role) VALUES ('UUID', 'admin')",
+        title: "Admin adicionado!",
+        description: `${adminEmail} agora é administrador.`,
       });
 
       setAddAdminOpen(false);
       setAdminEmail("");
+      fetchAdmins();
     } catch {
-      toast({ title: "Erro", variant: "destructive" });
+      toast({ title: "Erro inesperado", variant: "destructive" });
     } finally {
       setAddingAdmin(false);
+    }
+  };
+
+  const handleRemoveAdmin = async (adminUser: AdminUser) => {
+    if (adminUser.role === "owner") {
+      toast({
+        title: "Não permitido",
+        description: "Não é possível remover um owner.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase.rpc("remove_admin", {
+        target_user_id: adminUser.user_id,
+      });
+
+      if (error) {
+        toast({ title: "Erro", description: error.message, variant: "destructive" });
+        return;
+      }
+
+      const result = data as { success: boolean; error?: string };
+
+      if (!result.success) {
+        toast({ title: "Erro", description: result.error, variant: "destructive" });
+        return;
+      }
+
+      toast({ title: "Admin removido" });
+      fetchAdmins();
+    } catch {
+      toast({ title: "Erro inesperado", variant: "destructive" });
     }
   };
 
@@ -519,9 +535,21 @@ const AdminInvites = () => {
                         <p className="text-xs text-muted-foreground">{admin.user_id.slice(0, 8)}...</p>
                       </div>
                     </div>
-                    <Badge variant={admin.role === "owner" ? "default" : "secondary"}>
-                      {admin.role === "owner" ? "Owner" : "Admin"}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={admin.role === "owner" ? "default" : "secondary"}>
+                        {admin.role === "owner" ? "Owner" : "Admin"}
+                      </Badge>
+                      {admin.role !== "owner" && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="Remover admin"
+                          onClick={() => handleRemoveAdmin(admin)}
+                        >
+                          <Ban className="h-3.5 w-3.5 text-destructive" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
