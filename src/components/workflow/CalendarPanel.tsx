@@ -95,17 +95,12 @@ export const CalendarPanel = ({ formId, fields }: CalendarPanelProps) => {
         .maybeSingle();
       setHasServiceAccount(!!sa);
 
-      // Fetch OAuth connections
-      try {
-        const { data } = await supabase.functions.invoke("google-oauth", {
-          body: { action: "status", workspace_id: form.workspace_id },
-        });
-        if (data?.connections) {
-          setOauthConnections(data.connections);
-        }
-      } catch {
-        // OAuth might not be deployed
-      }
+      // Fetch OAuth connections directly from table (faster than edge function)
+      const { data: conns } = await supabase
+        .from("google_oauth_connections")
+        .select("id, google_email")
+        .eq("workspace_id", form.workspace_id);
+      if (conns) setOauthConnections(conns);
     }
 
     setLoading(false);

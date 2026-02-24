@@ -66,17 +66,12 @@ export const SheetsPanel = ({ formId }: SheetsPanelProps) => {
         .maybeSingle();
       setHasServiceAccount(!!sa);
 
-      // Buscar contas OAuth conectadas
-      try {
-        const { data } = await supabase.functions.invoke("google-oauth", {
-          body: { action: "status", workspace_id: form.workspace_id },
-        });
-        if (data?.connections) {
-          setOauthConnections(data.connections);
-        }
-      } catch {
-        // OAuth might not be deployed
-      }
+      // Buscar contas OAuth conectadas (direto da tabela = mais rápido)
+      const { data: conns } = await supabase
+        .from("google_oauth_connections")
+        .select("id, google_email")
+        .eq("workspace_id", form.workspace_id);
+      if (conns) setOauthConnections(conns);
     }
 
     setLoading(false);

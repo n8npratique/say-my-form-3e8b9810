@@ -148,14 +148,13 @@ export const AppointmentConfigSection = ({ field, onChange, workspaceId, fields 
     if (!workspaceId) return;
     const fetchConnections = async () => {
       try {
-        const { data } = await supabase.functions.invoke("google-oauth", {
-          body: { action: "status", workspace_id: workspaceId },
-        });
-        if (data?.connections) {
-          setOauthConnections(data.connections);
-        }
+        const { data: conns } = await supabase
+          .from("google_oauth_connections")
+          .select("id, google_email")
+          .eq("workspace_id", workspaceId);
+        if (conns) setOauthConnections(conns);
       } catch {
-        // OAuth might not be deployed
+        // table might not exist
       }
       setLoading(false);
     };
