@@ -55,17 +55,17 @@ export const FieldItem = ({
       {field.required && (
         <span className="text-xs text-destructive font-medium">*</span>
       )}
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-7 w-7 shrink-0 opacity-60 hover:opacity-100 hover:bg-destructive/10 transition-all"
+      <button
+        type="button"
+        className="h-6 w-6 shrink-0 flex items-center justify-center rounded bg-red-50 hover:bg-red-100 transition-colors"
         draggable={false}
         onMouseDown={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => { e.stopPropagation(); onDelete(); }}
+        title="Excluir campo"
       >
-        <Trash2 className="h-3.5 w-3.5 text-destructive" />
-      </Button>
+        <Trash2 className="h-3.5 w-3.5 text-red-500" />
+      </button>
     </div>
   );
 };
