@@ -497,6 +497,18 @@ export type Database = {
         Args: { target_user_id: string }
         Returns: Json
       }
+      list_all_users: {
+        Args: Record<string, never>
+        Returns: { user_id: string; email: string; role: string; created_at: string; last_sign_in_at: string; is_banned: boolean }[]
+      }
+      delete_user: {
+        Args: { target_user_id: string }
+        Returns: Json
+      }
+      toggle_user_status: {
+        Args: { target_user_id: string; active: boolean }
+        Returns: Json
+      }
     }
     Enums: {
       app_role: "owner" | "admin" | "editor" | "viewer"

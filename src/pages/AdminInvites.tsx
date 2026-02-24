@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import {
-  ArrowLeft, Mail, Copy, RefreshCw, Ban, Shield, UserPlus, Check, Loader2,
+  ArrowLeft, Mail, Copy, RefreshCw, Ban, Shield, UserPlus, Check, Loader2, Trash2, Users,
 } from "lucide-react";
 import logoPratique from "@/assets/logo-pratique.png";
 
@@ -31,6 +31,15 @@ interface AdminUser {
   email?: string;
 }
 
+interface SystemUser {
+  user_id: string;
+  email: string;
+  role: string;
+  created_at: string;
+  last_sign_in_at: string;
+  is_banned: boolean;
+}
+
 const AdminInvites = () => {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
@@ -39,7 +48,10 @@ const AdminInvites = () => {
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [admins, setAdmins] = useState<AdminUser[]>([]);
+  const [allUsers, setAllUsers] = useState<SystemUser[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(true);
   const [loadingInvites, setLoadingInvites] = useState(true);
+  const [isOwner, setIsOwner] = useState(false);
 
   // Send invite form
   const [inviteEmail, setInviteEmail] = useState("");
@@ -67,8 +79,10 @@ const AdminInvites = () => {
         return;
       }
       setIsAdmin(true);
+      setIsOwner(data.role === "owner");
       fetchInvitations();
       fetchAdmins();
+      if (data.role === "owner") fetchAllUsers();
     };
 
     checkAdmin();
@@ -95,6 +109,89 @@ const AdminInvites = () => {
           email: d.email || d.user_id,
         }))
       );
+    }
+  };
+
+  const fetchAllUsers = async () => {
+    setLoadingUsers(true);
+    const { data } = await supabase.rpc("list_all_users");
+    if (data) {
+      setAllUsers(
+        data.map((d: any) => ({
+          user_id: d.user_id,
+          email: d.email,
+          role: d.role,
+          created_at: d.created_at,
+          last_sign_in_at: d.last_sign_in_at,
+          is_banned: d.is_banned,
+        }))
+      );
+    }
+    setLoadingUsers(false);
+  };
+
+  const handleDeleteUser = async (targetUser: SystemUser) => {
+    if (targetUser.role === "owner") {
+      toast({ title: "Não permitido", description: "Não é possível excluir o owner.", variant: "destructive" });
+      return;
+    }
+    if (!confirm(`Tem certeza que deseja excluir ${targetUser.email} do sistema? Esta ação não pode ser desfeita.`)) return;
+
+    try {
+      const { data, error } = await supabase.rpc("delete_user", {
+        target_user_id: targetUser.user_id,
+      });
+
+      if (error) {
+        toast({ title: "Erro", description: error.message, variant: "destructive" });
+        return;
+      }
+
+      const result = data as { success: boolean; error?: string };
+
+      if (!result.success) {
+        toast({ title: "Erro", description: result.error, variant: "destructive" });
+        return;
+      }
+
+      toast({ title: "Usuário excluído", description: `${targetUser.email} foi removido do sistema.` });
+      fetchAllUsers();
+      fetchAdmins();
+    } catch {
+      toast({ title: "Erro inesperado", variant: "destructive" });
+    }
+  };
+
+  const handleToggleStatus = async (targetUser: SystemUser) => {
+    if (targetUser.role === "owner") {
+      toast({ title: "Não permitido", description: "Não é possível inativar o owner.", variant: "destructive" });
+      return;
+    }
+    const newActive = targetUser.is_banned;
+    const action = newActive ? "reativar" : "inativar";
+    if (!confirm(`Tem certeza que deseja ${action} ${targetUser.email}?`)) return;
+
+    try {
+      const { data, error } = await supabase.rpc("toggle_user_status", {
+        target_user_id: targetUser.user_id,
+        active: newActive,
+      });
+
+      if (error) {
+        toast({ title: "Erro", description: error.message, variant: "destructive" });
+        return;
+      }
+
+      const result = data as { success: boolean; error?: string };
+      if (!result.success) {
+        toast({ title: "Erro", description: result.error, variant: "destructive" });
+        return;
+      }
+
+      toast({ title: newActive ? "Usuário reativado" : "Usuário inativado" });
+      fetchAllUsers();
+    } catch {
+      toast({ title: "Erro inesperado", variant: "destructive" });
     }
   };
 
@@ -544,6 +641,100 @@ const AdminInvites = () => {
             )}
           </CardContent>
         </Card>
+        {/* Users Management Section (Owner only) */}
+        {isOwner && (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="h-5 w-5" />
+                  Usuários do Sistema
+                </CardTitle>
+                <CardDescription>
+                  {allUsers.length} usuário(s) cadastrado(s). Gerencie o acesso ao sistema.
+                </CardDescription>
+              </div>
+              <Button variant="ghost" size="icon" onClick={fetchAllUsers}>
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {loadingUsers ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                </div>
+              ) : allUsers.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  Nenhum usuário encontrado.
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>E-mail</TableHead>
+                        <TableHead>Papel</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Criado em</TableHead>
+                        <TableHead>Último login</TableHead>
+                        <TableHead className="text-right">Ações</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {allUsers.map((u) => (
+                        <TableRow key={u.user_id} className={u.is_banned ? "opacity-50" : ""}>
+                          <TableCell className="font-medium">{u.email}</TableCell>
+                          <TableCell>
+                            <Badge variant={u.role === "owner" ? "default" : u.role === "admin" ? "secondary" : "outline"}>
+                              {u.role}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {u.is_banned ? (
+                              <Badge variant="destructive">Inativo</Badge>
+                            ) : (
+                              <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Ativo</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {new Date(u.created_at).toLocaleDateString("pt-BR")}
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {u.last_sign_in_at
+                              ? new Date(u.last_sign_in_at).toLocaleDateString("pt-BR")
+                              : "Nunca"}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {u.role !== "owner" && (
+                              <div className="flex items-center justify-end gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  title={u.is_banned ? "Reativar" : "Inativar"}
+                                  onClick={() => handleToggleStatus(u)}
+                                >
+                                  <Ban className="h-3.5 w-3.5 text-orange-500" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  title="Excluir do sistema"
+                                  onClick={() => handleDeleteUser(u)}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                                </Button>
+                              </div>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </main>
     </div>
   );
