@@ -314,13 +314,15 @@ export const RunnerField = ({ field, index, total, onAnswer, formId, locale, fie
         return (
           <RadioGroup value={value} onValueChange={(v) => { setValue(v); }} className="space-y-3">
             {(displayOptions || []).map((opt, i) => (
-              <label
+              <motion.label
                 key={i}
-                className={`flex items-center gap-3 p-4 rounded-lg border cursor-pointer transition-all hover:border-primary ${value === opt ? "border-primary bg-primary/5" : "border-border"}`}
+                whileHover={{ scale: 1.01 }}
+                whileTap={{ scale: 0.98 }}
+                className={`flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${value === opt ? "border-primary bg-primary/5 shadow-elevation-2" : "border-border hover:border-primary/40"}`}
               >
                 <RadioGroupItem value={opt} />
                 <span className="text-sm font-medium">{opt}</span>
-              </label>
+              </motion.label>
             ))}
           </RadioGroup>
         );
@@ -333,9 +335,11 @@ export const RunnerField = ({ field, index, total, onAnswer, formId, locale, fie
               <p className="text-xs" style={{ color: "var(--runner-text-secondary)" }}>Selecione as opções na ordem de preferência</p>
             )}
             {(displayOptions || []).map((opt, i) => (
-              <label
+              <motion.label
                 key={opt}
-                className={`flex items-center gap-3 p-4 rounded-lg border cursor-pointer transition-all hover:border-primary ${checkboxValues.includes(opt) ? "border-primary bg-primary/5" : "border-border"}`}
+                whileHover={{ scale: 1.01 }}
+                whileTap={{ scale: 0.98 }}
+                className={`flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${checkboxValues.includes(opt) ? "border-primary bg-primary/5 shadow-elevation-2" : "border-border hover:border-primary/40"}`}
               >
                 <Checkbox
                   checked={checkboxValues.includes(opt)}
@@ -351,7 +355,7 @@ export const RunnerField = ({ field, index, total, onAnswer, formId, locale, fie
                   </span>
                 )}
                 <span className="text-sm font-medium">{opt}</span>
-              </label>
+              </motion.label>
             ))}
           </div>
         );
@@ -360,14 +364,16 @@ export const RunnerField = ({ field, index, total, onAnswer, formId, locale, fie
         return (
           <RadioGroup value={value} onValueChange={(v) => setValue(v)} className="grid grid-cols-2 gap-3">
             {(displayOptions || []).map((opt, i) => (
-              <label
+              <motion.label
                 key={opt}
-                className={`flex flex-col items-center gap-2 p-4 rounded-lg border cursor-pointer transition-all hover:border-primary text-center ${value === opt ? "border-primary bg-primary/5 shadow-sm" : "border-border"}`}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.97 }}
+                className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 cursor-pointer transition-all text-center ${value === opt ? "border-primary bg-primary/5 shadow-elevation-2" : "border-border hover:border-primary/40"}`}
               >
                 <RadioGroupItem value={opt} className="sr-only" />
                 <ImageIcon className="h-8 w-8" style={{ color: "var(--runner-text-secondary)" }} />
                 <span className="text-sm font-medium">{opt}</span>
-              </label>
+              </motion.label>
             ))}
           </RadioGroup>
         );
@@ -391,7 +397,7 @@ export const RunnerField = ({ field, index, total, onAnswer, formId, locale, fie
               <Button
                 key={opt}
                 variant={value === opt ? "default" : "outline"}
-                className="flex-1 h-14 text-lg"
+                className={`flex-1 h-14 text-lg btn-lift ${value === opt ? "shadow-elevation-2" : ""}`}
                 onClick={() => { setValue(opt); }}
               >
                 {opt}
@@ -402,17 +408,20 @@ export const RunnerField = ({ field, index, total, onAnswer, formId, locale, fie
 
       case "rating":
         return (
-          <div className="flex gap-2 justify-center">
+          <div className="flex gap-3 justify-center">
             {[1, 2, 3, 4, 5].map((n) => (
-              <button
+              <motion.button
                 key={n}
                 onClick={() => setRating(n)}
-                className="transition-all hover:scale-110"
+                whileHover={{ scale: 1.2, y: -4 }}
+                whileTap={{ scale: 0.9 }}
+                transition={{ type: "spring", stiffness: 400, damping: 15 }}
+                className="transition-colors"
               >
                 <Star
-                  className={`h-10 w-10 ${n <= rating ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground"}`}
+                  className={`h-10 w-10 transition-colors duration-200 ${n <= rating ? "fill-yellow-400 text-yellow-400 drop-shadow-[0_2px_8px_rgba(250,204,21,0.4)]" : "text-muted-foreground/40 hover:text-yellow-300"}`}
                 />
-              </button>
+              </motion.button>
             ))}
           </div>
         );
@@ -422,13 +431,15 @@ export const RunnerField = ({ field, index, total, onAnswer, formId, locale, fie
           <div className="space-y-2">
             <div className="flex gap-1 justify-center flex-wrap">
               {Array.from({ length: 11 }, (_, i) => (
-                <button
+                <motion.button
                   key={i}
                   onClick={() => setValue(i)}
-                  className={`w-11 h-11 rounded-lg border text-sm font-medium transition-all ${value === i ? "bg-primary text-primary-foreground border-primary" : "border-border hover:border-primary"}`}
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.92 }}
+                  className={`w-11 h-11 rounded-lg border-2 text-sm font-medium transition-colors ${value === i ? "bg-primary text-primary-foreground border-primary shadow-elevation-2" : "border-border hover:border-primary/50"}`}
                 >
                   {i}
-                </button>
+                </motion.button>
               ))}
             </div>
             <div className="flex justify-between text-xs text-muted-foreground px-1">
@@ -442,13 +453,15 @@ export const RunnerField = ({ field, index, total, onAnswer, formId, locale, fie
         return (
           <div className="flex gap-2 justify-center flex-wrap">
             {Array.from({ length: 5 }, (_, i) => i + 1).map((n) => (
-              <button
+              <motion.button
                 key={n}
                 onClick={() => setValue(n)}
-                className={`w-14 h-14 rounded-lg border text-lg font-medium transition-all ${value === n ? "bg-primary text-primary-foreground border-primary" : "border-border hover:border-primary"}`}
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.92 }}
+                className={`w-14 h-14 rounded-lg border-2 text-lg font-medium transition-colors ${value === n ? "bg-primary text-primary-foreground border-primary shadow-elevation-2" : "border-border hover:border-primary/50"}`}
               >
                 {n}
-              </button>
+              </motion.button>
             ))}
           </div>
         );
@@ -504,8 +517,8 @@ export const RunnerField = ({ field, index, total, onAnswer, formId, locale, fie
                 onDragLeave={() => setDragActive(false)}
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
-                className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${
-                  dragActive ? "border-primary bg-primary/5" : "border-muted-foreground/30 hover:border-primary/50"
+                className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all ${
+                  dragActive ? "border-primary bg-primary/5 shadow-elevation-2 scale-[1.01]" : "border-muted-foreground/30 hover:border-primary/50 hover:bg-primary/[0.02]"
                 }`}
               >
                 {uploading ? (
@@ -622,6 +635,7 @@ export const RunnerField = ({ field, index, total, onAnswer, formId, locale, fie
       <Button
         onClick={submit}
         disabled={!isPassthrough && !canSubmit()}
+        className="btn-lift shadow-elevation-2 hover:shadow-elevation-3"
         style={{ backgroundColor: "var(--runner-btn-bg)", color: "var(--runner-btn-text)" }}
       >
         {isPassthrough ? i.continue : i.ok} <Check className="h-4 w-4 ml-1" />

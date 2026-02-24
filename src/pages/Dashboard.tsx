@@ -186,14 +186,14 @@ const Dashboard = () => {
       {/* Content */}
       <main className="container py-8">
         <div className="flex items-center justify-between mb-8">
-          <div>
+          <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.4 }}>
             <h1 className="text-3xl font-display font-bold">Workspaces</h1>
             <p className="text-muted-foreground mt-1">Selecione ou crie um workspace para começar</p>
-          </div>
+          </motion.div>
 
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="gradient-primary text-primary-foreground">
+              <Button className="gradient-primary text-primary-foreground btn-lift shadow-elevation-2">
                 <Plus className="h-4 w-4 mr-2" />
                 Novo Workspace
               </Button>
@@ -238,14 +238,14 @@ const Dashboard = () => {
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {workspaces.map((ws, i) => (
-              <motion.div key={ws.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
+              <motion.div key={ws.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08, type: "spring", stiffness: 260, damping: 20 }}>
                 <Card
-                  className="cursor-pointer hover:shadow-lg hover:border-primary/30 transition-all group"
+                  className="cursor-pointer card-hover-glow group"
                   onClick={() => navigate(`/workspace/${ws.id}`)}
                 >
                   <CardHeader>
                     <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-lg gradient-primary flex items-center justify-center">
+                      <div className="h-10 w-10 rounded-lg gradient-primary flex items-center justify-center shadow-elevation-2 group-hover:shadow-elevation-3 transition-shadow">
                         <Building2 className="h-5 w-5 text-primary-foreground" />
                       </div>
                       <div>

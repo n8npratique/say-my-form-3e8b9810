@@ -174,9 +174,10 @@ const Auth = () => {
     <div className="flex min-h-screen">
       {/* Left panel - branding */}
       <div className="hidden lg:flex lg:w-1/2 gradient-primary items-center justify-center p-12 relative overflow-hidden">
-        <div className="absolute inset-0 opacity-20">
-          <div className="absolute top-20 left-20 w-72 h-72 rounded-full bg-white/10 blur-3xl" />
-          <div className="absolute bottom-20 right-20 w-96 h-96 rounded-full bg-white/10 blur-3xl" />
+        <div className="absolute inset-0 opacity-30">
+          <div className="absolute top-20 left-20 w-72 h-72 rounded-full bg-white/15 blur-3xl animate-blob" />
+          <div className="absolute bottom-20 right-20 w-96 h-96 rounded-full bg-white/15 blur-3xl animate-blob-delay" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 rounded-full bg-white/10 blur-3xl animate-blob-delay-2" />
         </div>
         <div className="relative z-10 text-center">
           <motion.div
@@ -227,7 +228,7 @@ const Auth = () => {
             </motion.div>
           )}
 
-          <Card className="border-0 shadow-xl">
+          <Card className="border-0 shadow-elevation-4">
             <CardHeader className="space-y-1 pb-4">
               <CardTitle className="text-2xl font-display">{title}</CardTitle>
               <CardDescription>{description}</CardDescription>

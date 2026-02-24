@@ -351,17 +351,17 @@ const WorkspaceForms = () => {
 
       <main className="container py-8">
         <div className="flex items-center justify-between mb-6">
-          <div>
+          <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.4 }}>
             <h1 className="text-3xl font-display font-bold">Formulários</h1>
             <p className="text-muted-foreground mt-1">Gerencie os formulários deste workspace</p>
-          </div>
+          </motion.div>
 
           <Dialog open={dialogOpen} onOpenChange={(open) => {
             setDialogOpen(open);
             if (!open) { setDialogMode("blank"); setSelectedTemplate(null); setNewFormName(""); setAiResult(null); setAiPrompt(""); }
           }}>
             <DialogTrigger asChild>
-              <Button className="gradient-primary text-primary-foreground">
+              <Button className="gradient-primary text-primary-foreground btn-lift shadow-elevation-2">
                 <Plus className="h-4 w-4 mr-2" />
                 Novo Formulário
               </Button>
@@ -594,9 +594,9 @@ const WorkspaceForms = () => {
                     key={form.id}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.05 }}
+                    transition={{ delay: i * 0.08, type: "spring", stiffness: 260, damping: 20 }}
                   >
-                    <Card className="hover:shadow-lg hover:border-primary/30 transition-all group relative overflow-visible">
+                    <Card className="card-hover-glow group relative overflow-visible">
                       <FormNewBadge formId={form.id} isPublished={form.status === "published"} />
                       <CardHeader className="flex flex-row items-start justify-between space-y-0">
                         <div

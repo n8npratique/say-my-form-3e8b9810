@@ -550,65 +550,118 @@ const FormRunner = () => {
   if (completed) {
     return (
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="min-h-screen flex items-center justify-center p-4 relative"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.5 }}
+        className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden"
         style={themeStyle}
       >
         {hasOverlay && (
           <div className="absolute inset-0" style={{ backgroundColor: `rgba(0,0,0,${theme.background_overlay})` }} />
         )}
+        {/* Celebration particles */}
+        <div className="absolute inset-0 pointer-events-none z-20 overflow-hidden">
+          {Array.from({ length: 24 }).map((_, i) => (
+            <motion.div
+              key={i}
+              initial={{ y: -20, x: `${Math.random() * 100}vw`, opacity: 1, rotate: 0, scale: 0 }}
+              animate={{ y: "110vh", opacity: 0, rotate: 360 * (Math.random() > 0.5 ? 1 : -1), scale: 1 }}
+              transition={{ duration: 2.5 + Math.random() * 2, delay: Math.random() * 0.8, ease: "easeOut" }}
+              className="absolute w-2 h-2 rounded-full"
+              style={{
+                backgroundColor: [theme.button_color, "#FFD700", "#FF6B6B", "#4ECDC4", "#A78BFA", "#F472B6"][i % 6],
+                left: `${5 + Math.random() * 90}%`,
+              }}
+            />
+          ))}
+        </div>
         <div className="text-center space-y-4 max-w-md relative z-10">
           {endScreen ? (
             /* ── Conditional End Screen ── */
             <>
               {endScreen.media_url && (
-                <img
+                <motion.img
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.2, duration: 0.5 }}
                   src={endScreen.media_url}
                   alt=""
                   className="w-full max-h-48 object-contain rounded-xl mb-2"
                 />
               )}
-              <CheckCircle2 className="h-14 w-14 mx-auto" style={{ color: theme.button_color }} />
-              <h1 className="text-2xl font-bold">{endScreen.label || t(locale).thankYou}</h1>
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: 0.3, type: "spring", stiffness: 200, damping: 15 }}
+              >
+                <CheckCircle2 className="h-16 w-16 mx-auto" style={{ color: theme.button_color }} />
+              </motion.div>
+              <motion.h1
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5, duration: 0.4 }}
+                className="text-2xl font-bold"
+              >
+                {endScreen.label || t(locale).thankYou}
+              </motion.h1>
               {endScreen.placeholder && (
-                <p style={{ color: theme.text_secondary_color }}>{endScreen.placeholder}</p>
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.7 }}
+                  style={{ color: theme.text_secondary_color }}
+                >
+                  {endScreen.placeholder}
+                </motion.p>
               )}
               {(endScreen as any).button_text && (endScreen as any).button_url && (
-                <a
+                <motion.a
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.9 }}
                   href={(endScreen as any).button_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-block mt-2 px-6 py-2 rounded-lg font-medium transition-opacity hover:opacity-80"
+                  className="inline-block mt-2 px-6 py-3 rounded-xl font-medium btn-lift"
                   style={{ backgroundColor: theme.button_color, color: theme.button_text_color }}
                 >
                   {(endScreen as any).button_text}
-                </a>
+                </motion.a>
               )}
             </>
           ) : outcomeLabel ? (
             /* ── Outcome (no specific end screen) ── */
             <>
-              <Trophy className="h-16 w-16 mx-auto" style={{ color: theme.button_color }} />
-              <h1 className="text-2xl font-bold">{outcomeLabel}</h1>
-              {outcomeDesc && <p style={{ color: theme.text_secondary_color }}>{outcomeDesc}</p>}
+              <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.3, type: "spring", stiffness: 200, damping: 15 }}>
+                <Trophy className="h-16 w-16 mx-auto" style={{ color: theme.button_color }} />
+              </motion.div>
+              <motion.h1 initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="text-2xl font-bold">{outcomeLabel}</motion.h1>
+              {outcomeDesc && <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.7 }} style={{ color: theme.text_secondary_color }}>{outcomeDesc}</motion.p>}
             </>
           ) : (
             /* ── Default thank-you screen ── */
             <>
-              <CheckCircle2 className="h-16 w-16 mx-auto" style={{ color: theme.button_color }} />
-              <h1 className="text-2xl font-bold">{t(locale).thankYou}</h1>
-              <p style={{ color: theme.text_secondary_color }}>{t(locale).responseSent}</p>
+              <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.3, type: "spring", stiffness: 200, damping: 15 }}>
+                <CheckCircle2 className="h-16 w-16 mx-auto" style={{ color: theme.button_color }} />
+              </motion.div>
+              <motion.h1 initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="text-2xl font-bold">{t(locale).thankYou}</motion.h1>
+              <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.7 }} style={{ color: theme.text_secondary_color }}>{t(locale).responseSent}</motion.p>
             </>
           )}
 
           {/* Score card — always shown when scoring is active */}
           {scoreResult && (
-            <div className="mt-4 p-4 rounded-xl" style={{ backgroundColor: `${theme.button_color}15`, border: `1px solid ${theme.button_color}30` }}>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.9, duration: 0.5 }}
+              className="mt-4 p-5 rounded-2xl"
+              style={{ backgroundColor: `${theme.button_color}12`, border: `1px solid ${theme.button_color}25` }}
+            >
               <p className="text-sm" style={{ color: theme.text_secondary_color }}>{t(locale).yourScore}</p>
-              <p className="text-3xl font-bold" style={{ color: theme.button_color }}>{scoreResult.score}</p>
-              {scoreResult.label && <p className="text-sm" style={{ color: theme.text_secondary_color }}>{scoreResult.label}</p>}
-            </div>
+              <p className="text-4xl font-bold mt-1" style={{ color: theme.button_color }}>{scoreResult.score}</p>
+              {scoreResult.label && <p className="text-sm mt-1" style={{ color: theme.text_secondary_color }}>{scoreResult.label}</p>}
+            </motion.div>
           )}
         </div>
       </motion.div>
@@ -625,7 +678,7 @@ const FormRunner = () => {
         <div className="absolute inset-0 z-0" style={{ backgroundColor: `rgba(0,0,0,${theme.background_overlay})` }} />
       )}
       <div className="sticky top-0 z-50 backdrop-blur-sm" style={{ backgroundColor: `${theme.background_color}CC` }}>
-        <Progress value={progress} className="h-1 rounded-none" />
+        <Progress value={progress} className="h-1.5 rounded-none" />
       </div>
 
       <div className="flex-1 flex items-center justify-center p-6 relative z-10">
