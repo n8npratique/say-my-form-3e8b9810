@@ -41,7 +41,9 @@ export const ActionsPanel = ({
     if (t === "contact_info" && f.contact_fields?.includes("phone")) return true;
     return false;
   });
-  // Calendar integration is now handled exclusively by the appointment field config
+  const hasAppointment = fields.some((f) => f.type === "appointment");
+  // Email tab accessible when form has email field OR appointment (which collects email)
+  const canSendEmail = hasEmailField || hasAppointment;
 
   const MissingFieldWarning = ({ fieldType, integration }: { fieldType: string; integration: string }) => (
     <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-4 text-center space-y-2">
@@ -71,7 +73,7 @@ export const ActionsPanel = ({
           <TabsTrigger value="sheets" className="gap-1 text-xs px-0.5">
             <GoogleSheetsIcon size={14} />
           </TabsTrigger>
-          <TabsTrigger value="messages" className={`gap-1 text-xs px-0.5 ${!hasEmailField ? "opacity-50" : ""}`}>
+          <TabsTrigger value="messages" className={`gap-1 text-xs px-0.5 ${!canSendEmail ? "opacity-50" : ""}`}>
             <GmailIcon size={14} />
           </TabsTrigger>
           <TabsTrigger value="whatsapp" className={`gap-1 text-xs px-0.5 ${!hasPhoneField ? "opacity-50" : ""}`}>
@@ -103,8 +105,8 @@ export const ActionsPanel = ({
           <SheetsPanel formId={formId} />
         </TabsContent>
         <TabsContent value="messages" className="mt-0">
-          {hasEmailField ? (
-            <MessagesPanel templates={emailTemplates} onUpdateTemplates={onUpdateEmailTemplates} formId={formId} fields={fields} hasAppointment={fields.some((f) => f.type === "appointment")} />
+          {canSendEmail ? (
+            <MessagesPanel templates={emailTemplates} onUpdateTemplates={onUpdateEmailTemplates} formId={formId} fields={fields} hasAppointment={hasAppointment} hasEmailField={hasEmailField} />
           ) : (
             <MissingFieldWarning fieldType="email" integration="Email" />
           )}

@@ -38,6 +38,7 @@ interface MessagesPanelProps {
   formId?: string;
   fields?: FormField[];
   hasAppointment?: boolean;
+  hasEmailField?: boolean;
 }
 
 const SYSTEM_VARIABLES: VariableItem[] = [
@@ -350,6 +351,7 @@ export const MessagesPanel = ({
   formId,
   fields = [],
   hasAppointment = false,
+  hasEmailField = true,
 }: MessagesPanelProps) => {
   const { toast } = useToast();
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -566,6 +568,24 @@ export const MessagesPanel = ({
         </div>
 
         <EmailConfigBadge formId={formId} />
+
+        {/* Warning: no email field (appointment provides email only for its own template) */}
+        {!hasEmailField && hasAppointment && (
+          <div className="flex items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5">
+            <AlertCircle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+            <span className="text-[11px] text-amber-700 dark:text-amber-400">
+              O agendamento coleta email automaticamente. Para enviar emails personalizados, adicione um campo de <strong>email</strong> ao formulário.
+            </span>
+          </div>
+        )}
+        {!hasEmailField && !hasAppointment && (
+          <div className="flex items-center gap-1.5 rounded-md border border-red-500/30 bg-red-500/10 px-2.5 py-1.5">
+            <AlertCircle className="h-3.5 w-3.5 text-red-600 shrink-0" />
+            <span className="text-[11px] text-red-700 dark:text-red-400">
+              <strong>Campo de email obrigatório.</strong> Adicione um campo de email ou informações de contato para que os templates funcionem.
+            </span>
+          </div>
+        )}
 
         <p className="text-xs text-muted-foreground">
           Configure emails automáticos enviados ao completar o formulário.
