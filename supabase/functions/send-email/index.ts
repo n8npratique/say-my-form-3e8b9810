@@ -425,17 +425,25 @@ Deno.serve(async (req) => {
     // Priority: Google OAuth (always try first) → Resend (fallback)
     let oauthConnection: { accessToken: string; email: string } | null = null;
 
-    // Always try OAuth first (most common case)
-    const { data: oauthConn } = await supabase
-      .from("google_oauth_connections")
-      .select("id, scopes")
-      .eq("workspace_id", form.workspace_id)
-      .limit(1)
-      .maybeSingle();
+    // Use specific connection if configured, otherwise pick the first one
+    const configuredConnectionId = emailConfig.google_connection_id;
+    let oauthConnId: string | null = null;
 
-    if (oauthConn) {
+    if (configuredConnectionId) {
+      oauthConnId = configuredConnectionId;
+    } else {
+      const { data: oauthConn } = await supabase
+        .from("google_oauth_connections")
+        .select("id")
+        .eq("workspace_id", form.workspace_id)
+        .limit(1)
+        .maybeSingle();
+      oauthConnId = oauthConn?.id || null;
+    }
+
+    if (oauthConnId) {
       try {
-        oauthConnection = await getOAuthAccessToken(supabase, oauthConn.id);
+        oauthConnection = await getOAuthAccessToken(supabase, oauthConnId);
       } catch (oauthErr: any) {
         console.warn("OAuth email failed:", oauthErr.message);
       }

@@ -71,6 +71,7 @@ const WorkspaceSettings = () => {
 
   // Email
   const [emailProvider, setEmailProvider] = useState<"google_oauth" | "resend">("google_oauth");
+  const [emailConnectionId, setEmailConnectionId] = useState("");
   const [resendKey, setResendKey] = useState("");
   const [senderEmail, setSenderEmail] = useState("");
   const [savingEmail, setSavingEmail] = useState(false);
@@ -132,7 +133,7 @@ const WorkspaceSettings = () => {
       setWorkspaceName(ws.name);
       const s = ((ws as any).settings as WorkspaceSettings) || {};
       if (s.waha) { setWahaUrl(s.waha.url); setWahaKey(s.waha.api_key); setWahaSession(s.waha.session || "default"); setWahaNumber(s.waha.default_number); }
-      if (s.email) { setEmailProvider(s.email.provider === "resend" ? "resend" : "google_oauth"); setResendKey(s.email.resend_api_key || ""); setSenderEmail(s.email.sender_email || ""); }
+      if (s.email) { setEmailProvider(s.email.provider === "resend" ? "resend" : "google_oauth"); setResendKey(s.email.resend_api_key || ""); setSenderEmail(s.email.sender_email || ""); setEmailConnectionId((s.email as any).google_connection_id || ""); }
       if (s.unnichat) {
         setUnnichatUrl(s.unnichat.url);
         setUnnichatPhones(s.unnichat.phones?.length ? s.unnichat.phones : (s.unnichat.token ? [{ label: "Principal", phone_id: "", token: s.unnichat.token }] : []));
@@ -315,7 +316,7 @@ const WorkspaceSettings = () => {
       settings: {
         ...current,
         email: emailProvider === "google_oauth"
-          ? { provider: "google_oauth" }
+          ? { provider: "google_oauth", google_connection_id: emailConnectionId || undefined }
           : { provider: "resend", resend_api_key: resendKey || undefined, sender_email: senderEmail },
       },
     } as any).eq("id", workspaceId!);
@@ -663,9 +664,32 @@ const WorkspaceSettings = () => {
               </div>
 
               {emailProvider === "google_oauth" ? (
-                <p className="text-sm text-muted-foreground">
-                  Emails serão enviados pela conta Google conectada via OAuth. Nenhuma configuração adicional necessária.
-                </p>
+                <div className="space-y-3">
+                  {oauthConnections.length > 0 ? (
+                    <div className="space-y-2">
+                      <Label>Conta de envio</Label>
+                      <Select value={emailConnectionId} onValueChange={setEmailConnectionId}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione a conta Google" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {oauthConnections.map((conn) => (
+                            <SelectItem key={conn.id} value={conn.id}>
+                              {conn.google_email}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Emails serão enviados a partir desta conta Google via Gmail API.
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-yellow-600">
+                      Nenhuma conta Google conectada. Conecte uma conta na seção acima.
+                    </p>
+                  )}
+                </div>
               ) : (
                 <div className="space-y-4">
                   <div className="space-y-2">
