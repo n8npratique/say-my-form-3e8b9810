@@ -485,6 +485,10 @@ export type Database = {
         Args: { _response_id: string; _session_token: string }
         Returns: boolean
       }
+      list_admins: {
+        Args: Record<string, never>
+        Returns: { user_id: string; role: string; email: string }[]
+      }
       promote_to_admin: {
         Args: { target_email: string }
         Returns: Json

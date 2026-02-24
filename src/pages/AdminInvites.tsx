@@ -86,25 +86,13 @@ const AdminInvites = () => {
   };
 
   const fetchAdmins = async () => {
-    const { data } = await supabase
-      .from("user_roles")
-      .select("user_id, role")
-      .in("role", ["owner", "admin"]);
-
+    const { data } = await supabase.rpc("list_admins");
     if (data) {
-      // Fetch emails from profiles
-      const userIds = data.map((d) => d.user_id);
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, full_name")
-        .in("user_id", userIds);
-
-      const profileMap = new Map(profiles?.map((p) => [p.user_id, p.full_name]) || []);
-
       setAdmins(
-        data.map((d) => ({
-          ...d,
-          email: profileMap.get(d.user_id) || d.user_id,
+        data.map((d: any) => ({
+          user_id: d.user_id,
+          role: d.role,
+          email: d.email || d.user_id,
         }))
       );
     }
