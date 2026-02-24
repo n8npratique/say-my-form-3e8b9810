@@ -4,7 +4,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, X, Image, Video, PanelBottom, ExternalLink } from "lucide-react";
+import { Plus, X, Image, Video, PanelBottom, ExternalLink, Trash2 } from "lucide-react";
 import { getFieldTypeConfig } from "@/config/fieldTypes";
 import type { FormField } from "./FieldItem";
 import type { ContactFieldKey } from "@/types/workflow";
@@ -28,11 +28,12 @@ const ALL_CONTACT_FIELDS: { key: ContactFieldKey; label: string }[] = [
 interface FieldConfigPanelProps {
   field: FormField;
   onChange: (updated: FormField) => void;
+  onDelete?: () => void;
   workspaceId?: string;
   fields?: FormField[];
 }
 
-export const FieldConfigPanel = ({ field, onChange, workspaceId, fields = [] }: FieldConfigPanelProps) => {
+export const FieldConfigPanel = ({ field, onChange, onDelete, workspaceId, fields = [] }: FieldConfigPanelProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cfg = getFieldTypeConfig(field.type);
   const hasOptions = OPTION_TYPES.includes(field.type);
@@ -83,10 +84,21 @@ export const FieldConfigPanel = ({ field, onChange, workspaceId, fields = [] }: 
         <div className="flex items-center justify-center h-10 w-10 rounded-lg bg-muted">
           <Icon className={`h-5 w-5 ${cfg.color}`} />
         </div>
-        <div>
+        <div className="flex-1">
           <h3 className="font-display font-semibold text-lg">{cfg.label}</h3>
           <p className="text-xs text-muted-foreground">Configure os detalhes deste campo</p>
         </div>
+        {onDelete && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-destructive hover:bg-destructive/10"
+            onClick={onDelete}
+            title="Excluir campo"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        )}
       </div>
 
       <div className="space-y-4">

@@ -438,7 +438,7 @@ const FormEditor = () => {
       {/* Body */}
       <div className="flex flex-1 overflow-hidden">
         {/* Left: field list */}
-        <div className="w-80 border-r flex flex-col bg-card/30">
+        <div className="w-80 min-w-[320px] border-r flex flex-col bg-card/30 overflow-hidden">
           <div className="p-4 border-b flex items-center justify-between">
             <h2 className="font-display font-semibold text-sm">Campos ({fields.length})</h2>
             <Button size="sm" variant="outline" onClick={() => setDialogOpen(true)}>
@@ -511,7 +511,7 @@ const FormEditor = () => {
         <div className="flex-1 overflow-auto">
           {selectedField ? (
             <div className="max-w-lg mx-auto p-8">
-              <FieldConfigPanel field={selectedField} onChange={updateField} workspaceId={workspaceId} fields={fields} />
+              <FieldConfigPanel field={selectedField} onChange={updateField} onDelete={() => deleteField(selectedField.id)} workspaceId={workspaceId} fields={fields} />
             </div>
           ) : (
             <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
