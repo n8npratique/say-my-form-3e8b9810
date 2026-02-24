@@ -9,8 +9,9 @@ import { FieldItem, type FormField } from "@/components/form-editor/FieldItem";
 import { FieldConfigPanel } from "@/components/form-editor/FieldConfigPanel";
 import { ShareDialog } from "@/components/form-editor/ShareDialog";
 import { ThemePanel } from "@/components/form-editor/ThemePanel";
-import { ArrowLeft, Plus, Save, Eye, Share2, Rocket, Plug, ClipboardList, Palette, Globe, Languages, Loader2, Clock } from "lucide-react";
+import { ArrowLeft, Plus, Save, Eye, Share2, Rocket, Plug, ClipboardList, Palette, Globe, Languages, Loader2, Clock, MoreHorizontal } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -329,93 +330,84 @@ const FormEditor = () => {
           <Button variant="outline" size="sm" onClick={handlePreview}>
             <Eye className="h-4 w-4 mr-1" /> Preview
           </Button>
-          <Select
-            value={locale}
-            onValueChange={(v) => setLocale(v as Locale)}
-          >
-            <SelectTrigger className="h-8 w-[160px] text-xs gap-1">
-              <Globe className="h-3.5 w-3.5 shrink-0" />
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {LOCALE_OPTIONS.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>
-                  <span className="mr-1.5">{opt.flag}</span>{opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {locale !== "pt-BR" && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={translateWithAI}
-              disabled={translating || fields.length === 0}
-            >
-              {translating ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Languages className="h-4 w-4 mr-1" />}
-              {translating ? "Traduzindo..." : "Traduzir com IA"}
-            </Button>
-          )}
-          <Button variant="outline" size="sm" onClick={() => setThemeOpen(true)}>
-            <Palette className="h-4 w-4 mr-1" /> Aparência
-            <span className="ml-1 flex gap-0.5">
-              <span className="w-2.5 h-2.5 rounded-full border border-border" style={{ background: theme.background_color.includes("gradient") ? theme.background_color : theme.background_color }} />
-              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: theme.button_color }} />
-              <span className="w-2.5 h-2.5 rounded-full border border-border" style={{ backgroundColor: theme.text_color }} />
-            </span>
-          </Button>
-          {slug && (
-            <Button variant="outline" size="sm" onClick={() => setShareOpen(true)}>
-              <Share2 className="h-4 w-4 mr-1" /> Compartilhar
-            </Button>
-          )}
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                className={opensAt || closesAt ? "border-orange-400 text-orange-600" : ""}
-              >
-                <Clock className="h-4 w-4 mr-1" />
-                Prazo
-                {(opensAt || closesAt) && <span className="ml-1 w-1.5 h-1.5 rounded-full bg-orange-500" />}
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm">
+                <MoreHorizontal className="h-4 w-4" />
               </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-72 space-y-3" align="end">
-              <p className="text-sm font-medium">Prazo do Formulário</p>
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Abre em</Label>
-                <Input
-                  type="datetime-local"
-                  value={opensAt}
-                  onChange={(e) => setOpensAt(e.target.value)}
-                  className="h-8 text-xs"
-                />
-                {opensAt && (
-                  <button onClick={() => setOpensAt("")} className="text-[10px] text-muted-foreground hover:text-destructive">
-                    Limpar (abrir imediatamente)
-                  </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem onClick={() => setThemeOpen(true)}>
+                <Palette className="h-4 w-4 mr-2" />
+                Aparência
+                <span className="ml-auto flex gap-0.5">
+                  <span className="w-2.5 h-2.5 rounded-full border border-border" style={{ background: theme.background_color }} />
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: theme.button_color }} />
+                </span>
+              </DropdownMenuItem>
+              {slug && (
+                <DropdownMenuItem onClick={() => setShareOpen(true)}>
+                  <Share2 className="h-4 w-4 mr-2" />
+                  Compartilhar
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              <div className="px-2 py-1.5">
+                <p className="text-xs font-medium mb-1.5 flex items-center gap-1.5">
+                  <Globe className="h-3.5 w-3.5" /> Idioma
+                </p>
+                <Select value={locale} onValueChange={(v) => setLocale(v as Locale)}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {LOCALE_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        <span className="mr-1.5">{opt.flag}</span>{opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {locale !== "pt-BR" && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full mt-1.5"
+                    onClick={translateWithAI}
+                    disabled={translating || fields.length === 0}
+                  >
+                    {translating ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Languages className="h-4 w-4 mr-1" />}
+                    {translating ? "Traduzindo..." : "Traduzir com IA"}
+                  </Button>
                 )}
               </div>
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Fecha em</Label>
-                <Input
-                  type="datetime-local"
-                  value={closesAt}
-                  onChange={(e) => setClosesAt(e.target.value)}
-                  className="h-8 text-xs"
-                />
-                {closesAt && (
-                  <button onClick={() => setClosesAt("")} className="text-[10px] text-muted-foreground hover:text-destructive">
-                    Limpar (sem data de encerramento)
-                  </button>
-                )}
+              <DropdownMenuSeparator />
+              <div className="px-2 py-1.5">
+                <p className="text-xs font-medium mb-1.5 flex items-center gap-1.5">
+                  <Clock className="h-3.5 w-3.5" /> Prazo
+                  {(opensAt || closesAt) && <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />}
+                </p>
+                <div className="space-y-1.5">
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground">Abre em</Label>
+                    <Input type="datetime-local" value={opensAt} onChange={(e) => setOpensAt(e.target.value)} className="h-7 text-xs" />
+                    {opensAt && (
+                      <button onClick={() => setOpensAt("")} className="text-[10px] text-muted-foreground hover:text-destructive">Limpar</button>
+                    )}
+                  </div>
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground">Fecha em</Label>
+                    <Input type="datetime-local" value={closesAt} onChange={(e) => setClosesAt(e.target.value)} className="h-7 text-xs" />
+                    {closesAt && (
+                      <button onClick={() => setClosesAt("")} className="text-[10px] text-muted-foreground hover:text-destructive">Limpar</button>
+                    )}
+                  </div>
+                </div>
               </div>
-              <p className="text-[10px] text-muted-foreground">
-                Salve ou publique para aplicar. Respondentes fora do prazo verão uma mensagem.
-              </p>
-            </PopoverContent>
-          </Popover>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           <Button
             variant="outline"
             size="sm"

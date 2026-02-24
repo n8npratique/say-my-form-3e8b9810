@@ -46,9 +46,9 @@ export const FieldItem = ({
         <Icon className={`h-4 w-4 ${cfg.color}`} />
       </div>
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-mono text-muted-foreground">{index + 1}.</span>
-          <span className="text-sm font-medium truncate">{field.label || "Sem título"}</span>
+        <div className="flex items-start gap-2">
+          <span className="text-xs font-mono text-muted-foreground shrink-0 mt-0.5">{index + 1}.</span>
+          <span className="text-sm font-medium line-clamp-2">{field.label || "Sem título"}</span>
         </div>
         <span className="text-xs text-muted-foreground">{cfg.label}</span>
       </div>
