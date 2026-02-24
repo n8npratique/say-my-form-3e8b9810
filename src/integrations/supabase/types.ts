@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      google_oauth_connections: {
+        Row: {
+          id: string
+          workspace_id: string
+          google_email: string
+          access_token: string
+          refresh_token: string
+          token_expires_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          workspace_id: string
+          google_email: string
+          access_token: string
+          refresh_token: string
+          token_expires_at: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          workspace_id?: string
+          google_email?: string
+          access_token?: string
+          refresh_token?: string
+          token_expires_at?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
       invitations: {
         Row: {
           id: string
@@ -454,6 +484,14 @@ export type Database = {
       verify_response_session: {
         Args: { _response_id: string; _session_token: string }
         Returns: boolean
+      }
+      promote_to_admin: {
+        Args: { target_email: string }
+        Returns: Json
+      }
+      remove_admin: {
+        Args: { target_user_id: string }
+        Returns: Json
       }
     }
     Enums: {
