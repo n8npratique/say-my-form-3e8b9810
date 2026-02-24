@@ -154,10 +154,13 @@ function buildPreviewHtml(template: EmailTemplate): string {
 </html>`;
 }
 
-// ── Status badge do email config ──
+// ── Email config with account selector ──
 function EmailConfigBadge({ formId }: { formId?: string }) {
-  const [status, setStatus] = useState<"loading" | "provider" | "oauth" | "none">("loading");
-  const [providerName, setProviderName] = useState("");
+  const [status, setStatus] = useState<"loading" | "configured" | "none">("loading");
+  const [connections, setConnections] = useState<{ id: string; google_email: string }[]>([]);
+  const [selectedConnectionId, setSelectedConnectionId] = useState("");
+  const [workspaceId, setWorkspaceId] = useState("");
+  const { toast } = useToast();
 
   useEffect(() => {
     if (!formId) return;
@@ -168,6 +171,7 @@ function EmailConfigBadge({ formId }: { formId?: string }) {
         .eq("id", formId)
         .maybeSingle();
       if (!form?.workspace_id) { setStatus("none"); return; }
+      setWorkspaceId(form.workspace_id);
 
       const { data: ws } = await supabase
         .from("workspaces")
@@ -176,65 +180,81 @@ function EmailConfigBadge({ formId }: { formId?: string }) {
         .maybeSingle();
       const emailCfg = (ws?.settings as any)?.email;
 
-      // Check OAuth connections
-      const { data: connections } = await supabase
+      const { data: conns } = await supabase
         .from("google_oauth_connections")
         .select("id, google_email")
         .eq("workspace_id", form.workspace_id);
 
-      const configuredConnectionId = emailCfg?.google_connection_id;
+      setConnections(conns || []);
 
-      if (emailCfg?.provider === "google_oauth" && connections && connections.length > 0) {
-        // Show the specifically configured connection, or first one as fallback
-        const selectedConn = configuredConnectionId
-          ? connections.find((c: any) => c.id === configuredConnectionId)
-          : connections[0];
-        setProviderName(`Google (${selectedConn?.google_email || connections[0].google_email})`);
-        setStatus("oauth");
-        return;
+      if (emailCfg?.google_connection_id) {
+        setSelectedConnectionId(emailCfg.google_connection_id);
+      } else if (conns && conns.length > 0) {
+        setSelectedConnectionId(conns[0].id);
       }
 
-      if (emailCfg?.provider === "google_oauth") {
-        setProviderName("Google OAuth");
-        setStatus("provider");
-        return;
+      if ((conns && conns.length > 0) || emailCfg?.provider === "resend") {
+        setStatus("configured");
+      } else {
+        setStatus("none");
       }
-
-      if (emailCfg?.provider === "resend") {
-        setProviderName("Resend");
-        setStatus("provider");
-        return;
-      }
-
-      if (connections && connections.length > 0) {
-        setProviderName(`Google (${connections[0].google_email})`);
-        setStatus("oauth");
-        return;
-      }
-
-      setStatus("none");
     })();
   }, [formId]);
 
+  const saveConnection = async (connectionId: string) => {
+    setSelectedConnectionId(connectionId);
+    if (!workspaceId) return;
+    const { data: ws } = await supabase.from("workspaces").select("settings").eq("id", workspaceId).maybeSingle();
+    const current = (ws?.settings as any) || {};
+    await supabase.from("workspaces").update({
+      settings: {
+        ...current,
+        email: { provider: "google_oauth", google_connection_id: connectionId },
+      },
+    } as any).eq("id", workspaceId);
+    toast({ title: "Conta de email atualizada!" });
+  };
+
   if (status === "loading" || !formId) return null;
 
-  if (status === "provider" || status === "oauth") {
+  if (status === "none") {
     return (
-      <div className="flex items-center gap-1.5 rounded-md border border-green-500/30 bg-green-500/10 px-2.5 py-1.5">
-        <CheckCircle className="h-3.5 w-3.5 text-green-600" />
-        <span className="text-xs text-green-700 dark:text-green-400">
-          Email configurado ({providerName})
+      <div className="flex items-center gap-1.5 rounded-md border border-yellow-500/30 bg-yellow-500/10 px-2.5 py-1.5">
+        <AlertCircle className="h-3.5 w-3.5 text-yellow-600" />
+        <span className="text-xs text-yellow-700 dark:text-yellow-400">
+          Conecte uma conta Google nas Configurações do Workspace
         </span>
       </div>
     );
   }
 
+  const selectedEmail = connections.find((c) => c.id === selectedConnectionId)?.google_email;
+
   return (
-    <div className="flex items-center gap-1.5 rounded-md border border-yellow-500/30 bg-yellow-500/10 px-2.5 py-1.5">
-      <AlertCircle className="h-3.5 w-3.5 text-yellow-600" />
-      <span className="text-xs text-yellow-700 dark:text-yellow-400">
-        Conecte uma conta Google nas Configurações do Workspace
-      </span>
+    <div className="space-y-2">
+      <div className="flex items-center gap-1.5 rounded-md border border-green-500/30 bg-green-500/10 px-2.5 py-1.5">
+        <CheckCircle className="h-3.5 w-3.5 text-green-600" />
+        <span className="text-xs text-green-700 dark:text-green-400">
+          Email configurado ({selectedEmail ? `Google (${selectedEmail})` : "Google OAuth"})
+        </span>
+      </div>
+      {connections.length > 1 && (
+        <div className="space-y-1">
+          <Label className="text-[10px] text-muted-foreground">Conta de envio</Label>
+          <Select value={selectedConnectionId} onValueChange={saveConnection}>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="Selecione a conta" />
+            </SelectTrigger>
+            <SelectContent>
+              {connections.map((conn) => (
+                <SelectItem key={conn.id} value={conn.id} className="text-xs">
+                  {conn.google_email}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
     </div>
   );
 }
