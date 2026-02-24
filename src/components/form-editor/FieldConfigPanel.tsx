@@ -318,6 +318,63 @@ export const FieldConfigPanel = ({ field, onChange, onDelete, workspaceId, field
               )}
             </div>
 
+            {/* ── FILE UPLOAD config ── */}
+            {field.type === "file_upload" && (
+              <div className="space-y-3 rounded-lg border p-3">
+                <div>
+                  <Label className="text-sm font-medium">Tipos de arquivo aceitos</Label>
+                  <p className="text-xs text-muted-foreground mb-2">Selecione quais formatos o respondente pode enviar</p>
+                </div>
+                {[
+                  { ext: ".pdf", label: "PDF", desc: "Documentos" },
+                  { ext: ".png", label: "PNG", desc: "Imagem" },
+                  { ext: ".jpg", label: "JPG", desc: "Imagem" },
+                  { ext: ".jpeg", label: "JPEG", desc: "Imagem" },
+                  { ext: ".webp", label: "WebP", desc: "Imagem" },
+                  { ext: ".doc", label: "DOC", desc: "Word" },
+                  { ext: ".docx", label: "DOCX", desc: "Word" },
+                  { ext: ".xls", label: "XLS", desc: "Excel" },
+                  { ext: ".xlsx", label: "XLSX", desc: "Excel" },
+                  { ext: ".csv", label: "CSV", desc: "Planilha" },
+                  { ext: ".zip", label: "ZIP", desc: "Compactado" },
+                  { ext: ".mp4", label: "MP4", desc: "Vídeo" },
+                  { ext: ".mp3", label: "MP3", desc: "Áudio" },
+                ].map(({ ext, label, desc }) => {
+                  const accepted = field.accepted_file_types || [];
+                  const isChecked = accepted.includes(ext);
+                  return (
+                    <label key={ext} className="flex items-center gap-2 cursor-pointer">
+                      <Checkbox
+                        checked={isChecked}
+                        onCheckedChange={(checked) => {
+                          const updated = checked
+                            ? [...accepted, ext]
+                            : accepted.filter((t) => t !== ext);
+                          onChange({ ...field, accepted_file_types: updated });
+                        }}
+                      />
+                      <span className="text-sm font-medium">{label}</span>
+                      <span className="text-xs text-muted-foreground">({desc})</span>
+                    </label>
+                  );
+                })}
+                {(field.accepted_file_types || []).length === 0 && (
+                  <p className="text-xs text-amber-600">Nenhum tipo selecionado = todos os tipos aceitos</p>
+                )}
+                <div className="pt-2 border-t">
+                  <Label className="text-sm">Tamanho máximo (MB)</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={field.max_file_size_mb || 10}
+                    onChange={(e) => onChange({ ...field, max_file_size_mb: Number(e.target.value) || 10 })}
+                    className="mt-1 w-24"
+                  />
+                </div>
+              </div>
+            )}
+
             <div className="flex items-center justify-between rounded-lg border p-3">
               <div>
                 <Label className="text-sm">Obrigatório</Label>

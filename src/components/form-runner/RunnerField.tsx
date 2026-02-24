@@ -1,12 +1,13 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Star, ArrowRight, Check, Loader2 } from "lucide-react";
+import { Star, ArrowRight, Check, Loader2, FileUp, X, FileText, Image as ImageIcon } from "lucide-react";
 import { motion } from "framer-motion";
+import { supabase } from "@/integrations/supabase/client";
 import type { FormField, ContactFieldKey, FieldTranslation } from "@/types/workflow";
 import type { Locale } from "@/lib/i18n";
 import { t } from "@/lib/i18n";
@@ -38,6 +39,11 @@ export const RunnerField = ({ field, index, total, onAnswer, formId, locale, fie
   const [cepResolved, setCepResolved] = useState("");
   const [phoneValid, setPhoneValid] = useState(false);
   const [emailValid, setEmailValid] = useState(false);
+  const [uploadedFile, setUploadedFile] = useState<{ name: string; url: string; size: number } | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const [dragActive, setDragActive] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const i = t(locale);
   const displayLabel = fieldTranslation?.label || field.label;
@@ -111,6 +117,8 @@ export const RunnerField = ({ field, index, total, onAnswer, formId, locale, fie
   const submit = () => {
     if (field.type === "contact_info") {
       onAnswer(contactValues);
+    } else if (field.type === "file_upload") {
+      onAnswer(uploadedFile ? { file_name: uploadedFile.name, file_url: uploadedFile.url, file_size: uploadedFile.size } : value);
     } else if (field.type === "checkbox" || field.type === "ranking") {
       onAnswer(checkboxValues);
     } else if (field.type === "rating") {
@@ -138,6 +146,7 @@ export const RunnerField = ({ field, index, total, onAnswer, formId, locale, fie
     if (field.type === "rating") return rating > 0;
     if (field.type === "phone") return phoneValid;
     if (field.type === "email") return emailValid;
+    if (field.type === "file_upload") return !!uploadedFile;
     if (field.type === "appointment") return !!value && !!value.slot_start;
     return !!value;
   };
@@ -407,6 +416,117 @@ export const RunnerField = ({ field, index, total, onAnswer, formId, locale, fie
             ))}
           </div>
         );
+
+      case "file_upload": {
+        const acceptedTypes = field.accepted_file_types || [];
+        const maxSizeMb = field.max_file_size_mb || 10;
+        const acceptAttr = acceptedTypes.length > 0 ? acceptedTypes.join(",") : undefined;
+
+        const handleFile = async (file: File) => {
+          setUploadError("");
+          // Validate size
+          if (file.size > maxSizeMb * 1024 * 1024) {
+            setUploadError(`Arquivo muito grande. Máximo: ${maxSizeMb}MB`);
+            return;
+          }
+          // Validate type
+          if (acceptedTypes.length > 0) {
+            const ext = "." + file.name.split(".").pop()?.toLowerCase();
+            if (!acceptedTypes.includes(ext)) {
+              setUploadError(`Tipo não aceito. Permitidos: ${acceptedTypes.join(", ")}`);
+              return;
+            }
+          }
+          setUploading(true);
+          try {
+            const path = `uploads/${formId || "unknown"}/${crypto.randomUUID()}-${file.name}`;
+            const { error } = await supabase.storage.from("form-assets").upload(path, file, { upsert: true });
+            if (error) throw error;
+            const { data } = supabase.storage.from("form-assets").getPublicUrl(path);
+            setUploadedFile({ name: file.name, url: data.publicUrl, size: file.size });
+          } catch (err: any) {
+            setUploadError(err.message || "Erro ao enviar arquivo");
+          } finally {
+            setUploading(false);
+          }
+        };
+
+        const handleDrop = (e: React.DragEvent) => {
+          e.preventDefault();
+          setDragActive(false);
+          const file = e.dataTransfer.files?.[0];
+          if (file) handleFile(file);
+        };
+
+        const isImage = uploadedFile?.name.match(/\.(png|jpg|jpeg|webp|gif)$/i);
+
+        return (
+          <div className="space-y-3">
+            {!uploadedFile ? (
+              <div
+                onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
+                onDragLeave={() => setDragActive(false)}
+                onDrop={handleDrop}
+                onClick={() => fileInputRef.current?.click()}
+                className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${
+                  dragActive ? "border-primary bg-primary/5" : "border-muted-foreground/30 hover:border-primary/50"
+                }`}
+              >
+                {uploading ? (
+                  <div className="space-y-2">
+                    <Loader2 className="h-8 w-8 mx-auto animate-spin text-primary" />
+                    <p className="text-sm" style={{ color: "var(--runner-text-secondary)" }}>Enviando...</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <FileUp className="h-8 w-8 mx-auto" style={{ color: "var(--runner-text-secondary)" }} />
+                    <p className="text-sm font-medium">Arraste um arquivo ou clique para selecionar</p>
+                    <p className="text-xs" style={{ color: "var(--runner-text-secondary)" }}>
+                      {acceptedTypes.length > 0
+                        ? `Aceitos: ${acceptedTypes.map(t => t.replace(".", "").toUpperCase()).join(", ")}`
+                        : "Todos os tipos de arquivo"}
+                      {` — Máx. ${maxSizeMb}MB`}
+                    </p>
+                  </div>
+                )}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept={acceptAttr}
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleFile(file);
+                  }}
+                />
+              </div>
+            ) : (
+              <div className="flex items-center gap-3 p-4 rounded-xl border bg-muted/30">
+                {isImage ? (
+                  <ImageIcon className="h-8 w-8 text-blue-500 shrink-0" />
+                ) : (
+                  <FileText className="h-8 w-8 text-primary shrink-0" />
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{uploadedFile.name}</p>
+                  <p className="text-xs" style={{ color: "var(--runner-text-secondary)" }}>
+                    {(uploadedFile.size / 1024 / 1024).toFixed(2)} MB
+                  </p>
+                </div>
+                <button
+                  onClick={() => { setUploadedFile(null); setUploadError(""); }}
+                  className="h-7 w-7 flex items-center justify-center rounded-full hover:bg-destructive/10 transition"
+                >
+                  <X className="h-4 w-4 text-destructive" />
+                </button>
+              </div>
+            )}
+            {uploadError && (
+              <p className="text-sm text-red-500">{uploadError}</p>
+            )}
+          </div>
+        );
+      }
 
       case "appointment":
         return formId ? (

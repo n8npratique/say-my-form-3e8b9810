@@ -45,6 +45,8 @@ export interface FormField {
   media_type?: "video" | "image";
   contact_fields?: ContactFieldKey[];
   appointment_config?: AppointmentConfig;
+  accepted_file_types?: string[];
+  max_file_size_mb?: number;
 }
 
 // ── Logic / Branching ──
