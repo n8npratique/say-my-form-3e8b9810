@@ -196,11 +196,11 @@ Deno.serve(async (req) => {
     if (workspaces && workspaces.length > 0) {
       const wsIds = workspaces.map((w: any) => w.workspace_id);
 
-      // Check for OAuth connection in any of admin's workspaces
+      // Always use tecforms@pratiquefitness.com.br for invites
       const { data: oauthConn } = await supabaseAdmin
         .from("google_oauth_connections")
-        .select("id, workspace_id")
-        .in("workspace_id", wsIds)
+        .select("id, workspace_id, google_email")
+        .eq("google_email", "tecforms@pratiquefitness.com.br")
         .limit(1)
         .maybeSingle();
 
