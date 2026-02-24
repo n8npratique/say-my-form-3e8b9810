@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar, AlertTriangle, Plus, Trash2, Loader2, RefreshCw, User } from "lucide-react";
+import { GoogleCalendarIcon } from "@/components/icons/BrandIcons";
 import { useToast } from "@/hooks/use-toast";
 import type { FormField } from "@/types/workflow";
 
@@ -197,7 +198,7 @@ export const CalendarPanel = ({ formId, fields }: CalendarPanelProps) => {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
-        <Calendar className="h-5 w-5 text-primary" />
+        <GoogleCalendarIcon size={22} />
         <h3 className="font-semibold text-sm">Google Calendar</h3>
       </div>
 
@@ -215,7 +216,7 @@ export const CalendarPanel = ({ formId, fields }: CalendarPanelProps) => {
       {!integration && (
         <div className="text-center py-6 space-y-3">
           <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
-            <Calendar className="h-6 w-6 text-primary" />
+            <GoogleCalendarIcon size={28} />
           </div>
           <div>
             <p className="text-sm font-medium">Google Calendar</p>

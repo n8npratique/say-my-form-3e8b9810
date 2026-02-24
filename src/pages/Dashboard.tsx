@@ -11,7 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
-import { Plus, LogOut, Building2, Bell, Shield } from "lucide-react";
+import { Plus, LogOut, Building2, Bell, Shield, FileText, BarChart3 } from "lucide-react";
 import logoPratique from "@/assets/logo-pratique.png";
 import { useRealtimeResponses } from "@/hooks/useRealtimeResponses";
 import { formatDistanceToNow } from "date-fns";
@@ -31,6 +31,8 @@ const Dashboard = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [allFormIds, setAllFormIds] = useState<string[]>([]);
   const [formNames, setFormNames] = useState<Record<string, string>>({});
+  const [wsFormCounts, setWsFormCounts] = useState<Record<string, number>>({});
+  const [wsResponseCounts, setWsResponseCounts] = useState<Record<string, number>>({});
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -67,16 +69,37 @@ const Dashboard = () => {
     }
     setLoading(false);
 
-    // Buscar todos os form_ids para o canal Realtime global
+    // Buscar todos os form_ids para o canal Realtime global + stats por workspace
     const { data: forms } = await supabase
       .from("forms")
-      .select("id, name")
+      .select("id, name, workspace_id")
       .is("deleted_at", null);
     if (forms) {
       setAllFormIds(forms.map((f) => f.id));
       const names: Record<string, string> = {};
-      forms.forEach((f) => { names[f.id] = f.name; });
+      const fCounts: Record<string, number> = {};
+      forms.forEach((f) => {
+        names[f.id] = f.name;
+        fCounts[f.workspace_id] = (fCounts[f.workspace_id] || 0) + 1;
+      });
       setFormNames(names);
+      setWsFormCounts(fCounts);
+
+      // Fetch total responses per workspace
+      const { data: responses } = await supabase
+        .from("responses")
+        .select("form_id")
+        .in("form_id", forms.map((f) => f.id));
+      if (responses) {
+        const wsIdByForm: Record<string, string> = {};
+        forms.forEach((f) => { wsIdByForm[f.id] = f.workspace_id; });
+        const rCounts: Record<string, number> = {};
+        responses.forEach((r) => {
+          const wsId = wsIdByForm[r.form_id];
+          if (wsId) rCounts[wsId] = (rCounts[wsId] || 0) + 1;
+        });
+        setWsResponseCounts(rCounts);
+      }
     }
   };
 
@@ -240,22 +263,33 @@ const Dashboard = () => {
             {workspaces.map((ws, i) => (
               <motion.div key={ws.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08, type: "spring", stiffness: 260, damping: 20 }}>
                 <Card
-                  className="cursor-pointer card-hover-glow group"
+                  className="cursor-pointer card-hover-glow group overflow-hidden"
                   onClick={() => navigate(`/workspace/${ws.id}`)}
                 >
-                  <CardHeader>
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-lg gradient-primary flex items-center justify-center shadow-elevation-2 group-hover:shadow-elevation-3 transition-shadow">
+                  <div className="h-1 w-full gradient-primary" />
+                  <CardHeader className="pt-4">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="h-11 w-11 rounded-xl gradient-primary flex items-center justify-center shadow-elevation-2 group-hover:shadow-elevation-3 transition-shadow">
                         <Building2 className="h-5 w-5 text-primary-foreground" />
                       </div>
-                      <div>
-                        <CardTitle className="text-lg font-display group-hover:text-primary transition-colors">
+                      <div className="min-w-0">
+                        <CardTitle className="text-lg font-display group-hover:text-primary transition-colors truncate">
                           {ws.name}
                         </CardTitle>
-                        <CardDescription>
-                          {new Date(ws.created_at).toLocaleDateString("pt-BR")}
+                        <CardDescription className="text-[11px]">
+                          Criado {formatDistanceToNow(new Date(ws.created_at), { locale: ptBR, addSuffix: true })}
                         </CardDescription>
                       </div>
+                    </div>
+                    <div className="flex items-center gap-4 text-xs text-muted-foreground pt-2 border-t">
+                      <span className="flex items-center gap-1.5">
+                        <FileText className="h-3.5 w-3.5" />
+                        {wsFormCounts[ws.id] || 0} {(wsFormCounts[ws.id] || 0) === 1 ? "formulário" : "formulários"}
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <BarChart3 className="h-3.5 w-3.5" />
+                        {wsResponseCounts[ws.id] || 0} {(wsResponseCounts[ws.id] || 0) === 1 ? "resposta" : "respostas"}
+                      </span>
                     </div>
                   </CardHeader>
                 </Card>

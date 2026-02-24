@@ -7,6 +7,7 @@ import { UnnichatPanel } from "./UnnichatPanel";
 import { WhatsAppPanel } from "./WhatsAppPanel";
 import { ChatGuruPanel } from "./ChatGuruPanel";
 import { Webhook, Plug, Mail, FileSpreadsheet, MessageCircle, MessageSquare, Phone } from "lucide-react";
+import { GoogleSheetsIcon, GmailIcon, WhatsAppIcon } from "@/components/icons/BrandIcons";
 import type { EmailTemplate, ScoringConfig, TaggingConfig, OutcomesConfig, FormField } from "@/types/workflow";
 
 interface ActionsPanelProps {
@@ -68,13 +69,13 @@ export const ActionsPanel = ({
             <Plug className="h-3 w-3" />
           </TabsTrigger>
           <TabsTrigger value="sheets" className="gap-1 text-xs px-0.5">
-            <FileSpreadsheet className="h-3 w-3" />
+            <GoogleSheetsIcon size={14} />
           </TabsTrigger>
           <TabsTrigger value="messages" className={`gap-1 text-xs px-0.5 ${!hasEmailField ? "opacity-50" : ""}`}>
-            <Mail className="h-3 w-3" />
+            <GmailIcon size={14} />
           </TabsTrigger>
           <TabsTrigger value="whatsapp" className={`gap-1 text-xs px-0.5 ${!hasPhoneField ? "opacity-50" : ""}`}>
-            <Phone className="h-3 w-3" />
+            <WhatsAppIcon size={14} />
           </TabsTrigger>
           <TabsTrigger value="chatguru" className={`gap-1 text-xs px-0.5 ${!hasPhoneField ? "opacity-50" : ""}`}>
             <MessageSquare className="h-3 w-3" />

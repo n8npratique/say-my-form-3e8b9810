@@ -10,6 +10,7 @@ import {
   MessageCircle, Plus, Trash2, ArrowLeft, Send, User, Shield,
   AlertTriangle, CheckCircle2, Loader2
 } from "lucide-react";
+import { WhatsAppIcon } from "@/components/icons/BrandIcons";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import type { FormField } from "@/types/workflow";
@@ -250,7 +251,7 @@ export const WhatsAppPanel = ({ formId, fields = [], hasAppointment = false }: W
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-2">
-          <MessageCircle className="h-5 w-5 text-primary" />
+          <WhatsAppIcon size={22} />
           <h3 className="font-semibold text-sm">WhatsApp</h3>
         </div>
 
@@ -420,7 +421,7 @@ export const WhatsAppPanel = ({ formId, fields = [], hasAppointment = false }: W
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <MessageCircle className="h-5 w-5 text-primary" />
+          <WhatsAppIcon size={22} />
           <h3 className="font-semibold text-sm">WhatsApp</h3>
         </div>
         <Switch

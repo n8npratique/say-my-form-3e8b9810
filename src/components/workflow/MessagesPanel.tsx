@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Mail, Plus, Trash2, ArrowLeft, Eye, Send, User, Shield, CheckCircle, AlertCircle, Calendar, Lock } from "lucide-react";
+import { GmailIcon } from "@/components/icons/BrandIcons";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import type { EmailTemplate, FormField } from "@/types/workflow";
@@ -403,7 +404,7 @@ export const MessagesPanel = ({
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-2">
-          <Mail className="h-5 w-5 text-primary" />
+          <GmailIcon size={22} />
           <h3 className="font-semibold text-sm">Templates de Email</h3>
         </div>
 

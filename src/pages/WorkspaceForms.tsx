@@ -15,8 +15,10 @@ import {
   Plus, ArrowLeft, FileText, MoreHorizontal,
   Eye, Pencil, Trash2, Globe, Settings, Users, Copy, ArchiveRestore,
   Star, ThumbsUp, GraduationCap, UserPlus, MessageSquare, CalendarDays, CalendarClock, Check,
-  Sparkles, Mic, MicOff, Loader2, Send,
+  Sparkles, Mic, MicOff, Loader2, Send, BarChart3,
 } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import logoPratique from "@/assets/logo-pratique.png";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
@@ -68,6 +70,7 @@ const WorkspaceForms = () => {
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiResult, setAiResult] = useState<{ name: string; fields: any[] } | null>(null);
   const [listening, setListening] = useState(false);
+  const [responseCounts, setResponseCounts] = useState<Record<string, number>>({});
   const recognitionRef = useRef<any>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -77,6 +80,7 @@ const WorkspaceForms = () => {
       fetchWorkspace();
       fetchForms();
       fetchTrashedForms();
+      fetchResponseCounts();
     }
   }, [workspaceId]);
 
@@ -114,6 +118,23 @@ const WorkspaceForms = () => {
       .order("deleted_at", { ascending: false });
     setTrashedForms(data || []);
   };
+
+  const fetchResponseCounts = async () => {
+    const { data } = await supabase
+      .from("responses")
+      .select("form_id")
+      .in("form_id", forms.length > 0 ? forms.map(f => f.id) : ["__none__"]);
+    if (data) {
+      const counts: Record<string, number> = {};
+      data.forEach((r) => { counts[r.form_id] = (counts[r.form_id] || 0) + 1; });
+      setResponseCounts(counts);
+    }
+  };
+
+  // Re-fetch response counts when forms change
+  useEffect(() => {
+    if (forms.length > 0) fetchResponseCounts();
+  }, [forms]);
 
   const createForm = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -596,29 +617,40 @@ const WorkspaceForms = () => {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.08, type: "spring", stiffness: 260, damping: 20 }}
                   >
-                    <Card className="card-hover-glow group relative overflow-visible">
+                    <Card className="card-hover-glow group relative overflow-hidden">
                       <FormNewBadge formId={form.id} isPublished={form.status === "published"} />
-                      <CardHeader className="flex flex-row items-start justify-between space-y-0">
+                      {/* Gradient top strip */}
+                      <div className={`h-1 w-full ${form.status === "published" ? "gradient-primary" : "bg-muted"}`} />
+                      <CardHeader className="pt-4 pb-3 flex flex-row items-start justify-between space-y-0">
                         <div
-                          className="flex-1 cursor-pointer"
+                          className="flex-1 cursor-pointer min-w-0"
                           onClick={() => navigate(`/workspace/${workspaceId}/form/${form.id}/edit`)}
                         >
-                          <div className="flex items-center gap-2 mb-1">
-                            <CardTitle className="text-lg font-display group-hover:text-primary transition-colors">
+                          <div className="flex items-center gap-2.5 mb-2">
+                            <div className={`h-9 w-9 rounded-lg flex items-center justify-center shrink-0 ${form.status === "published" ? "gradient-primary" : "bg-muted"}`}>
+                              <FileText className={`h-4.5 w-4.5 ${form.status === "published" ? "text-primary-foreground" : "text-muted-foreground"}`} />
+                            </div>
+                            <CardTitle className="text-base font-display group-hover:text-primary transition-colors truncate">
                               {form.name}
                             </CardTitle>
                           </div>
-                          <CardDescription className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <Badge
                               variant={form.status === "published" ? "default" : "secondary"}
-                              className={form.status === "published" ? "gradient-primary text-primary-foreground border-0" : ""}
+                              className={`text-[10px] h-5 ${form.status === "published" ? "gradient-primary text-primary-foreground border-0" : ""}`}
                             >
                               {form.status === "published" ? "Publicado" : "Rascunho"}
                             </Badge>
-                            <span className="text-xs">
-                              Atualizado {new Date(form.updated_at).toLocaleDateString("pt-BR")}
-                            </span>
-                          </CardDescription>
+                            {(responseCounts[form.id] ?? 0) > 0 && (
+                              <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                                <BarChart3 className="h-3 w-3" />
+                                {responseCounts[form.id]} {responseCounts[form.id] === 1 ? "resposta" : "respostas"}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-muted-foreground mt-2">
+                            Atualizado {formatDistanceToNow(new Date(form.updated_at), { locale: ptBR, addSuffix: true })}
+                          </p>
                         </div>
 
                         <DropdownMenu>

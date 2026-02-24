@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FileSpreadsheet, ExternalLink, AlertTriangle, RefreshCw, Trash2, Plus, Clock, History, Zap, UserPlus, X, User } from "lucide-react";
+import { GoogleSheetsIcon } from "@/components/icons/BrandIcons";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -292,7 +293,7 @@ export const SheetsPanel = ({ formId }: SheetsPanelProps) => {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
-        <FileSpreadsheet className="h-5 w-5 text-green-600" />
+        <GoogleSheetsIcon size={22} />
         <h3 className="font-semibold text-sm">Google Sheets</h3>
         <button
           onClick={fetchData}
@@ -343,7 +344,7 @@ export const SheetsPanel = ({ formId }: SheetsPanelProps) => {
       {!integration && (
         <div className="text-center py-6 space-y-3">
           <div className="w-12 h-12 rounded-full bg-green-500/10 flex items-center justify-center mx-auto">
-            <FileSpreadsheet className="h-6 w-6 text-green-600" />
+            <GoogleSheetsIcon size={28} />
           </div>
           <div>
             <p className="text-sm font-medium">Google Sheets</p>
