@@ -58,7 +58,7 @@ export const FieldItem = ({
       <Button
         variant="ghost"
         size="icon"
-        className="h-7 w-7 shrink-0 opacity-40 hover:opacity-100 transition-opacity"
+        className="h-7 w-7 shrink-0 opacity-0 group-hover:opacity-100 hover:bg-destructive/10 transition-all"
         draggable={false}
         onMouseDown={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
