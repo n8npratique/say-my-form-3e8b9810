@@ -62,8 +62,17 @@ Deno.serve(async (req) => {
     .eq("id", form.workspace_id)
     .maybeSingle();
 
-  const wsSettings = (ws?.settings as any) ?? {};
-  const waha = wsSettings?.waha;
+  let wsSettings = (ws?.settings as any) ?? {};
+  let waha = wsSettings?.waha;
+
+  // Fallback: if workspace has no WAHA config, use global (owner's) settings
+  if (!waha?.url || !waha?.session) {
+    const { data: globalSettings } = await supabase.rpc("get_global_settings");
+    if (globalSettings) {
+      const global = typeof globalSettings === "string" ? JSON.parse(globalSettings) : globalSettings;
+      waha = global?.waha;
+    }
+  }
 
   if (!waha?.url || !waha?.session) {
     return respond({ sent: false, reason: "waha_not_configured" });

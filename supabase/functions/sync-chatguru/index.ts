@@ -52,8 +52,17 @@ Deno.serve(async (req) => {
     .eq("id", form.workspace_id)
     .maybeSingle();
 
-  const wsSettings = (ws?.settings as any) ?? {};
-  const chatguruCreds = wsSettings?.chatguru;
+  let wsSettings = (ws?.settings as any) ?? {};
+  let chatguruCreds = wsSettings?.chatguru;
+
+  // Fallback: if workspace has no ChatGuru config, use global (owner's) settings
+  if (!chatguruCreds?.key || !chatguruCreds?.account_id) {
+    const { data: globalSettings } = await supabase.rpc("get_global_settings");
+    if (globalSettings) {
+      const global = typeof globalSettings === "string" ? JSON.parse(globalSettings) : globalSettings;
+      chatguruCreds = global?.chatguru;
+    }
+  }
 
   if (!chatguruCreds?.key || !chatguruCreds?.account_id) {
     return respond({ synced: false, reason: "not_configured" });
