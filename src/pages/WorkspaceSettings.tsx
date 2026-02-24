@@ -132,13 +132,27 @@ const WorkspaceSettings = () => {
     if (ws) {
       setWorkspaceName(ws.name);
       const s = ((ws as any).settings as WorkspaceSettings) || {};
-      if (s.waha) { setWahaUrl(s.waha.url); setWahaKey(s.waha.api_key); setWahaSession(s.waha.session || "default"); setWahaNumber(s.waha.default_number); }
+
+      // Fetch global settings as fallback for empty configs
+      let g: any = {};
+      if (!s.waha?.url || !s.chatguru?.key) {
+        const { data: globalData } = await supabase.rpc("get_global_settings");
+        if (globalData) {
+          g = typeof globalData === "string" ? JSON.parse(globalData) : globalData;
+        }
+      }
+
+      // Merge: workspace settings take priority, global as fallback
+      const waha = s.waha?.url ? s.waha : g.waha;
+      const chatguru = s.chatguru?.key ? s.chatguru : g.chatguru;
+
+      if (waha) { setWahaUrl(waha.url); setWahaKey(waha.api_key); setWahaSession(waha.session || "default"); setWahaNumber(waha.default_number); }
       if (s.email) { setEmailProvider(s.email.provider === "resend" ? "resend" : "google_oauth"); setResendKey(s.email.resend_api_key || ""); setSenderEmail(s.email.sender_email || ""); setEmailConnectionId((s.email as any).google_connection_id || ""); }
       if (s.unnichat) {
         setUnnichatUrl(s.unnichat.url);
         setUnnichatPhones(s.unnichat.phones?.length ? s.unnichat.phones : (s.unnichat.token ? [{ label: "Principal", phone_id: "", token: s.unnichat.token }] : []));
       }
-      if (s.chatguru) { setChatguruKey(s.chatguru.key || ""); setChatguruAccountId(s.chatguru.account_id || ""); setChatguruPhones(s.chatguru.phones || []); }
+      if (chatguru) { setChatguruKey(chatguru.key || ""); setChatguruAccountId(chatguru.account_id || ""); setChatguruPhones(chatguru.phones || []); }
       if (s.timezone) setTimezone(s.timezone);
     }
 
