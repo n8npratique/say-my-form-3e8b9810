@@ -78,6 +78,7 @@ Deno.serve(async (req) => {
   const meta: any = {};
   let formName = form.name;
 
+  let sessionToken = "";
   if (!test_mode && response_id) {
     const { data: response } = await supabase
       .from("responses")
@@ -87,6 +88,7 @@ Deno.serve(async (req) => {
 
     if (!response) return respond({ sent: false, reason: "response_not_found" });
 
+    sessionToken = (response as any).session_token || "";
     for (const ans of response.response_answers ?? []) {
       answers[ans.field_key] = ans.value ?? ans.value_text;
     }
@@ -131,11 +133,13 @@ Deno.serve(async (req) => {
     }
   }
 
-  // Build cancel URL
-  const sessionToken = meta.session_token || "";
+  // Build cancel + reschedule URLs
   const siteUrl = Deno.env.get("SITE_URL") || req.headers.get("origin") || "";
   const cancelUrl = (sessionToken && appointmentField && siteUrl)
     ? `${siteUrl}/cancel/${sessionToken}`
+    : "";
+  const rescheduleUrl = (sessionToken && appointmentField && siteUrl)
+    ? `${siteUrl}/reschedule/${sessionToken}`
     : "";
 
   const meetLink = bodyMeetLink || meta.meet_link || "";
@@ -215,7 +219,8 @@ Deno.serve(async (req) => {
       .replace(/\{\{answers\}\}/g, answersText)
       .replace(/\{\{appointment_datetime\}\}/g, appointmentDatetime)
       .replace(/\{\{meet_link\}\}/g, meetLink)
-      .replace(/\{\{cancel_url\}\}/g, cancelUrl);
+      .replace(/\{\{cancel_url\}\}/g, cancelUrl)
+      .replace(/\{\{reschedule_url\}\}/g, rescheduleUrl);
 
     // {{field:LABEL}} or {{field:LABEL.SUBFIELD}} → value of field
     const SUBFIELD_MAP: Record<string, string> = {

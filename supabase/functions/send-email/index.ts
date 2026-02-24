@@ -544,10 +544,13 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Build cancel URL (for appointment forms, always include — event will exist by the time user clicks)
+    // Build cancel + reschedule URLs (for appointment forms, always include — event will exist by the time user clicks)
     const siteUrl = Deno.env.get("SITE_URL") || req.headers.get("origin") || "";
     const cancelUrl = (sessionToken && appointmentField && siteUrl)
       ? `${siteUrl}/cancel/${sessionToken}`
+      : "";
+    const rescheduleUrl = (sessionToken && appointmentField && siteUrl)
+      ? `${siteUrl}/reschedule/${sessionToken}`
       : "";
 
     const vars: Record<string, string> = {
@@ -560,6 +563,7 @@ Deno.serve(async (req) => {
       date: new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }),
       answers: answersHtml,
       cancel_url: cancelUrl,
+      reschedule_url: rescheduleUrl,
       appointment_datetime: appointmentDatetime,
       calendar_link: calendar_link || "",
       meet_link: meet_link || "",

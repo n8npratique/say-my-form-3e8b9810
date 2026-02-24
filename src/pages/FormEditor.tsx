@@ -9,7 +9,10 @@ import { FieldItem, type FormField } from "@/components/form-editor/FieldItem";
 import { FieldConfigPanel } from "@/components/form-editor/FieldConfigPanel";
 import { ShareDialog } from "@/components/form-editor/ShareDialog";
 import { ThemePanel } from "@/components/form-editor/ThemePanel";
-import { ArrowLeft, Plus, Save, Eye, Share2, Rocket, Plug, ClipboardList, Palette, Globe, Languages, Loader2 } from "lucide-react";
+import { ArrowLeft, Plus, Save, Eye, Share2, Rocket, Plug, ClipboardList, Palette, Globe, Languages, Loader2, Clock } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import logoPratique from "@/assets/logo-pratique.png";
 import type { FieldTranslation } from "@/types/workflow";
@@ -52,6 +55,8 @@ const FormEditor = () => {
   const [themeOpen, setThemeOpen] = useState(false);
   const [fieldTranslations, setFieldTranslations] = useState<Record<string, Record<string, FieldTranslation>>>({});
   const [translating, setTranslating] = useState(false);
+  const [opensAt, setOpensAt] = useState<string>("");
+  const [closesAt, setClosesAt] = useState<string>("");
   const selectedField = fields.find((f) => f.id === selectedId) || null;
 
   useEffect(() => {
@@ -68,6 +73,15 @@ const FormEditor = () => {
       setFormName(form.name);
       setSlug(form.slug || null);
     }
+    // Load deadline from settings
+    const { data: formSettings } = await supabase
+      .from("forms")
+      .select("settings")
+      .eq("id", formId!)
+      .maybeSingle();
+    const settings = (formSettings?.settings as any) || {};
+    if (settings.opens_at) setOpensAt(settings.opens_at);
+    if (settings.closes_at) setClosesAt(settings.closes_at);
 
     const { data: version } = await supabase
       .from("form_versions")
@@ -132,6 +146,19 @@ const FormEditor = () => {
       .from("form_versions")
       .update({ schema: mergedSchema as any })
       .eq("id", versionId);
+
+    // Also save deadline settings to forms.settings
+    if (formId) {
+      const { data: formData } = await supabase
+        .from("forms")
+        .select("settings")
+        .eq("id", formId)
+        .maybeSingle();
+      const currentSettings = (formData?.settings as any) || {};
+      currentSettings.opens_at = opensAt || null;
+      currentSettings.closes_at = closesAt || null;
+      await supabase.from("forms").update({ settings: currentSettings as any }).eq("id", formId);
+    }
 
     if (error) {
       toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
@@ -201,6 +228,9 @@ const FormEditor = () => {
     if (!currentSettings.access_mode) {
       currentSettings.access_mode = "public";
     }
+    // Save deadline settings
+    currentSettings.opens_at = opensAt || null;
+    currentSettings.closes_at = closesAt || null;
 
     const { error } = await supabase
       .from("forms")
@@ -339,6 +369,53 @@ const FormEditor = () => {
               <Share2 className="h-4 w-4 mr-1" /> Compartilhar
             </Button>
           )}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className={opensAt || closesAt ? "border-orange-400 text-orange-600" : ""}
+              >
+                <Clock className="h-4 w-4 mr-1" />
+                Prazo
+                {(opensAt || closesAt) && <span className="ml-1 w-1.5 h-1.5 rounded-full bg-orange-500" />}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-72 space-y-3" align="end">
+              <p className="text-sm font-medium">Prazo do Formulário</p>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Abre em</Label>
+                <Input
+                  type="datetime-local"
+                  value={opensAt}
+                  onChange={(e) => setOpensAt(e.target.value)}
+                  className="h-8 text-xs"
+                />
+                {opensAt && (
+                  <button onClick={() => setOpensAt("")} className="text-[10px] text-muted-foreground hover:text-destructive">
+                    Limpar (abrir imediatamente)
+                  </button>
+                )}
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Fecha em</Label>
+                <Input
+                  type="datetime-local"
+                  value={closesAt}
+                  onChange={(e) => setClosesAt(e.target.value)}
+                  className="h-8 text-xs"
+                />
+                {closesAt && (
+                  <button onClick={() => setClosesAt("")} className="text-[10px] text-muted-foreground hover:text-destructive">
+                    Limpar (sem data de encerramento)
+                  </button>
+                )}
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                Salve ou publique para aplicar. Respondentes fora do prazo verão uma mensagem.
+              </p>
+            </PopoverContent>
+          </Popover>
           <Button
             variant="outline"
             size="sm"

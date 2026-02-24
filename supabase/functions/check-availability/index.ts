@@ -254,11 +254,28 @@ Deno.serve(async (req) => {
       available_days = [1, 2, 3, 4, 5],
       start_time = "08:00",
       end_time = "18:00",
+      day_schedules,
       slot_duration = 60,
       horizon_days = 14,
       buffer_minutes = 0,
       timezone = "America/Sao_Paulo",
     } = appointment_config;
+
+    // Build effective day_schedules (retrocompat: convert legacy fields if day_schedules missing)
+    const effectiveSchedules: Record<number, { enabled: boolean; start: string; end: string }> = {};
+    if (day_schedules && Object.keys(day_schedules).length > 0) {
+      for (const [k, v] of Object.entries(day_schedules)) {
+        effectiveSchedules[Number(k)] = v as { enabled: boolean; start: string; end: string };
+      }
+    } else {
+      for (let d = 0; d <= 6; d++) {
+        effectiveSchedules[d] = {
+          enabled: available_days.includes(d),
+          start: start_time,
+          end: end_time,
+        };
+      }
+    }
 
     // 1. Get OAuth token
     const accessToken = await getOAuthAccessToken(supabase, google_connection_id);
@@ -268,19 +285,23 @@ Deno.serve(async (req) => {
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const rangeEnd = new Date(today.getTime() + horizon_days * 24 * 60 * 60 * 1000);
 
-    // 3. Collect candidate dates (only available_days)
-    const candidateDates: string[] = [];
+    // 3. Collect candidate dates (only enabled days per effectiveSchedules)
+    const candidateDates: { dateStr: string; dayOfWeek: number }[] = [];
     const cursor = new Date(today);
-    // Start from tomorrow if today's slots are mostly past
-    if (now.getHours() >= parseInt(end_time.split(":")[0])) {
+    // Find the latest end_time across all enabled days for the "skip today" heuristic
+    const latestEnd = Object.values(effectiveSchedules)
+      .filter((s) => s.enabled)
+      .reduce((max, s) => (s.end > max ? s.end : max), "00:00");
+    if (now.getHours() >= parseInt(latestEnd.split(":")[0])) {
       cursor.setDate(cursor.getDate() + 1);
     }
     while (cursor <= rangeEnd) {
-      if (available_days.includes(cursor.getDay())) {
+      const dow = cursor.getDay();
+      if (effectiveSchedules[dow]?.enabled) {
         const yyyy = cursor.getFullYear();
         const mm = String(cursor.getMonth() + 1).padStart(2, "0");
         const dd = String(cursor.getDate()).padStart(2, "0");
-        candidateDates.push(`${yyyy}-${mm}-${dd}`);
+        candidateDates.push({ dateStr: `${yyyy}-${mm}-${dd}`, dayOfWeek: dow });
       }
       cursor.setDate(cursor.getDate() + 1);
     }
@@ -290,10 +311,14 @@ Deno.serve(async (req) => {
     }
 
     // 4. Call Google Calendar FreeBusy API
-    const refForOffset = new Date(`${candidateDates[0]}T12:00:00Z`);
+    const firstDate = candidateDates[0];
+    const lastDate = candidateDates[candidateDates.length - 1];
+    const firstSched = effectiveSchedules[firstDate.dayOfWeek];
+    const lastSched = effectiveSchedules[lastDate.dayOfWeek];
+    const refForOffset = new Date(`${firstDate.dateStr}T12:00:00Z`);
     const tzOffset = formatOffset(getTzOffsetMinutes(timezone, refForOffset));
-    const timeMin = `${candidateDates[0]}T${start_time}:00${tzOffset}`;
-    const timeMax = `${candidateDates[candidateDates.length - 1]}T${end_time}:00${tzOffset}`;
+    const timeMin = `${firstDate.dateStr}T${firstSched.start}:00${tzOffset}`;
+    const timeMax = `${lastDate.dateStr}T${lastSched.end}:00${tzOffset}`;
 
     const freeBusyRes = await fetchWithTimeout(
       "https://www.googleapis.com/calendar/v3/freeBusy",
@@ -336,14 +361,15 @@ Deno.serve(async (req) => {
         end: new Date(h.slot_end),
       }));
 
-    // 6. For each day, generate slots and filter
+    // 6. For each day, generate slots and filter (using per-day times)
     const available_slots: { date: string; times: string[] }[] = [];
 
-    for (const dateStr of candidateDates) {
+    for (const { dateStr, dayOfWeek } of candidateDates) {
+      const daySched = effectiveSchedules[dayOfWeek];
       const slots = generateSlots(
         dateStr,
-        start_time,
-        end_time,
+        daySched.start,
+        daySched.end,
         slot_duration,
         buffer_minutes,
         timezone

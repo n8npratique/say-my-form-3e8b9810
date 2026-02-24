@@ -43,6 +43,7 @@ const FormRunner = () => {
   const [answeredCount, setAnsweredCount] = useState(0);
   const [dedupConfig, setDedupConfig] = useState<{ enabled: boolean; fields: string[] } | null>(null);
   const [duplicateError, setDuplicateError] = useState<string | null>(null);
+  const [deadlineState, setDeadlineState] = useState<"ok" | "not_open" | "closed">("ok");
   const answersRef = useRef<Record<string, any>>({});
 
   // Outcome result
@@ -85,6 +86,25 @@ const FormRunner = () => {
     const settings = form.settings as any;
     setAccessMode(settings?.access_mode || "public");
     if (settings?.dedup) setDedupConfig(settings.dedup);
+
+    // Check deadline
+    const now = new Date();
+    if (settings?.opens_at) {
+      const opensAt = new Date(settings.opens_at);
+      if (now < opensAt) {
+        setDeadlineState("not_open");
+        setLoading(false);
+        return;
+      }
+    }
+    if (settings?.closes_at) {
+      const closesAt = new Date(settings.closes_at);
+      if (now > closesAt) {
+        setDeadlineState("closed");
+        setLoading(false);
+        return;
+      }
+    }
 
     const { data: version } = await supabase
       .from("form_versions")
@@ -451,6 +471,40 @@ const FormRunner = () => {
         <div className="text-center space-y-2">
           <img src={logoPratique} alt="" className="h-8 w-8 mx-auto rounded-full" />
           <p style={{ color: theme.text_secondary_color }}>{error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (deadlineState === "not_open") {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4" style={themeStyle}>
+        {hasOverlay && (
+          <div className="absolute inset-0" style={{ backgroundColor: `rgba(0,0,0,${theme.background_overlay})` }} />
+        )}
+        <div className="text-center space-y-4 max-w-md relative z-10">
+          <AlertTriangle className="h-14 w-14 mx-auto" style={{ color: theme.button_color }} />
+          <h1 className="text-2xl font-bold">Formulário ainda não aberto</h1>
+          <p style={{ color: theme.text_secondary_color }}>
+            Este formulário ainda não está aceitando respostas. Tente novamente mais tarde.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (deadlineState === "closed") {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4" style={themeStyle}>
+        {hasOverlay && (
+          <div className="absolute inset-0" style={{ backgroundColor: `rgba(0,0,0,${theme.background_overlay})` }} />
+        )}
+        <div className="text-center space-y-4 max-w-md relative z-10">
+          <AlertTriangle className="h-14 w-14 mx-auto" style={{ color: theme.button_color }} />
+          <h1 className="text-2xl font-bold">Formulário encerrado</h1>
+          <p style={{ color: theme.text_secondary_color }}>
+            Este formulário não está mais aceitando respostas.
+          </p>
         </div>
       </div>
     );

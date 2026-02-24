@@ -11,6 +11,7 @@ import WorkspaceForms from "./pages/WorkspaceForms";
 import FormEditor from "./pages/FormEditor";
 import FormRunner from "./pages/FormRunner";
 import CancelAppointment from "./pages/CancelAppointment";
+import RescheduleAppointment from "./pages/RescheduleAppointment";
 import FormWorkflow from "./pages/FormWorkflow";
 import FormResponses from "./pages/FormResponses";
 import WorkspaceSettings from "./pages/WorkspaceSettings";
@@ -86,6 +87,7 @@ const App = () => (
           />
           <Route path="/f/:slug" element={<FormRunner />} />
           <Route path="/cancel/:token" element={<CancelAppointment />} />
+          <Route path="/reschedule/:token" element={<RescheduleAppointment />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

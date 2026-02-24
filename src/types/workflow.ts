@@ -5,12 +5,19 @@ import type { Locale } from "@/lib/i18n";
 // ── FormField extended ──
 export type ContactFieldKey = "first_name" | "last_name" | "email" | "phone" | "cpf" | "cep" | "address";
 
+export interface DaySchedule {
+  enabled: boolean;
+  start: string;  // "08:00"
+  end: string;    // "18:00"
+}
+
 export interface AppointmentConfig {
   google_connection_id: string;
   calendar_id: string;
-  available_days: number[];      // 0=dom, 1=seg, ..., 6=sab
-  start_time: string;            // "08:00"
-  end_time: string;              // "18:00"
+  available_days: number[];      // 0=dom, 1=seg, ..., 6=sab (legacy, kept for retrocompat)
+  start_time: string;            // "08:00" (legacy, kept for retrocompat)
+  end_time: string;              // "18:00" (legacy, kept for retrocompat)
+  day_schedules?: Record<number, DaySchedule>; // NEW: per-day schedule {0: {enabled, start, end}, ...}
   slot_duration: number;         // minutos (30, 60, etc)
   horizon_days: number;          // quantos dias a frente (7, 14, 30)
   buffer_minutes: number;        // intervalo entre slots (0, 15, etc)

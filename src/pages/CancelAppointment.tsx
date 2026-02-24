@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { CalendarX2, CheckCircle2, AlertTriangle, Loader2 } from "lucide-react";
+import { CalendarX2, CheckCircle2, AlertTriangle, Loader2, CalendarClock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import logoPratique from "@/assets/logo-pratique.png";
 
@@ -17,6 +17,7 @@ type CancelState =
 
 const CancelAppointment = () => {
   const { token } = useParams<{ token: string }>();
+  const navigate = useNavigate();
   const [state, setState] = useState<CancelState>("loading");
   const [formName, setFormName] = useState("");
   const [appointmentDate, setAppointmentDate] = useState("");
@@ -139,14 +140,21 @@ const CancelAppointment = () => {
               </p>
             )}
             <p className="text-sm text-gray-500">
-              Tem certeza que deseja cancelar este agendamento? O evento será removido do calendário.
+              O que deseja fazer com este agendamento?
             </p>
+            <Button
+              onClick={() => navigate(`/reschedule/${token}`)}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white gap-2"
+            >
+              <CalendarClock className="h-4 w-4" />
+              Reagendar
+            </Button>
             <Button
               onClick={handleCancel}
               variant="destructive"
               className="w-full"
             >
-              Confirmar Cancelamento
+              Cancelar Agendamento
             </Button>
           </div>
         )}

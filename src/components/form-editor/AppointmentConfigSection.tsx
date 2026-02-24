@@ -6,8 +6,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AlertTriangle, Loader2, Video, Calendar, Mail, Info } from "lucide-react";
-import type { FormField, AppointmentConfig } from "@/types/workflow";
+import { Button } from "@/components/ui/button";
+import { AlertTriangle, Loader2, Video, Calendar, Mail, Info, Copy } from "lucide-react";
+import type { FormField, AppointmentConfig, DaySchedule } from "@/types/workflow";
 
 /** Field types that don't produce useful variable values */
 const NON_VARIABLE_TYPES = ["end_screen", "appointment", "statement"];
@@ -101,8 +102,46 @@ export const AppointmentConfigSection = ({ field, onChange, workspaceId, fields 
 
   const config: AppointmentConfig = { ...DEFAULT_APPOINTMENT_CONFIG, ...field.appointment_config };
 
+  // Build day_schedules from legacy format if not present
+  const getDaySchedules = (): Record<number, DaySchedule> => {
+    if (config.day_schedules) return config.day_schedules;
+    // Convert legacy available_days + start_time/end_time
+    const schedules: Record<number, DaySchedule> = {};
+    for (let d = 0; d <= 6; d++) {
+      schedules[d] = {
+        enabled: config.available_days.includes(d),
+        start: config.start_time || "08:00",
+        end: config.end_time || "18:00",
+      };
+    }
+    return schedules;
+  };
+  const daySchedules = getDaySchedules();
+
   const update = (partial: Partial<AppointmentConfig>) => {
     onChange({ ...field, appointment_config: { ...config, ...partial } });
+  };
+
+  const updateDaySchedule = (day: number, patch: Partial<DaySchedule>) => {
+    const updated = { ...daySchedules, [day]: { ...daySchedules[day], ...patch } };
+    // Also sync legacy fields for retrocompat
+    const enabledDays = Object.entries(updated)
+      .filter(([, v]) => v.enabled)
+      .map(([k]) => Number(k))
+      .sort((a, b) => a - b);
+    update({ day_schedules: updated, available_days: enabledDays });
+  };
+
+  const copyToAllEnabled = (sourceDay: number) => {
+    const source = daySchedules[sourceDay];
+    if (!source?.enabled) return;
+    const updated = { ...daySchedules };
+    for (let d = 0; d <= 6; d++) {
+      if (updated[d]?.enabled && d !== sourceDay) {
+        updated[d] = { ...updated[d], start: source.start, end: source.end };
+      }
+    }
+    update({ day_schedules: updated });
   };
 
   useEffect(() => {
@@ -151,14 +190,6 @@ export const AppointmentConfigSection = ({ field, onChange, workspaceId, fields 
     };
     fetchCalendars();
   }, [config.google_connection_id]);
-
-  const toggleDay = (day: number) => {
-    const current = config.available_days;
-    const updated = current.includes(day)
-      ? current.filter((d) => d !== day)
-      : [...current, day].sort((a, b) => a - b);
-    update({ available_days: updated });
-  };
 
   const insertVariable = (varValue: string) => {
     const ref = activeField === "title" ? titleRef.current : descRef.current;
@@ -257,49 +288,51 @@ export const AppointmentConfigSection = ({ field, onChange, workspaceId, fields 
           )}
         </div>
 
-        {/* Available Days */}
-        <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">Dias disponíveis</Label>
-          <div className="flex gap-1">
+        {/* Per-day schedule grid */}
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Horários por dia</Label>
+          <div className="space-y-1">
             {WEEKDAYS.map(({ value, label }) => {
-              const active = config.available_days.includes(value);
+              const sched = daySchedules[value] || { enabled: false, start: "08:00", end: "18:00" };
               return (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => toggleDay(value)}
-                  className={`px-2 py-1 text-xs rounded border transition-colors ${
-                    active
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "bg-background text-muted-foreground border-border hover:border-primary"
-                  }`}
-                >
-                  {label}
-                </button>
+                <div key={value} className={`flex items-center gap-1.5 rounded-md px-2 py-1 ${sched.enabled ? "bg-muted/30" : "opacity-50"}`}>
+                  <Switch
+                    checked={sched.enabled}
+                    onCheckedChange={(v) => updateDaySchedule(value, { enabled: v })}
+                    className="scale-75"
+                  />
+                  <span className="text-xs font-medium w-8">{label}</span>
+                  {sched.enabled ? (
+                    <>
+                      <Input
+                        type="time"
+                        value={sched.start}
+                        onChange={(e) => updateDaySchedule(value, { start: e.target.value })}
+                        className="h-7 text-xs w-[90px]"
+                      />
+                      <span className="text-xs text-muted-foreground">—</span>
+                      <Input
+                        type="time"
+                        value={sched.end}
+                        onChange={(e) => updateDaySchedule(value, { end: e.target.value })}
+                        className="h-7 text-xs w-[90px]"
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 shrink-0"
+                        title="Copiar horário para outros dias habilitados"
+                        onClick={() => copyToAllEnabled(value)}
+                      >
+                        <Copy className="h-3 w-3" />
+                      </Button>
+                    </>
+                  ) : (
+                    <span className="text-xs text-muted-foreground italic">Desabilitado</span>
+                  )}
+                </div>
               );
             })}
-          </div>
-        </div>
-
-        {/* Time Range */}
-        <div className="grid grid-cols-2 gap-2">
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Início</Label>
-            <Input
-              type="time"
-              value={config.start_time}
-              onChange={(e) => update({ start_time: e.target.value })}
-              className="h-8 text-xs"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Fim</Label>
-            <Input
-              type="time"
-              value={config.end_time}
-              onChange={(e) => update({ end_time: e.target.value })}
-              className="h-8 text-xs"
-            />
           </div>
         </div>
 
