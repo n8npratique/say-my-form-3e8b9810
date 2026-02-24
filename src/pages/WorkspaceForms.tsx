@@ -218,28 +218,68 @@ const WorkspaceForms = () => {
     }
   };
 
+  const [interimText, setInterimText] = useState("");
+
   const toggleVoice = () => {
     if (listening) {
       recognitionRef.current?.stop();
       setListening(false);
+      setInterimText("");
       return;
     }
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) { toast({ title: "Navegador não suporta voz", variant: "destructive" }); return; }
+    if (!SR) {
+      toast({ title: "Navegador não suporta reconhecimento de voz", description: "Use Chrome ou Edge.", variant: "destructive" });
+      return;
+    }
     const recognition = new SR();
     recognition.lang = "pt-BR";
-    recognition.continuous = false;
-    recognition.interimResults = false;
+    recognition.continuous = true;
+    recognition.interimResults = true;
     recognition.onresult = (e: any) => {
-      const transcript = e.results[0][0].transcript;
-      setAiPrompt((prev) => prev ? prev + " " + transcript : transcript);
-      setListening(false);
+      let interim = "";
+      let final = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const transcript = e.results[i][0].transcript;
+        if (e.results[i].isFinal) {
+          final += transcript;
+        } else {
+          interim += transcript;
+        }
+      }
+      if (final) {
+        setAiPrompt((prev) => prev ? prev + " " + final : final);
+        setInterimText("");
+      } else {
+        setInterimText(interim);
+      }
     };
-    recognition.onerror = () => setListening(false);
-    recognition.onend = () => setListening(false);
+    recognition.onerror = (e: any) => {
+      setListening(false);
+      setInterimText("");
+      const messages: Record<string, string> = {
+        "not-allowed": "Permissão de microfone negada. Permita o acesso nas configurações do navegador.",
+        "no-speech": "Nenhuma fala detectada. Tente novamente.",
+        "audio-capture": "Nenhum microfone encontrado.",
+        "network": "Erro de rede. Verifique sua conexão.",
+      };
+      toast({
+        title: "Erro no microfone",
+        description: messages[e.error] || `Erro: ${e.error}`,
+        variant: "destructive",
+      });
+    };
+    recognition.onend = () => {
+      setListening(false);
+      setInterimText("");
+    };
     recognitionRef.current = recognition;
-    recognition.start();
-    setListening(true);
+    try {
+      recognition.start();
+      setListening(true);
+    } catch (err: any) {
+      toast({ title: "Erro ao iniciar microfone", description: err.message, variant: "destructive" });
+    }
   };
 
   const duplicateForm = async (form: Form) => {
@@ -405,7 +445,17 @@ const WorkspaceForms = () => {
                       </div>
                     </div>
                     {listening && (
-                      <p className="text-xs text-red-500 animate-pulse">Ouvindo... fale agora</p>
+                      <div className="space-y-1">
+                        <p className="text-xs text-red-500 animate-pulse flex items-center gap-1.5">
+                          <span className="h-2 w-2 rounded-full bg-red-500 animate-ping" />
+                          Ouvindo... fale agora
+                        </p>
+                        {interimText && (
+                          <p className="text-xs text-muted-foreground italic bg-muted/30 rounded px-2 py-1">
+                            {interimText}
+                          </p>
+                        )}
+                      </div>
                     )}
                   </div>
 
