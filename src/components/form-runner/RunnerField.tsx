@@ -326,11 +326,15 @@ export const RunnerField = ({ field, index, total, onAnswer, formId, locale, fie
         );
 
       case "checkbox":
+      case "ranking":
         return (
           <div className="space-y-3">
+            {field.type === "ranking" && (
+              <p className="text-xs" style={{ color: "var(--runner-text-secondary)" }}>Selecione as opções na ordem de preferência</p>
+            )}
             {(displayOptions || []).map((opt, i) => (
               <label
-                key={i}
+                key={opt}
                 className={`flex items-center gap-3 p-4 rounded-lg border cursor-pointer transition-all hover:border-primary ${checkboxValues.includes(opt) ? "border-primary bg-primary/5" : "border-border"}`}
               >
                 <Checkbox
@@ -341,10 +345,42 @@ export const RunnerField = ({ field, index, total, onAnswer, formId, locale, fie
                     );
                   }}
                 />
+                {field.type === "ranking" && checkboxValues.includes(opt) && (
+                  <span className="h-5 w-5 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center font-bold">
+                    {checkboxValues.indexOf(opt) + 1}
+                  </span>
+                )}
                 <span className="text-sm font-medium">{opt}</span>
               </label>
             ))}
           </div>
+        );
+
+      case "image_choice":
+        return (
+          <RadioGroup value={value} onValueChange={(v) => setValue(v)} className="grid grid-cols-2 gap-3">
+            {(displayOptions || []).map((opt, i) => (
+              <label
+                key={opt}
+                className={`flex flex-col items-center gap-2 p-4 rounded-lg border cursor-pointer transition-all hover:border-primary text-center ${value === opt ? "border-primary bg-primary/5 shadow-sm" : "border-border"}`}
+              >
+                <RadioGroupItem value={opt} className="sr-only" />
+                <ImageIcon className="h-8 w-8" style={{ color: "var(--runner-text-secondary)" }} />
+                <span className="text-sm font-medium">{opt}</span>
+              </label>
+            ))}
+          </RadioGroup>
+        );
+
+      case "redirect_url":
+        return null;
+
+      case "matrix":
+      case "question_group":
+        return (
+          <p className="text-sm" style={{ color: "var(--runner-text-secondary)" }}>
+            Este tipo de campo será suportado em breve.
+          </p>
         );
 
       case "yes_no":
@@ -557,7 +593,7 @@ export const RunnerField = ({ field, index, total, onAnswer, formId, locale, fie
     }
   };
 
-  const isPassthrough = ["statement", "welcome_screen", "end_screen"].includes(field.type);
+  const isPassthrough = ["statement", "welcome_screen", "end_screen", "redirect_url"].includes(field.type);
 
   return (
     <motion.div

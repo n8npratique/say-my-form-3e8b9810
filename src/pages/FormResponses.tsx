@@ -370,7 +370,7 @@ const FormResponses = () => {
           formatDate(r.started_at),
           r.status === "completed" ? "Completada" : "Em andamento",
           formatDuration(r.started_at, r.completed_at),
-          meta.email || "",
+          meta.respondent_email || meta.email || "",
           meta.score != null ? String(meta.score) : "",
           (meta.tags || []).join("; "),
           meta.outcome_label || "",
@@ -712,7 +712,7 @@ const FormResponses = () => {
                           <TableCell className="text-sm text-muted-foreground">
                             {formatDuration(resp.started_at, resp.completed_at)}
                           </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{meta.email || "—"}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{meta.respondent_email || meta.email || "—"}</TableCell>
                           {hasScoring && <TableCell className="font-medium text-sm">{meta.score != null ? meta.score : "—"}</TableCell>}
                           {hasTags && (
                             <TableCell>

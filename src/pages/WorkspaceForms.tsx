@@ -241,7 +241,7 @@ const WorkspaceForms = () => {
             <span className="font-medium">{workspaceName}</span>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={() => navigate(`/workspace/${workspaceId}/team`)}>
+            <Button variant="ghost" size="sm" disabled title="Em breve">
               <Users className="h-4 w-4 mr-2" />
               Equipe
             </Button>
