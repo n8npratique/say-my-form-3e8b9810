@@ -6,7 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Mail, Plus, Trash2, ArrowLeft, Eye, Send, User, Shield, CheckCircle, AlertCircle, Calendar, Lock } from "lucide-react";
+import { Mail, Plus, Trash2, ArrowLeft, Eye, EyeOff, Send, User, Shield, CheckCircle, AlertCircle, Calendar, Lock, Sparkles } from "lucide-react";
 import { GmailIcon } from "@/components/icons/BrandIcons";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -92,6 +92,90 @@ const emptyTemplate = (): EmailTemplate => ({
   cta_url: "",
   footer: "",
 });
+
+// ── Pre-built email templates ──
+const EMAIL_PRESETS: {
+  name: string;
+  emoji: string;
+  desc: string;
+  template: Omit<EmailTemplate, "id" | "enabled">;
+}[] = [
+  {
+    name: "Agradecimento",
+    emoji: "\u{1F64F}",
+    desc: "Email simples de agradecimento ao respondente",
+    template: {
+      name: "Agradecimento",
+      recipient: "respondent",
+      subject: "Obrigado por responder - {{form_name}}",
+      header_image_url: "",
+      body: "Ol\u00e1!\n\nObrigado por preencher o formul\u00e1rio {{form_name}}.\n\nRecebemos suas informa\u00e7\u00f5es com sucesso e entraremos em contato em breve.\n\nAtenciosamente,\nEquipe {{form_name}}",
+      cta_text: "",
+      cta_url: "",
+      footer: "Enviado automaticamente via TecForms",
+    },
+  },
+  {
+    name: "Confirma\u00e7\u00e3o com resumo",
+    emoji: "\u{1F4CB}",
+    desc: "Confirma\u00e7\u00e3o com as respostas do formul\u00e1rio",
+    template: {
+      name: "Confirma\u00e7\u00e3o com resumo",
+      recipient: "respondent",
+      subject: "\u2705 Cadastro confirmado - {{form_name}}",
+      header_image_url: "",
+      body: "Ol\u00e1!\n\nSeu cadastro no formul\u00e1rio {{form_name}} foi recebido com sucesso.\n\nConfira abaixo um resumo das suas respostas:\n\n{{answers}}\n\nCaso precise corrigir alguma informa\u00e7\u00e3o, entre em contato conosco.",
+      cta_text: "",
+      cta_url: "",
+      footer: "\u00a9 2026 TecForms. Todos os direitos reservados.",
+    },
+  },
+  {
+    name: "Agendamento confirmado",
+    emoji: "\u{1F4C5}",
+    desc: "Confirma\u00e7\u00e3o de agendamento com links do evento",
+    template: {
+      name: "Confirma\u00e7\u00e3o de Agendamento",
+      recipient: "respondent",
+      subject: "\u{1F4C5} Agendamento confirmado - {{form_name}}",
+      header_image_url: "",
+      body: "Ol\u00e1!\n\nSeu agendamento foi confirmado com sucesso!\n\nData/Hora: {{appointment_datetime}}\n\n{{event_links}}\n\nPrecisa cancelar ou reagendar? Clique no link abaixo:\n{{cancel_url}}\n\nTe esperamos!",
+      cta_text: "Abrir no Google Calendar",
+      cta_url: "{{calendar_link}}",
+      footer: "Enviado automaticamente via TecForms",
+    },
+  },
+  {
+    name: "Alerta para admin",
+    emoji: "\u{1F514}",
+    desc: "Notifica\u00e7\u00e3o ao dono do formul\u00e1rio",
+    template: {
+      name: "Alerta - Nova resposta",
+      recipient: "owner",
+      subject: "\u{1F514} Nova resposta em {{form_name}}",
+      header_image_url: "",
+      body: "Nova resposta recebida!\n\nFormul\u00e1rio: {{form_name}}\nData: {{date}}\nEmail: {{respondent_email}}\nScore: {{score}}\nTags: {{tags}}\nResultado: {{outcome}}\n\nRespostas:\n{{answers}}",
+      cta_text: "Ver no painel",
+      cta_url: "",
+      footer: "Notifica\u00e7\u00e3o autom\u00e1tica — TecForms",
+    },
+  },
+  {
+    name: "Boas-vindas lead",
+    emoji: "\u{1F680}",
+    desc: "Boas-vindas personalizada para novos leads",
+    template: {
+      name: "Boas-vindas",
+      recipient: "respondent",
+      subject: "\u{1F680} Bem-vindo(a)! - {{form_name}}",
+      header_image_url: "",
+      body: "Ol\u00e1!\n\nSeja muito bem-vindo(a)! Acabamos de receber seu cadastro.\n\nSeu perfil: {{outcome}}\n\nUm de nossos consultores entrar\u00e1 em contato em breve para te ajudar com os pr\u00f3ximos passos.\n\nEnquanto isso, que tal conhecer mais sobre nossos servi\u00e7os?",
+      cta_text: "Conhecer mais",
+      cta_url: "",
+      footer: "Qualquer d\u00favida, estamos \u00e0 disposi\u00e7\u00e3o!\n\u00a9 2026 TecForms",
+    },
+  },
+];
 
 // ── Substituir variáveis com exemplos para preview ──
 const PREVIEW_VARS: Record<string, string> = {
@@ -270,6 +354,7 @@ export const MessagesPanel = ({
   const { toast } = useToast();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
+  const [showPresets, setShowPresets] = useState(false);
   const [sendingTest, setSendingTest] = useState(false);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const subjectRef = useRef<HTMLInputElement>(null);
@@ -330,6 +415,19 @@ export const MessagesPanel = ({
     const t = emptyTemplate();
     onUpdateTemplates([...templates, t]);
     setEditingId(t.id);
+    setShowPresets(true);
+  };
+
+  const applyPreset = (preset: typeof EMAIL_PRESETS[number]) => {
+    if (!editingId) return;
+    onUpdateTemplates(
+      templates.map((t) =>
+        t.id === editingId
+          ? { ...t, ...preset.template }
+          : t
+      )
+    );
+    setShowPresets(false);
   };
 
   const updateTemplate = (id: string, patch: Partial<EmailTemplate>) => {
@@ -398,6 +496,65 @@ export const MessagesPanel = ({
   const systemVars = variables.filter((v) => v.group === "system");
   const appointmentVars = variables.filter((v) => v.group === "appointment");
   const fieldVars = variables.filter((v) => v.group === "fields");
+
+  // ── Preset picker (shown when creating new template) ──
+  if (showPresets && editing) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShowPresets(false)}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <Sparkles className="h-4 w-4 text-amber-500" />
+          <h3 className="font-semibold text-sm flex-1">Escolha um modelo de email</h3>
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          Comece com um modelo pronto ou crie do zero.
+        </p>
+
+        <div className="space-y-2">
+          {EMAIL_PRESETS
+            .filter((p) => {
+              // Hide appointment preset when form has no appointment field
+              if (p.name.includes("Agendamento") && !hasAppointment) return false;
+              return true;
+            })
+            .map((preset, i) => (
+            <button
+              key={i}
+              className="w-full text-left border rounded-lg p-3 hover:border-primary/50 hover:bg-primary/5 transition-colors group"
+              onClick={() => applyPreset(preset)}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-base">{preset.emoji}</span>
+                <span className="text-xs font-medium group-hover:text-primary transition-colors">{preset.name}</span>
+                <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 ml-auto">
+                  {preset.template.recipient === "respondent" ? "Respondente" : "Admin"}
+                </Badge>
+              </div>
+              <p className="text-[10px] text-muted-foreground leading-relaxed">
+                {preset.desc}
+              </p>
+              <p className="text-[10px] text-muted-foreground/60 mt-1 truncate italic">
+                Assunto: {preset.template.subject}
+              </p>
+            </button>
+          ))}
+        </div>
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full gap-1.5 text-xs"
+          onClick={() => setShowPresets(false)}
+        >
+          <Mail className="h-3.5 w-3.5" />
+          Criar do zero
+        </Button>
+      </div>
+    );
+  }
 
   // List view
   if (!editing) {
@@ -476,14 +633,25 @@ export const MessagesPanel = ({
         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingId(null)}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <h3 className="font-semibold text-sm flex-1">Editar Template</h3>
+        <GmailIcon size={18} />
+        <h3 className="font-semibold text-sm flex-1 truncate">{editing.name || "Editar Template"}</h3>
         <Button
           variant="ghost"
-          size="sm"
-          className="text-xs gap-1 px-2"
+          size="icon"
+          className="h-7 w-7"
+          title="Usar modelo pronto"
+          onClick={() => setShowPresets(true)}
+        >
+          <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className={`h-7 w-7 ${showPreview ? "bg-primary/10 text-primary" : ""}`}
+          title={showPreview ? "Fechar preview" : "Preview do email"}
           onClick={() => setShowPreview(!showPreview)}
         >
-          <Eye className="h-3 w-3" /> {showPreview ? "Fechar" : "Preview"}
+          {showPreview ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
         </Button>
       </div>
 
