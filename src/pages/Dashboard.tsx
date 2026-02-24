@@ -45,19 +45,19 @@ const Dashboard = () => {
   }, []);
 
   useEffect(() => {
-    checkAdmin();
+    if (user) {
+      supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .in("role", ["owner", "admin"])
+        .maybeSingle()
+        .then(({ data, error }) => {
+          console.log("[Admin check]", { userId: user.id, data, error });
+          setIsAdmin(!!data);
+        });
+    }
   }, [user]);
-
-  const checkAdmin = async () => {
-    if (!user) return;
-    const { data } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", user.id)
-      .in("role", ["owner", "admin"])
-      .maybeSingle();
-    setIsAdmin(!!data);
-  };
 
   const fetchWorkspaces = async () => {
     const { data, error } = await supabase
