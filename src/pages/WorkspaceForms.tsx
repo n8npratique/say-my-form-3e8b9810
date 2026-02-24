@@ -80,7 +80,6 @@ const WorkspaceForms = () => {
       fetchWorkspace();
       fetchForms();
       fetchTrashedForms();
-      fetchResponseCounts();
     }
   }, [workspaceId]);
 
@@ -105,6 +104,7 @@ const WorkspaceForms = () => {
       toast({ title: "Erro", description: error.message, variant: "destructive" });
     } else {
       setForms(data || []);
+      if (data && data.length > 0) fetchResponseCounts(data.map(f => f.id));
     }
     setLoading(false);
   };
@@ -119,22 +119,18 @@ const WorkspaceForms = () => {
     setTrashedForms(data || []);
   };
 
-  const fetchResponseCounts = async () => {
+  const fetchResponseCounts = async (formIds: string[]) => {
+    if (formIds.length === 0) return;
     const { data } = await supabase
       .from("responses")
       .select("form_id")
-      .in("form_id", forms.length > 0 ? forms.map(f => f.id) : ["__none__"]);
+      .in("form_id", formIds);
     if (data) {
       const counts: Record<string, number> = {};
       data.forEach((r) => { counts[r.form_id] = (counts[r.form_id] || 0) + 1; });
       setResponseCounts(counts);
     }
   };
-
-  // Re-fetch response counts when forms change
-  useEffect(() => {
-    if (forms.length > 0) fetchResponseCounts();
-  }, [forms]);
 
   const createForm = async (e: React.FormEvent) => {
     e.preventDefault();
