@@ -34,6 +34,7 @@ const generateSlug = (name: string) => {
   return `${base}-${rand}`;
 };
 
+// FormEditor v2
 const FormEditor = () => {
   const { workspaceId, formId } = useParams<{ workspaceId: string; formId: string }>();
   const navigate = useNavigate();
