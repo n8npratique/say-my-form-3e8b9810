@@ -28,9 +28,20 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 
+  let body: any;
   try {
-  const body = await req.json();
+    body = await req.json();
+  } catch {
+    return respond({ synced: false, reason: "invalid_body" }, 400);
+  }
+
   const { form_id, response_id, action } = body;
+
+  if (!form_id) {
+    return respond({ synced: false, reason: "missing_form_id" }, 400);
+  }
+
+  try {
 
   // ── Helper: resolve Unnichat credentials for a form ──
   const resolveUnnichatCreds = async (fId: string) => {
@@ -57,7 +68,8 @@ Deno.serve(async (req) => {
     const phoneToken = body.phone_token || phones[0]?.token || creds.token;
     if (!phoneToken) return respond({ error: "no_token" }, 400);
 
-    const baseUrl = creds.url.replace(/\/$/, "");
+    let baseUrl = creds.url.replace(/\/$/, "");
+    if (!/^https?:\/\//i.test(baseUrl)) baseUrl = `https://${baseUrl}`;
     const hdrs = { "Authorization": `Bearer ${phoneToken}`, "Content-Type": "application/json" };
 
     const endpoint = action === "list_fields" ? "/customFields/search" : "/tags/search";
@@ -133,7 +145,8 @@ Deno.serve(async (req) => {
     return respond({ synced: false, reason: "no_token" });
   }
 
-  const baseUrl = unnichatCreds.url.replace(/\/$/, "");
+  let baseUrl = unnichatCreds.url.replace(/\/$/, "");
+  if (!/^https?:\/\//i.test(baseUrl)) baseUrl = `https://${baseUrl}`;
   const headers = {
     "Authorization": `Bearer ${token}`,
     "Content-Type": "application/json",
