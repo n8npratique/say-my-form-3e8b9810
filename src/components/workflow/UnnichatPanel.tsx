@@ -128,13 +128,24 @@ export const UnnichatPanel = ({ formId, fields, scoring, tagging, outcomes }: Un
         .eq("id", form.workspace_id)
         .maybeSingle();
 
-      if (ws) {
-        const s = ws.settings as any;
-        if (s?.unnichat?.url && s?.unnichat?.phones?.length) {
-          setWorkspaceConfig({ url: s.unnichat.url, phones: s.unnichat.phones });
-        } else if (s?.unnichat?.url && s?.unnichat?.token) {
+      const s = (ws?.settings as any) ?? {};
+      let unnichat = s?.unnichat;
+
+      // Global fallback: if workspace has no unnichat config, use owner's global
+      if (!unnichat?.url || (!unnichat?.phones?.length && !unnichat?.token)) {
+        const { data: globalData } = await supabase.rpc("get_global_settings");
+        if (globalData) {
+          const g = typeof globalData === "string" ? JSON.parse(globalData) : globalData;
+          if (g?.unnichat) unnichat = g.unnichat;
+        }
+      }
+
+      if (unnichat) {
+        if (unnichat.url && unnichat.phones?.length) {
+          setWorkspaceConfig({ url: unnichat.url, phones: unnichat.phones });
+        } else if (unnichat.url && unnichat.token) {
           // backwards compat: legacy single token
-          setWorkspaceConfig({ url: s.unnichat.url, phones: [{ label: "Principal", phone_id: "", token: s.unnichat.token }] });
+          setWorkspaceConfig({ url: unnichat.url, phones: [{ label: "Principal", phone_id: "", token: unnichat.token }] });
         }
       }
     }

@@ -22,13 +22,14 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
   );
 
-  const { form_id, response_id } = await req.json();
-
   const respond = (body: object, status = 200) =>
     new Response(JSON.stringify(body), {
       status,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
+
+  try {
+  const { form_id, response_id } = await req.json();
 
   // 1. Fetch Unnichat integration config
   const { data: integ } = await supabase
@@ -60,7 +61,24 @@ Deno.serve(async (req) => {
     .maybeSingle();
 
   const wsSettings = (ws?.settings as any) ?? {};
-  const unnichatCreds = wsSettings?.unnichat;
+  const localUnnichat = wsSettings?.unnichat ?? {};
+
+  // Global fallback: merge owner's settings with workspace overrides
+  let globalUnnichat: any = {};
+  if (!localUnnichat?.url || !localUnnichat?.phones?.length) {
+    const { data: globalSettings } = await supabase.rpc("get_global_settings");
+    if (globalSettings) {
+      const global = typeof globalSettings === "string" ? JSON.parse(globalSettings) : globalSettings;
+      globalUnnichat = global?.unnichat ?? {};
+    }
+  }
+
+  const unnichatCreds = {
+    ...globalUnnichat,
+    ...Object.fromEntries(
+      Object.entries(localUnnichat).filter(([_, v]) => v != null && v !== "")
+    ),
+  };
 
   if (!unnichatCreds?.url) {
     return respond({ synced: false, reason: "not_configured" });
@@ -271,4 +289,8 @@ Deno.serve(async (req) => {
   }
 
   return respond({ synced: true, contact_id: contactId, steps_completed: stepsCompleted });
+  } catch (err: any) {
+    console.error("sync-unnichat error:", err);
+    return respond({ synced: false, reason: "internal_error" }, 500);
+  }
 });
