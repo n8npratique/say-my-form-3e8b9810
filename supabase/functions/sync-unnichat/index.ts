@@ -73,13 +73,31 @@ Deno.serve(async (req) => {
     const hdrs = { "Authorization": `Bearer ${phoneToken}`, "Content-Type": "application/json" };
 
     const endpoint = action === "list_fields" ? "/customFields/search" : "/tags/search";
-    const payload = action === "list_tags" ? { type: "contact", name: " " } : { name: " " };
 
-    const res = await fetchWithTimeout(`${baseUrl}${endpoint}`, {
-      method: "POST", headers: hdrs, body: JSON.stringify(payload),
-    });
-    const json = await res.json();
-    return respond(json);
+    // Unnichat search filters by name substring — search multiple chars to get all results
+    const searchChars = "abcdefghijklmnopqrstuvwxyz0123456789_ -".split("");
+    const seen = new Set<string>();
+    const allItems: any[] = [];
+
+    for (const c of searchChars) {
+      const payload = action === "list_tags"
+        ? { type: "contact", name: c }
+        : { name: c };
+      try {
+        const res = await fetchWithTimeout(`${baseUrl}${endpoint}`, {
+          method: "POST", headers: hdrs, body: JSON.stringify(payload),
+        });
+        const json = await res.json();
+        for (const item of (json?.data ?? [])) {
+          if (!seen.has(item.id)) {
+            seen.add(item.id);
+            allItems.push(item);
+          }
+        }
+      } catch { /* skip failed char */ }
+    }
+
+    return respond({ success: true, data: allItems });
   }
 
   // ── Normal sync flow ──
