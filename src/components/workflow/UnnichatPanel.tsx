@@ -25,7 +25,7 @@ interface UnnichatConfig {
   contact_email_field_id: string;
   // Section 2 - Custom fields
   send_custom_fields: boolean;
-  custom_field_mappings: Array<{ form_field_id: string; unnichat_field_id: string }>;
+  custom_field_mappings: Array<{ unnichat_field_id: string; value_template: string }>;
   // Section 3 - Tags
   add_tags: boolean;
   fixed_tags: string[];
@@ -84,7 +84,7 @@ export const UnnichatPanel = ({ formId, fields, scoring, tagging, outcomes }: Un
 
   const [config, setConfig] = useState<UnnichatConfig>(DEFAULT_CONFIG);
   const [integrationId, setIntegrationId] = useState<string | null>(null);
-  const [workspaceConfig, setWorkspaceConfig] = useState<{ url: string; phones: Array<{ label: string; phone_id: string; token: string }> } | null>(null);
+  const [workspaceConfig, setWorkspaceConfig] = useState<{ url: string; phones: Array<{ label: string; token: string }> } | null>(null);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
 
@@ -145,7 +145,7 @@ export const UnnichatPanel = ({ formId, fields, scoring, tagging, outcomes }: Un
           setWorkspaceConfig({ url: unnichat.url, phones: unnichat.phones });
         } else if (unnichat.url && unnichat.token) {
           // backwards compat: legacy single token
-          setWorkspaceConfig({ url: unnichat.url, phones: [{ label: "Principal", phone_id: "", token: unnichat.token }] });
+          setWorkspaceConfig({ url: unnichat.url, phones: [{ label: "Principal", token: unnichat.token }] });
         }
       }
     }
@@ -155,8 +155,8 @@ export const UnnichatPanel = ({ formId, fields, scoring, tagging, outcomes }: Un
     setConfig((prev) => ({ ...prev, ...partial }));
   };
 
-  // Resolve the active phone's token based on selected phone_id
-  const activePhone = workspaceConfig?.phones.find(p => p.phone_id === config.phone_id) || workspaceConfig?.phones[0];
+  // Resolve the active phone's token based on selected phone_id (uses token as identifier)
+  const activePhone = workspaceConfig?.phones.find(p => p.token === config.phone_id) || workspaceConfig?.phones[0];
   const activeToken = activePhone?.token || "";
 
   const loadUnnichatFields = async () => {
@@ -275,6 +275,19 @@ export const UnnichatPanel = ({ formId, fields, scoring, tagging, outcomes }: Un
   const emailOptions = expandFieldOptions(fields, "email");
   const numberFields = fields.filter((f) => f.type === "number");
 
+  // Available template variables for {{}} picker
+  const templateVariables: { value: string; label: string }[] = [
+    { value: "{{form_name}}", label: "Nome do formulário" },
+    { value: "{{score}}", label: "Pontuação" },
+    { value: "{{outcome}}", label: "Resultado" },
+    { value: "{{tags}}", label: "Tags" },
+    { value: "{{respondent_email}}", label: "Email do respondente" },
+    { value: "{{answers}}", label: "Todas as respostas" },
+    ...fields
+      .filter((f) => !["welcome_screen", "end_screen"].includes(f.type))
+      .map((f) => ({ value: `{{field:${f.label || f.id}}}`, label: `Campo: ${f.label || f.type}` })),
+  ];
+
   // Conditional tag options
   const conditionOptions: { type: "outcome" | "score_range" | "form_tag"; value: string; label: string }[] = [
     ...(outcomes?.enabled ? outcomes.definitions.map((d) => ({ type: "outcome" as const, value: d.label, label: `Outcome: ${d.label}` })) : []),
@@ -314,16 +327,16 @@ export const UnnichatPanel = ({ formId, fields, scoring, tagging, outcomes }: Un
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Telefone Unnichat</Label>
             <Select
-              value={config.phone_id || workspaceConfig.phones[0]?.phone_id || ""}
+              value={config.phone_id || workspaceConfig.phones[0]?.token || ""}
               onValueChange={(v) => update({ phone_id: v })}
             >
               <SelectTrigger className="h-8 text-xs">
                 <SelectValue placeholder="Selecionar telefone..." />
               </SelectTrigger>
               <SelectContent>
-                {workspaceConfig.phones.map((p) => (
-                  <SelectItem key={p.phone_id} value={p.phone_id}>
-                    {p.label || p.phone_id}
+                {workspaceConfig.phones.map((p, idx) => (
+                  <SelectItem key={p.token || idx} value={p.token}>
+                    {p.label || `Telefone ${idx + 1}`}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -432,53 +445,66 @@ export const UnnichatPanel = ({ formId, fields, scoring, tagging, outcomes }: Un
                   </Button>
 
                   {config.custom_field_mappings.map((m, i) => (
-                    <div key={i} className="flex items-center gap-1.5">
-                      <Select
-                        value={m.form_field_id}
-                        onValueChange={(v) => {
-                          const mappings = [...config.custom_field_mappings];
-                          mappings[i] = { ...m, form_field_id: v };
-                          update({ custom_field_mappings: mappings });
-                        }}
-                      >
-                        <SelectTrigger className="h-7 text-xs flex-1">
-                          <SelectValue placeholder="Campo do form" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {allOptions.map((opt) => (
-                            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <span className="text-muted-foreground text-xs">→</span>
-                      <Select
-                        value={m.unnichat_field_id}
-                        onValueChange={(v) => {
-                          const mappings = [...config.custom_field_mappings];
-                          mappings[i] = { ...m, unnichat_field_id: v };
-                          update({ custom_field_mappings: mappings });
-                        }}
-                      >
-                        <SelectTrigger className="h-7 text-xs flex-1">
-                          <SelectValue placeholder="Campo Unnichat" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {unnichatFields.map((f) => (
-                            <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 shrink-0"
-                        onClick={() => {
-                          const mappings = config.custom_field_mappings.filter((_, idx) => idx !== i);
-                          update({ custom_field_mappings: mappings });
-                        }}
-                      >
-                        <Trash2 className="h-3 w-3 text-destructive" />
-                      </Button>
+                    <div key={i} className="border rounded p-2 space-y-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <Select
+                          value={m.unnichat_field_id}
+                          onValueChange={(v) => {
+                            const mappings = [...config.custom_field_mappings];
+                            mappings[i] = { ...m, unnichat_field_id: v };
+                            update({ custom_field_mappings: mappings });
+                          }}
+                        >
+                          <SelectTrigger className="h-7 text-xs flex-1">
+                            <SelectValue placeholder="Campo Unnichat" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {unnichatFields.map((f) => (
+                              <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 shrink-0"
+                          onClick={() => {
+                            const mappings = config.custom_field_mappings.filter((_, idx) => idx !== i);
+                            update({ custom_field_mappings: mappings });
+                          }}
+                        >
+                          <Trash2 className="h-3 w-3 text-destructive" />
+                        </Button>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Input
+                          className="h-7 text-xs flex-1 font-mono"
+                          placeholder="{{field:Nome}} {{field:Sobrenome}}"
+                          value={m.value_template}
+                          onChange={(e) => {
+                            const mappings = [...config.custom_field_mappings];
+                            mappings[i] = { ...m, value_template: e.target.value };
+                            update({ custom_field_mappings: mappings });
+                          }}
+                        />
+                        <Select
+                          value=""
+                          onValueChange={(v) => {
+                            const mappings = [...config.custom_field_mappings];
+                            mappings[i] = { ...m, value_template: (m.value_template || "") + v };
+                            update({ custom_field_mappings: mappings });
+                          }}
+                        >
+                          <SelectTrigger className="h-7 w-20 text-xs shrink-0">
+                            <span className="text-muted-foreground">{"{{}}"}</span>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {templateVariables.map((tv) => (
+                              <SelectItem key={tv.value} value={tv.value}>{tv.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
                   ))}
 
@@ -487,7 +513,7 @@ export const UnnichatPanel = ({ formId, fields, scoring, tagging, outcomes }: Un
                     size="sm"
                     className="w-full h-7 text-xs gap-1"
                     onClick={() => update({
-                      custom_field_mappings: [...config.custom_field_mappings, { form_field_id: "", unnichat_field_id: "" }]
+                      custom_field_mappings: [...config.custom_field_mappings, { unnichat_field_id: "", value_template: "" }]
                     })}
                   >
                     <Plus className="h-3 w-3" /> Adicionar mapeamento

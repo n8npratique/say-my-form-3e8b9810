@@ -33,7 +33,7 @@ type ConnectionStatus = "idle" | "loading" | "ok" | "error";
 interface WorkspaceSettings {
   waha?: { url: string; api_key: string; session: string; default_number: string };
   email?: { provider: "google_oauth" | "resend"; resend_api_key?: string; sender_email?: string };
-  unnichat?: { url: string; token?: string; phones: Array<{ label: string; phone_id: string; token: string }> };
+  unnichat?: { url: string; token?: string; phones: Array<{ label: string; token: string }> };
   chatguru?: { key: string; account_id: string; phones: Array<{ telefone: string; phone_id: string }> };
   timezone?: string;
 }
@@ -79,7 +79,7 @@ const WorkspaceSettings = () => {
 
   // Unnichat
   const [unnichatUrl, setUnnichatUrl] = useState("");
-  const [unnichatPhones, setUnnichatPhones] = useState<Array<{ label: string; phone_id: string; token: string }>>([]);
+  const [unnichatPhones, setUnnichatPhones] = useState<Array<{ label: string; token: string }>>([]);
   const [savingUnnichat, setSavingUnnichat] = useState(false);
   const [unnichatStatus, setUnnichatStatus] = useState<ConnectionStatus>("idle");
 
@@ -150,7 +150,7 @@ const WorkspaceSettings = () => {
       if (s.email) { setEmailProvider(s.email.provider === "resend" ? "resend" : "google_oauth"); setResendKey(s.email.resend_api_key || ""); setSenderEmail(s.email.sender_email || ""); setEmailConnectionId((s.email as any).google_connection_id || ""); }
       if (s.unnichat) {
         setUnnichatUrl(s.unnichat.url);
-        setUnnichatPhones(s.unnichat.phones?.length ? s.unnichat.phones : (s.unnichat.token ? [{ label: "Principal", phone_id: "", token: s.unnichat.token }] : []));
+        setUnnichatPhones(s.unnichat.phones?.length ? s.unnichat.phones : (s.unnichat.token ? [{ label: "Principal", token: s.unnichat.token }] : []));
       }
       if (chatguru) { setChatguruKey(chatguru.key || ""); setChatguruAccountId(chatguru.account_id || ""); setChatguruPhones(chatguru.phones || []); }
       if (s.timezone) setTimezone(s.timezone);
@@ -368,7 +368,7 @@ const WorkspaceSettings = () => {
     const { data: ws } = await supabase.from("workspaces").select("*").eq("id", workspaceId!).maybeSingle();
     const current = ((ws as any)?.settings as WorkspaceSettings) || {};
     await supabase.from("workspaces").update({
-      settings: { ...current, unnichat: { url: unnichatUrl, phones: unnichatPhones.filter((p) => p.phone_id || p.token) } },
+      settings: { ...current, unnichat: { url: unnichatUrl, phones: unnichatPhones.filter((p) => p.token) } },
     } as any).eq("id", workspaceId!);
 
     toast({ title: ok ? "Unnichat salvo e conectado!" : "Unnichat salvo, mas conexão falhou", variant: ok ? "default" : "destructive" });
@@ -759,27 +759,17 @@ const WorkspaceSettings = () => {
               <div className="space-y-2">
                 <Label>Telefones</Label>
                 <p className="text-xs text-muted-foreground">
-                  Cada telefone possui seu próprio Bearer token e phone_id no Unnichat.
+                  Cada telefone possui seu próprio Bearer token no Unnichat.
                 </p>
                 {unnichatPhones.map((phone, i) => (
                   <div key={i} className="flex items-center gap-2">
                     <Input
-                      className="w-28"
+                      className="w-32"
                       placeholder="Label (ex: ...8494)"
                       value={phone.label}
                       onChange={(e) => {
                         const phones = [...unnichatPhones];
                         phones[i] = { ...phone, label: e.target.value };
-                        setUnnichatPhones(phones);
-                      }}
-                    />
-                    <Input
-                      className="flex-1"
-                      placeholder="phone_id (UUID)"
-                      value={phone.phone_id}
-                      onChange={(e) => {
-                        const phones = [...unnichatPhones];
-                        phones[i] = { ...phone, phone_id: e.target.value };
                         setUnnichatPhones(phones);
                       }}
                     />
@@ -808,7 +798,7 @@ const WorkspaceSettings = () => {
                   variant="outline"
                   size="sm"
                   className="w-full gap-1"
-                  onClick={() => setUnnichatPhones([...unnichatPhones, { label: "", phone_id: "", token: "" }])}
+                  onClick={() => setUnnichatPhones([...unnichatPhones, { label: "", token: "" }])}
                 >
                   <Plus className="h-4 w-4" /> Adicionar telefone
                 </Button>

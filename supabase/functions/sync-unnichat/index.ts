@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
   // 2. Fetch workspace Unnichat credentials
   const { data: form } = await supabase
     .from("forms")
-    .select("workspace_id, published_version_id")
+    .select("workspace_id, published_version_id, name")
     .eq("id", form_id)
     .maybeSingle();
 
@@ -84,9 +84,9 @@ Deno.serve(async (req) => {
     return respond({ synced: false, reason: "not_configured" });
   }
 
-  // Resolve token: use phone_id from integration config, fallback to first phone, then legacy token
+  // Resolve token: phone_id stores the token value directly, fallback to first phone
   const phones: any[] = unnichatCreds.phones || [];
-  const selectedPhone = phones.find((p: any) => p.phone_id === integConfig.phone_id) || phones[0];
+  const selectedPhone = phones.find((p: any) => p.token === integConfig.phone_id) || phones[0];
   const token = selectedPhone?.token || unnichatCreds.token; // backwards compat
 
   if (!token) {
@@ -145,6 +145,49 @@ Deno.serve(async (req) => {
     return String(raw);
   };
 
+  // ── substituteVars: resolve {{}} templates ──
+  const substituteVars = (text: string): string => {
+    const answersText = schemaFields
+      .filter((f) => answers[f.id] != null && !["welcome_screen", "end_screen"].includes(f.type))
+      .map((f) => {
+        const val = answers[f.id];
+        const label = f.label || f.type;
+        const valStr = typeof val === "object" ? JSON.stringify(val) : String(val);
+        return `${label}: ${valStr}`;
+      })
+      .join("\n");
+
+    const tags: string[] = Array.isArray(meta.tags) ? meta.tags : [];
+
+    let result = text
+      .replace(/\{\{form_name\}\}/g, form.name || "")
+      .replace(/\{\{score\}\}/g, meta.score != null ? String(meta.score) : "")
+      .replace(/\{\{outcome\}\}/g, meta.outcome_label || "")
+      .replace(/\{\{tags\}\}/g, tags.join(", "))
+      .replace(/\{\{respondent_email\}\}/g, String(
+        Object.values(answers).find((v) => typeof v === "string" && v.includes("@")) || ""
+      ))
+      .replace(/\{\{answers\}\}/g, answersText);
+
+    // {{field:LABEL}} → value of field by label
+    result = result.replace(/\{\{field:([^}]+)\}\}/g, (_match, label: string) => {
+      const field = schemaFields.find(
+        (f) => (f.label || "").toLowerCase() === label.toLowerCase()
+      );
+      if (!field) return "";
+      const val = answers[field.id];
+      if (!val) return "";
+      if (typeof val === "object") {
+        if (val.first_name || val.last_name) return `${val.first_name ?? ""} ${val.last_name ?? ""}`.trim();
+        if (val.phone) return val.phone;
+        return JSON.stringify(val);
+      }
+      return String(val);
+    });
+
+    return result;
+  };
+
   const stepsCompleted: string[] = [];
   let contactId: string | null = null;
 
@@ -197,8 +240,11 @@ Deno.serve(async (req) => {
   // ── STEP B: Custom fields ──
   if (integConfig.send_custom_fields && integConfig.custom_field_mappings?.length) {
     for (const mapping of integConfig.custom_field_mappings) {
-      if (!mapping.form_field_id || !mapping.unnichat_field_id) continue;
-      const value = resolveField(mapping.form_field_id);
+      if (!mapping.unnichat_field_id) continue;
+      // Support new template format (value_template) and legacy (form_field_id)
+      const value = mapping.value_template
+        ? substituteVars(mapping.value_template)
+        : mapping.form_field_id ? resolveField(mapping.form_field_id) : "";
       if (!value) continue;
       try {
         await fetchWithTimeout(`${baseUrl}/contact/${contactId}/customFields`, {
