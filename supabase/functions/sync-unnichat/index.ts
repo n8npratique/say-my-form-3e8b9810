@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
     const hdrs = { "Authorization": `Bearer ${phoneToken}`, "Content-Type": "application/json" };
 
     const endpoint = action === "list_fields" ? "/customFields/search" : "/tags/search";
-    const payload = action === "list_tags" ? { type: "contact" } : {};
+    const payload = action === "list_tags" ? { type: "contact", name: "" } : { name: "" };
 
     const res = await fetchWithTimeout(`${baseUrl}${endpoint}`, {
       method: "POST", headers: hdrs, body: JSON.stringify(payload),
