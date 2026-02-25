@@ -160,19 +160,14 @@ export const UnnichatPanel = ({ formId, fields, scoring, tagging, outcomes }: Un
   const activeToken = activePhone?.token || "";
 
   const loadUnnichatFields = async () => {
-    if (!workspaceConfig || !activeToken) return;
+    if (!workspaceConfig) return;
     setLoadingFields(true);
     try {
-      const res = await fetch(`${workspaceConfig.url}/customFields/search`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${activeToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({}),
+      const { data, error } = await supabase.functions.invoke("sync-unnichat", {
+        body: { form_id: formId, action: "list_fields", phone_token: activeToken },
       });
-      const json = await res.json();
-      const list = json?.data ?? json?.customFields ?? [];
+      if (error) throw error;
+      const list = data?.data ?? data?.customFields ?? [];
       setUnnichatFields(list.map((f: any) => ({ id: f.id, name: f.name || f.title || f.id })));
       toast({ title: `${list.length} campos carregados` });
     } catch {
@@ -183,19 +178,14 @@ export const UnnichatPanel = ({ formId, fields, scoring, tagging, outcomes }: Un
   };
 
   const loadUnnichatTags = async () => {
-    if (!workspaceConfig || !activeToken) return;
+    if (!workspaceConfig) return;
     setLoadingTags(true);
     try {
-      const res = await fetch(`${workspaceConfig.url}/tags/search`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${activeToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ type: "contact" }),
+      const { data, error } = await supabase.functions.invoke("sync-unnichat", {
+        body: { form_id: formId, action: "list_tags", phone_token: activeToken },
       });
-      const json = await res.json();
-      const list = json?.data ?? json?.tags ?? [];
+      if (error) throw error;
+      const list = data?.data ?? data?.tags ?? [];
       setUnnichatTags(list.map((t: any) => ({ id: t.id, name: t.name || t.title || t.id })));
       toast({ title: `${list.length} tags carregadas` });
     } catch {

@@ -29,8 +29,48 @@ Deno.serve(async (req) => {
     });
 
   try {
-  const { form_id, response_id } = await req.json();
+  const body = await req.json();
+  const { form_id, response_id, action } = body;
 
+  // ── Helper: resolve Unnichat credentials for a form ──
+  const resolveUnnichatCreds = async (fId: string) => {
+    const { data: f } = await supabase.from("forms").select("workspace_id").eq("id", fId).maybeSingle();
+    if (!f) return null;
+    const { data: w } = await supabase.from("workspaces").select("settings").eq("id", f.workspace_id).maybeSingle();
+    const s = (w?.settings as any) ?? {};
+    const local = s?.unnichat ?? {};
+    let global: any = {};
+    if (!local?.url || !local?.phones?.length) {
+      const { data: gs } = await supabase.rpc("get_global_settings");
+      if (gs) { const g = typeof gs === "string" ? JSON.parse(gs) : gs; global = g?.unnichat ?? {}; }
+    }
+    return { ...global, ...Object.fromEntries(Object.entries(local).filter(([_, v]) => v != null && v !== "")) };
+  };
+
+  // ── Proxy actions: list_fields, list_tags (avoids CORS) ──
+  if (action === "list_fields" || action === "list_tags") {
+    const creds = await resolveUnnichatCreds(form_id);
+    if (!creds?.url) return respond({ error: "not_configured" }, 400);
+
+    // Resolve token from phone_id or first phone
+    const phones: any[] = creds.phones || [];
+    const phoneToken = body.phone_token || phones[0]?.token || creds.token;
+    if (!phoneToken) return respond({ error: "no_token" }, 400);
+
+    const baseUrl = creds.url.replace(/\/$/, "");
+    const hdrs = { "Authorization": `Bearer ${phoneToken}`, "Content-Type": "application/json" };
+
+    const endpoint = action === "list_fields" ? "/customFields/search" : "/tags/search";
+    const payload = action === "list_tags" ? { type: "contact" } : {};
+
+    const res = await fetchWithTimeout(`${baseUrl}${endpoint}`, {
+      method: "POST", headers: hdrs, body: JSON.stringify(payload),
+    });
+    const json = await res.json();
+    return respond(json);
+  }
+
+  // ── Normal sync flow ──
   // 1. Fetch Unnichat integration config
   const { data: integ } = await supabase
     .from("integrations")
