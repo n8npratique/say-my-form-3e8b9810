@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
   }
 
   const wahaUrl = waha.url.replace(/\/$/, "");
-  const wahaSession = waha.session || "default";
+  const wahaSession = integConfig.session_override || waha.session || "default";
   const defaultNumber = waha.default_number || "";
 
   // ── 3. Fetch response + answers (skip in test_mode) ──

@@ -27,6 +27,12 @@ interface WhatsAppTemplate {
 interface WhatsAppConfig {
   enabled: boolean;
   templates: WhatsAppTemplate[];
+  session_override?: string;
+}
+
+interface WahaSession {
+  name: string;
+  status: string;
 }
 
 /** Field types that don't produce useful variable values */
@@ -140,6 +146,10 @@ export const WhatsAppPanel = ({ formId, fields = [], hasAppointment = false }: W
   const [showPreview, setShowPreview] = useState(false);
   const [showPresets, setShowPresets] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [wahaSessions, setWahaSessions] = useState<WahaSession[]>([]);
+  const [loadingSessions, setLoadingSessions] = useState(false);
+  const [wahaUrl, setWahaUrl] = useState("");
+  const [wahaApiKey, setWahaApiKey] = useState("");
 
   const editing = config.templates.find((t) => t.id === editingId) || null;
 
@@ -200,10 +210,52 @@ export const WhatsAppPanel = ({ formId, fields = [], hasAppointment = false }: W
         .select("settings")
         .eq("id", form.workspace_id)
         .maybeSingle();
-      const s = ws?.settings as any;
-      setWahaConfigured(!!(s?.waha?.url && s?.waha?.session));
+      let s = (ws?.settings as any) ?? {};
+      let waha = s?.waha;
+
+      // Fallback to global settings if workspace has no WAHA config
+      if (!waha?.url || !waha?.session) {
+        const { data: globalData } = await supabase.rpc("get_global_settings");
+        if (globalData) {
+          const g = typeof globalData === "string" ? JSON.parse(globalData) : globalData;
+          const globalWaha = g?.waha ?? {};
+          const localWaha = waha ?? {};
+          waha = { ...globalWaha, ...Object.fromEntries(
+            Object.entries(localWaha).filter(([_, v]) => v != null && v !== "")
+          )};
+        }
+      }
+
+      const configured = !!(waha?.url && waha?.session);
+      setWahaConfigured(configured);
+
+      if (configured) {
+        setWahaUrl(waha.url.replace(/\/$/, ""));
+        setWahaApiKey(waha.api_key || "");
+        fetchWahaSessions(waha.url.replace(/\/$/, ""), waha.api_key || "");
+      }
     } else {
       setWahaConfigured(false);
+    }
+  };
+
+  const fetchWahaSessions = async (url: string, apiKey: string) => {
+    setLoadingSessions(true);
+    try {
+      const headers: Record<string, string> = {};
+      if (apiKey) headers["X-Api-Key"] = apiKey;
+      const res = await fetch(`${url}/api/sessions`, { headers });
+      if (res.ok) {
+        const data = await res.json();
+        const working = (Array.isArray(data) ? data : [])
+          .filter((s: any) => s.status === "WORKING")
+          .map((s: any) => ({ name: s.name, status: s.status }));
+        setWahaSessions(working);
+      }
+    } catch {
+      // WAHA might not be reachable from browser — silent fail
+    } finally {
+      setLoadingSessions(false);
     }
   };
 
@@ -690,6 +742,43 @@ export const WhatsAppPanel = ({ formId, fields = [], hasAppointment = false }: W
 
       {config.enabled && (
         <>
+          {/* Session selector */}
+          {wahaSessions.length > 1 && (
+            <div className="space-y-1">
+              <Label className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">Session WAHA</Label>
+              <Select
+                value={config.session_override || "_default"}
+                onValueChange={(v) => {
+                  const newConfig = { ...config, session_override: v === "_default" ? undefined : v };
+                  if (v === "_default") delete newConfig.session_override;
+                  saveConfig(newConfig);
+                }}
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="Usar padrão das configurações" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_default">
+                    <span className="text-muted-foreground">Padrão (configurações)</span>
+                  </SelectItem>
+                  {wahaSessions.map((s) => (
+                    <SelectItem key={s.name} value={s.name}>
+                      <div className="flex items-center gap-1.5">
+                        <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                        {s.name}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] text-muted-foreground">
+                {config.session_override
+                  ? `Usando session: ${config.session_override}`
+                  : "Usando session padrão das configurações do workspace"}
+              </p>
+            </div>
+          )}
+
           <p className="text-xs text-muted-foreground">
             {config.templates.length === 0
               ? "Crie mensagens personalizadas enviadas ao completar o formulário."
