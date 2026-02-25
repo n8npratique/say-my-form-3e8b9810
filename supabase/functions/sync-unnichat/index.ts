@@ -184,6 +184,10 @@ Deno.serve(async (req) => {
     answers[ans.field_key] = ans.value ?? ans.value_text;
   }
 
+  console.log("DEBUG answers keys:", Object.keys(answers));
+  console.log("DEBUG answers:", JSON.stringify(answers).substring(0, 500));
+  console.log("DEBUG integConfig:", JSON.stringify(integConfig).substring(0, 500));
+
   const meta: any = response.meta ?? {};
 
   // Fetch form version schema
@@ -205,8 +209,12 @@ Deno.serve(async (req) => {
   // with heuristic fallback for legacy configs without "::"
   const resolveField = (fieldId: string): string => {
     const [id, subkey] = fieldId.split("::");
-    const raw = answers[id];
+    let raw = answers[id];
     if (raw == null) return "";
+    // Parse stringified JSON (Supabase may store JSONB as string)
+    if (typeof raw === "string") {
+      try { const parsed = JSON.parse(raw); if (typeof parsed === "object" && parsed !== null) raw = parsed; } catch { /* not JSON */ }
+    }
     if (subkey && typeof raw === "object") return String(raw[subkey] ?? "");
     if (typeof raw === "object") {
       if (raw.first_name || raw.last_name) return `${raw.first_name ?? ""} ${raw.last_name ?? ""}`.trim();
@@ -263,8 +271,10 @@ Deno.serve(async (req) => {
   let contactId: string | null = null;
 
   // ── STEP A: Create contact ──
+  console.log("DEBUG create_contact:", integConfig.create_contact, "phone_field_id:", integConfig.contact_phone_field_id);
   if (integConfig.create_contact && integConfig.contact_phone_field_id) {
     const phone = resolveField(integConfig.contact_phone_field_id).replace(/\D/g, "");
+    console.log("DEBUG resolved phone:", phone);
     const name = integConfig.contact_name_field_id
       ? resolveField(integConfig.contact_name_field_id)
       : phone;
@@ -283,8 +293,10 @@ Deno.serve(async (req) => {
         const searchJson = await searchRes.json();
         const existing = searchJson?.data?.[0] ?? searchJson?.contact;
 
+        console.log("DEBUG existing:", JSON.stringify(existing));
         if (existing?.id) {
           contactId = existing.id;
+          console.log("DEBUG contactId found:", contactId);
           stepsCompleted.push("contact_found");
         } else {
           const contactBody: any = { name, phone };
@@ -304,6 +316,7 @@ Deno.serve(async (req) => {
     }
   }
 
+  console.log("DEBUG contactId before tags:", contactId, "steps:", stepsCompleted);
   if (!contactId) {
     return respond({ synced: false, reason: "no_contact_id", steps_completed: stepsCompleted });
   }
@@ -359,17 +372,23 @@ Deno.serve(async (req) => {
   }
 
   // ── STEP C: Tags ──
+  console.log("DEBUG add_tags:", integConfig.add_tags, "fixed_tags:", integConfig.fixed_tags);
   if (integConfig.add_tags) {
     // Fixed tags
     if (integConfig.fixed_tags?.length) {
       for (const tagId of integConfig.fixed_tags) {
         if (!tagId) continue;
         try {
-          await fetchWithTimeout(`${baseUrl}/contact/${contactId}/tags`, {
+          console.log("DEBUG adding tag:", tagId, "to contact:", contactId);
+          const tagUrl = `${baseUrl}/contact/${contactId}/tags`;
+          console.log("DEBUG tag URL:", tagUrl);
+          const tagRes = await fetchWithTimeout(tagUrl, {
             method: "POST",
             headers,
             body: JSON.stringify({ tag_id: tagId }),
           });
+          const tagJson = await tagRes.json();
+          console.log("DEBUG tag result:", JSON.stringify(tagJson).substring(0, 300));
           await new Promise((r) => setTimeout(r, 300));
         } catch (e) {
           console.error("Error adding fixed tag:", e);

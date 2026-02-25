@@ -16,6 +16,7 @@ import FormWorkflow from "./pages/FormWorkflow";
 import FormResponses from "./pages/FormResponses";
 import WorkspaceSettings from "./pages/WorkspaceSettings";
 import AdminInvites from "./pages/AdminInvites";
+import Training from "./pages/Training";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -82,6 +83,14 @@ const App = () => (
             element={
               <ProtectedRoute>
                 <AdminInvites />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/training"
+            element={
+              <ProtectedRoute>
+                <Training />
               </ProtectedRoute>
             }
           />

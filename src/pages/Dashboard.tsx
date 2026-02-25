@@ -11,7 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
-import { Plus, LogOut, Building2, Bell, Shield, FileText, BarChart3, Pencil, Trash2, Moon, Sun } from "lucide-react";
+import { Plus, LogOut, Building2, Bell, Shield, FileText, BarChart3, Pencil, Trash2, Moon, Sun, BookOpen } from "lucide-react";
 import logoPratique from "@/assets/logo-pratique.png";
 import { useRealtimeResponses } from "@/hooks/useRealtimeResponses";
 import { formatDistanceToNow } from "date-fns";
@@ -192,6 +192,15 @@ const Dashboard = () => {
             </Button>
 
             {/* Admin link */}
+            <Button
+              variant="ghost"
+              size="icon"
+              title="Treinamento"
+              onClick={() => navigate("/training")}
+            >
+              <BookOpen className="h-4 w-4" />
+            </Button>
+
             {isAdmin && (
               <Button
                 variant="ghost"
