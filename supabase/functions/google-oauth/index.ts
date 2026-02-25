@@ -229,8 +229,9 @@ Deno.serve(async (req) => {
         );
       }
 
+      const siteUrl = Deno.env.get("SITE_URL") || "";
       return new Response(
-        callbackHTML("success", googleEmail),
+        callbackHTML("success", googleEmail, siteUrl),
         { headers: { "Content-Type": "text/html; charset=utf-8" } }
       );
     }
@@ -348,7 +349,8 @@ Deno.serve(async (req) => {
 });
 
 // ── Callback HTML page (shown in popup/redirect) ────────────────────────────
-function callbackHTML(status: "success" | "error", detail: string): string {
+function callbackHTML(status: "success" | "error", detail: string, siteUrl?: string): string {
+  const appUrl = siteUrl || "";
   const isSuccess = status === "success";
   return `<!DOCTYPE html>
 <html>
@@ -402,8 +404,19 @@ function callbackHTML(status: "success" | "error", detail: string): string {
         }, "*");
       }
     } catch(e) {}
-    // Close popup after short delay
-    setTimeout(() => window.close(), 1500);
+    // Close popup after short delay; if it can't close (same-tab flow), redirect back
+    setTimeout(() => {
+      try { window.close(); } catch(e) {}
+      // If window didn't close, redirect back to the app
+      setTimeout(() => {
+        var appUrl = "${appUrl}";
+        if (appUrl) {
+          window.location.href = appUrl + "/dashboard";
+        } else {
+          document.querySelector("p:last-of-type").textContent = "Pode fechar esta janela manualmente.";
+        }
+      }, 500);
+    }, 1500);
   </script>
 </body>
 </html>`;

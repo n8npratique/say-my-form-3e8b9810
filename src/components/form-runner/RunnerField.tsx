@@ -379,7 +379,11 @@ export const RunnerField = ({ field, index, total, onAnswer, formId, locale, fie
         );
 
       case "redirect_url":
-        return null;
+        return (
+          <p style={{ color: "var(--runner-text-secondary)" }} className="text-sm">
+            {field.placeholder || "Redirecionando..."}
+          </p>
+        );
 
       case "matrix":
       case "question_group":

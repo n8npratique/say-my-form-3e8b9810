@@ -11,7 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
-import { Plus, LogOut, Building2, Bell, Shield, FileText, BarChart3 } from "lucide-react";
+import { Plus, LogOut, Building2, Bell, Shield, FileText, BarChart3, Pencil, Trash2, Moon, Sun } from "lucide-react";
 import logoPratique from "@/assets/logo-pratique.png";
 import { useRealtimeResponses } from "@/hooks/useRealtimeResponses";
 import { formatDistanceToNow } from "date-fns";
@@ -29,6 +29,12 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [newWorkspaceName, setNewWorkspaceName] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingWs, setEditingWs] = useState<Workspace | null>(null);
+  const [editWsName, setEditWsName] = useState("");
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deletingWs, setDeletingWs] = useState<Workspace | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [darkMode, setDarkMode] = useState(() => document.documentElement.classList.contains("dark"));
   const [allFormIds, setAllFormIds] = useState<string[]>([]);
   const [formNames, setFormNames] = useState<Record<string, string>>({});
   const [wsFormCounts, setWsFormCounts] = useState<Record<string, number>>({});
@@ -106,6 +112,49 @@ const Dashboard = () => {
     }
   };
 
+  const toggleDarkMode = () => {
+    const next = !darkMode;
+    setDarkMode(next);
+    document.documentElement.classList.toggle("dark", next);
+    localStorage.setItem("theme", next ? "dark" : "light");
+  };
+
+  // Restore dark mode from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem("theme");
+    if (saved === "dark") {
+      document.documentElement.classList.add("dark");
+      setDarkMode(true);
+    }
+  }, []);
+
+  const renameWorkspace = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingWs || !editWsName.trim()) return;
+    const { error } = await supabase.from("workspaces").update({ name: editWsName.trim() }).eq("id", editingWs.id);
+    if (error) {
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Workspace renomeado!" });
+      setEditDialogOpen(false);
+      setEditingWs(null);
+      fetchWorkspaces();
+    }
+  };
+
+  const deleteWorkspace = async () => {
+    if (!deletingWs) return;
+    const { error } = await supabase.from("workspaces").delete().eq("id", deletingWs.id);
+    if (error) {
+      toast({ title: "Erro ao excluir", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Workspace excluído!" });
+      setDeleteDialogOpen(false);
+      setDeletingWs(null);
+      fetchWorkspaces();
+    }
+  };
+
   const createWorkspace = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newWorkspaceName.trim()) return;
@@ -136,6 +185,11 @@ const Dashboard = () => {
           </div>
           <div className="flex items-center gap-3">
             <span className="text-sm text-muted-foreground">{user?.email}</span>
+
+            {/* Dark mode */}
+            <Button variant="ghost" size="icon" onClick={toggleDarkMode} title={darkMode ? "Modo claro" : "Modo escuro"}>
+              {darkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </Button>
 
             {/* Admin link */}
             {isAdmin && (
@@ -275,13 +329,42 @@ const Dashboard = () => {
                       <div className="h-11 w-11 rounded-xl gradient-primary flex items-center justify-center shadow-elevation-2 group-hover:shadow-elevation-3 transition-shadow">
                         <Building2 className="h-5 w-5 text-primary-foreground" />
                       </div>
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <CardTitle className="text-lg font-display group-hover:text-primary transition-colors truncate">
                           {ws.name}
                         </CardTitle>
                         <CardDescription className="text-[11px]">
                           Criado {formatDistanceToNow(new Date(ws.created_at), { locale: ptBR, addSuffix: true })}
                         </CardDescription>
+                      </div>
+                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          title="Renomear"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingWs(ws);
+                            setEditWsName(ws.name);
+                            setEditDialogOpen(true);
+                          }}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive hover:text-destructive"
+                          title="Excluir"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeletingWs(ws);
+                            setDeleteDialogOpen(true);
+                          }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
                       </div>
                     </div>
                     <div className="flex items-center gap-4 text-xs text-muted-foreground pt-2 border-t">
@@ -301,6 +384,49 @@ const Dashboard = () => {
           </div>
         )}
       </main>
+
+      {/* Edit workspace dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="font-display">Renomear Workspace</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={renameWorkspace} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-ws-name">Novo nome</Label>
+              <Input
+                id="edit-ws-name"
+                value={editWsName}
+                onChange={(e) => setEditWsName(e.target.value)}
+                required
+              />
+            </div>
+            <Button type="submit" className="w-full gradient-primary text-primary-foreground">
+              Salvar
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete workspace dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="font-display text-destructive">Excluir Workspace</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Tem certeza que deseja excluir o workspace <strong>{deletingWs?.name}</strong>? Todos os formulários e respostas serão perdidos. Esta ação não pode ser desfeita.
+          </p>
+          <div className="flex gap-2 pt-2">
+            <Button variant="destructive" className="flex-1" onClick={deleteWorkspace}>
+              Excluir
+            </Button>
+            <Button variant="outline" className="flex-1" onClick={() => setDeleteDialogOpen(false)}>
+              Cancelar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

@@ -48,9 +48,9 @@ export const FieldItem = ({
       <div className="flex-1 min-w-0">
         <div className="flex items-start gap-2">
           <span className="text-xs font-mono text-muted-foreground shrink-0 mt-0.5">{index + 1}.</span>
-          <span className="text-sm font-medium line-clamp-2">{field.label || "Sem título"}</span>
+          <span className="text-sm font-medium line-clamp-2">{field.label || cfg.label}</span>
         </div>
-        <span className="text-xs text-muted-foreground">{cfg.label}</span>
+        <span className="text-xs text-muted-foreground">{cfg.category}</span>
       </div>
       {field.required && (
         <span className="text-xs text-destructive font-medium">*</span>

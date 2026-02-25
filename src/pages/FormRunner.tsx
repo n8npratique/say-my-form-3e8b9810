@@ -416,6 +416,17 @@ const FormRunner = () => {
     const field = fields.find((f) => f.id === currentFieldId);
     if (!field) return;
 
+    // Handle redirect_url: redirect to the configured URL
+    if (field.type === "redirect_url") {
+      const redirectUrl = (field as any).redirect_url || field.placeholder || "";
+      if (redirectUrl) {
+        await completeForm();
+        const url = redirectUrl.startsWith("http") ? redirectUrl : `https://${redirectUrl}`;
+        window.location.href = url;
+        return;
+      }
+    }
+
     answersRef.current[field.id] = value;
 
     // Save answer

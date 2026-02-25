@@ -276,20 +276,30 @@ async function getOAuthAccessToken(
   return { accessToken: tokenData.access_token, email: conn.google_email };
 }
 
+// ── RFC 2047 encode a string for email headers ──
+function encodeRFC2047(text: string): string {
+  return `=?UTF-8?B?${btoa(unescape(encodeURIComponent(text)))}?=`;
+}
+
 // ── Send via Gmail API (OAuth) ──
 async function sendViaGmailAPI(
   accessToken: string,
   from: string,
   to: string,
   subject: string,
-  html: string
+  html: string,
+  senderName?: string,
 ) {
   // Build RFC 2822 email
   const boundary = `boundary_${crypto.randomUUID()}`;
+  // Encode sender name properly to avoid garbled characters like "ÿo"
+  const fromHeader = senderName
+    ? `${encodeRFC2047(senderName)} <${from}>`
+    : from;
   const rawEmail = [
-    `From: ${from}`,
+    `From: ${fromHeader}`,
     `To: ${to}`,
-    `Subject: =?UTF-8?B?${btoa(unescape(encodeURIComponent(subject)))}?=`,
+    `Subject: ${encodeRFC2047(subject)}`,
     `MIME-Version: 1.0`,
     `Content-Type: multipart/alternative; boundary="${boundary}"`,
     ``,
@@ -301,7 +311,7 @@ async function sendViaGmailAPI(
     `--${boundary}--`,
   ].join("\r\n");
 
-  // Base64url encode
+  // Base64url encode the entire raw message
   const encoded = btoa(rawEmail)
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
@@ -634,8 +644,8 @@ Deno.serve(async (req) => {
       const subject = replaceVars(resolvedTemplate.subject || form.name, vars);
       try {
         if (oauthConnection) {
-          // Use Gmail API via OAuth (primary)
-          await sendViaGmailAPI(oauthConnection.accessToken, oauthConnection.email, recipientEmail, subject, html);
+          // Use Gmail API via OAuth (primary) — pass form name as sender display name
+          await sendViaGmailAPI(oauthConnection.accessToken, oauthConnection.email, recipientEmail, subject, html, form.name);
         } else if (emailConfig.provider === "resend") {
           const senderEmail = emailConfig.sender_email || "noreply@tecforms.com";
           await sendViaResend(emailConfig.resend_api_key, senderEmail, recipientEmail, subject, html);

@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { AddFieldDialog } from "@/components/form-editor/AddFieldDialog";
@@ -125,10 +126,43 @@ const FormEditor = () => {
     setFields((prev) => prev.map((f) => (f.id === updated.id ? updated : f)));
   }, []);
 
+  const [deletedField, setDeletedField] = useState<{ field: FormField; index: number } | null>(null);
+
   const deleteField = useCallback((id: string) => {
-    setFields((prev) => prev.filter((f) => f.id !== id));
+    setFields((prev) => {
+      const idx = prev.findIndex((f) => f.id === id);
+      if (idx >= 0) {
+        setDeletedField({ field: prev[idx], index: idx });
+      }
+      return prev.filter((f) => f.id !== id);
+    });
     setSelectedId((prev) => (prev === id ? null : prev));
-  }, []);
+    // Show undo toast
+    toast({
+      title: "Campo excluído",
+      description: "Clique em Desfazer para restaurar.",
+      action: (
+        <ToastAction
+          altText="Desfazer exclusão"
+          onClick={() => {
+            setDeletedField((prev) => {
+              if (prev) {
+                setFields((fields) => {
+                  const copy = [...fields];
+                  copy.splice(Math.min(prev.index, copy.length), 0, prev.field);
+                  return copy;
+                });
+                setSelectedId(prev.field.id);
+              }
+              return null;
+            });
+          }}
+        >
+          Desfazer
+        </ToastAction>
+      ),
+    });
+  }, [toast]);
 
   const saveSchema = async () => {
     if (!versionId) return;
@@ -429,7 +463,7 @@ const FormEditor = () => {
       </header>
 
       {/* Body */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Left: field list */}
         <div style={{ width: 340, minWidth: 340, flexShrink: 0 }} className="border-r flex flex-col bg-card/30 overflow-hidden">
           <div className="p-4 border-b flex items-center justify-between">

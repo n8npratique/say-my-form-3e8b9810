@@ -318,6 +318,24 @@ export const FieldConfigPanel = ({ field, onChange, onDelete, workspaceId, field
               )}
             </div>
 
+            {/* ── REDIRECT URL config ── */}
+            {field.type === "redirect_url" && (
+              <div className="space-y-2 rounded-lg border p-3">
+                <div className="flex items-center gap-2">
+                  <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                  <Label className="text-sm font-medium">URL de redirecionamento</Label>
+                </div>
+                <Input
+                  value={(field as any).redirect_url || ""}
+                  onChange={(e) => onChange({ ...field, redirect_url: e.target.value } as any)}
+                  placeholder="https://exemplo.com"
+                />
+                <p className="text-xs text-muted-foreground">
+                  O respondente será redirecionado para esta URL ao chegar neste campo.
+                </p>
+              </div>
+            )}
+
             {/* ── FILE UPLOAD config ── */}
             {field.type === "file_upload" && (
               <div className="space-y-3 rounded-lg border p-3">
