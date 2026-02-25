@@ -311,7 +311,34 @@ Deno.serve(async (req) => {
   // ── STEP B: Custom fields ──
   if (integConfig.send_custom_fields && integConfig.custom_field_mappings?.length) {
     for (const mapping of integConfig.custom_field_mappings) {
-      if (!mapping.unnichat_field_id) continue;
+      // Support both new name-based (unnichat_field_name) and legacy id-based (unnichat_field_id)
+      const fieldName = mapping.unnichat_field_name;
+      let fieldId = mapping.unnichat_field_id;
+
+      if (!fieldName && !fieldId) continue;
+
+      // Resolve field name → ID via Unnichat API (exact match required)
+      if (fieldName && !fieldId) {
+        try {
+          const searchRes = await fetchWithTimeout(`${baseUrl}/customFields/search`, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ name: fieldName }),
+          });
+          const searchJson = await searchRes.json();
+          const found = searchJson?.data?.[0];
+          if (found?.id) {
+            fieldId = found.id;
+          } else {
+            console.error(`Custom field not found in Unnichat: "${fieldName}"`);
+            continue;
+          }
+        } catch (e) {
+          console.error(`Error searching custom field "${fieldName}":`, e);
+          continue;
+        }
+      }
+
       // Support new template format (value_template) and legacy (form_field_id)
       const value = mapping.value_template
         ? substituteVars(mapping.value_template)
@@ -321,7 +348,7 @@ Deno.serve(async (req) => {
         await fetchWithTimeout(`${baseUrl}/contact/${contactId}/customFields`, {
           method: "POST",
           headers,
-          body: JSON.stringify({ field_id: mapping.unnichat_field_id, field_value: value }),
+          body: JSON.stringify({ field_id: fieldId, field_value: value }),
         });
         await new Promise((r) => setTimeout(r, 500)); // rate limit
       } catch (e) {

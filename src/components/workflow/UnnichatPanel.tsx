@@ -25,7 +25,7 @@ interface UnnichatConfig {
   contact_email_field_id: string;
   // Section 2 - Custom fields
   send_custom_fields: boolean;
-  custom_field_mappings: Array<{ unnichat_field_id: string; value_template: string }>;
+  custom_field_mappings: Array<{ unnichat_field_name: string; value_template: string }>;
   // Section 3 - Tags
   add_tags: boolean;
   fixed_tags: string[];
@@ -423,37 +423,23 @@ export const UnnichatPanel = ({ formId, fields, scoring, tagging, outcomes }: Un
               </div>
               {config.send_custom_fields && (
                 <div className="space-y-2 pt-1">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full h-7 text-xs gap-1"
-                    onClick={loadUnnichatFields}
-                    disabled={loadingFields}
-                  >
-                    {loadingFields ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-                    Carregar campos do Unnichat
-                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    Digite o nome exato do campo como aparece no Unnichat (ex: cpf, Cliente, unidade_pratique).
+                  </p>
 
                   {config.custom_field_mappings.map((m, i) => (
                     <div key={i} className="border rounded p-2 space-y-1.5">
                       <div className="flex items-center gap-1.5">
-                        <Select
-                          value={m.unnichat_field_id}
-                          onValueChange={(v) => {
+                        <Input
+                          className="h-7 text-xs flex-1"
+                          placeholder="Nome do campo no Unnichat"
+                          value={m.unnichat_field_name || ""}
+                          onChange={(e) => {
                             const mappings = [...config.custom_field_mappings];
-                            mappings[i] = { ...m, unnichat_field_id: v };
+                            mappings[i] = { ...m, unnichat_field_name: e.target.value };
                             update({ custom_field_mappings: mappings });
                           }}
-                        >
-                          <SelectTrigger className="h-7 text-xs flex-1">
-                            <SelectValue placeholder="Campo Unnichat" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {unnichatFields.map((f) => (
-                              <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        />
                         <Button
                           variant="ghost"
                           size="icon"
@@ -503,7 +489,7 @@ export const UnnichatPanel = ({ formId, fields, scoring, tagging, outcomes }: Un
                     size="sm"
                     className="w-full h-7 text-xs gap-1"
                     onClick={() => update({
-                      custom_field_mappings: [...config.custom_field_mappings, { unnichat_field_id: "", value_template: "" }]
+                      custom_field_mappings: [...config.custom_field_mappings, { unnichat_field_name: "", value_template: "" }]
                     })}
                   >
                     <Plus className="h-3 w-3" /> Adicionar mapeamento
