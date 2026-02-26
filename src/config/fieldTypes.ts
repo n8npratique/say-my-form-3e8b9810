@@ -3,7 +3,7 @@ import {
   ListChecks, ChevronDown, Image, ToggleLeft, Scale, Star, ThumbsUp,
   MessageSquare, FileUp, CheckSquare, Users, Sparkles, LayoutList,
   SplitSquareVertical, Grid3X3, Award, BarChart3, ListOrdered,
-  Milestone, PanelTop, PanelBottom, ExternalLink, CircleDot, CalendarClock
+  Milestone, PanelBottom, ExternalLink, CircleDot, CalendarClock
 } from "lucide-react";
 
 export type FieldType =
@@ -59,7 +59,6 @@ export const FIELD_TYPES: FieldTypeConfig[] = [
   { type: "number", label: "Número", icon: Hash, category: "Outro", color: "text-primary" },
   { type: "date", label: "Data", icon: Calendar, category: "Outro", color: "text-success" },
   { type: "file_upload", label: "Envio de arquivo", icon: FileUp, category: "Outro", color: "text-accent" },
-  { type: "welcome_screen", label: "Tela de boas-vindas", icon: PanelTop, category: "Outro", color: "text-secondary" },
   { type: "end_screen", label: "Tela final", icon: PanelBottom, category: "Outro", color: "text-secondary" },
   { type: "question_group", label: "Grupo de perguntas", icon: LayoutList, category: "Outro", color: "text-primary" },
   { type: "redirect_url", label: "Redirecionar para URL", icon: ExternalLink, category: "Outro", color: "text-accent" },

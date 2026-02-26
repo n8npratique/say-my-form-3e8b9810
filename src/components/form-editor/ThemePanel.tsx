@@ -13,11 +13,12 @@ import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
-import { Check, X, ImageIcon, Sparkles, Upload, Trash2 } from "lucide-react";
+import { Check, X, ImageIcon, Sparkles, Upload, Trash2, Video } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import type { FormTheme, WelcomeScreen } from "@/lib/formTheme";
 import { THEME_PALETTES, AVAILABLE_FONTS, DEFAULT_THEME } from "@/lib/formTheme";
 import { BackgroundPicker } from "./BackgroundPicker";
+import { parseMediaUrl } from "@/lib/mediaUtils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -315,6 +316,51 @@ export const ThemePanel = ({ open, onOpenChange, theme, onChange }: ThemePanelPr
 
                   <Separator />
 
+                  {/* Vídeo */}
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold flex items-center gap-1.5">
+                      <Video className="h-3.5 w-3.5" /> Vídeo (YouTube ou Vimeo)
+                    </Label>
+                    <p className="text-[10px] text-muted-foreground">Cole a URL do YouTube ou Vimeo para exibir um vídeo na tela de boas-vindas</p>
+                    <Input
+                      placeholder="https://youtube.com/watch?v=... ou https://vimeo.com/..."
+                      value={welcome.video_url || ""}
+                      onChange={(e) => updateWelcome({ video_url: e.target.value || undefined })}
+                      className="h-8 text-xs"
+                    />
+                    {welcome.video_url && (() => {
+                      const info = parseMediaUrl(welcome.video_url);
+                      if (info?.type === "video") {
+                        return (
+                          <div className="relative rounded-md overflow-hidden border">
+                            <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
+                              <iframe
+                                src={info.embedUrl}
+                                className="absolute inset-0 w-full h-full"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                allowFullScreen
+                                title="Preview do vídeo"
+                              />
+                            </div>
+                            <Button
+                              variant="destructive"
+                              size="icon"
+                              className="absolute top-1 right-1 h-6 w-6"
+                              onClick={() => updateWelcome({ video_url: undefined })}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        );
+                      }
+                      return (
+                        <p className="text-[10px] text-destructive">URL não reconhecida. Use um link do YouTube ou Vimeo.</p>
+                      );
+                    })()}
+                  </div>
+
+                  <Separator />
+
                   <div className="space-y-3">
                     <Label className="text-sm font-semibold flex items-center gap-1.5">
                       <ImageIcon className="h-4 w-4" /> Imagem de fundo da Boas-vindas
@@ -362,10 +408,21 @@ export const ThemePanel = ({ open, onOpenChange, theme, onChange }: ThemePanelPr
                       {((welcome.image_url && (welcome.image_overlay ?? 0) > 0) || (!welcome.image_url && local.background_image && (local.background_overlay ?? 0) > 0)) && (
                         <div className="absolute inset-0" style={{ backgroundColor: `rgba(0,0,0,${welcome.image_url ? welcome.image_overlay : local.background_overlay})` }} />
                       )}
-                      <div className="relative z-10 text-center space-y-3">
+                      <div className="relative z-10 text-center space-y-3 w-full">
                         {welcome.logo_url && (
                           <img src={welcome.logo_url} alt="" className="max-h-16 max-w-[120px] object-contain mx-auto rounded" />
                         )}
+                        {welcome.video_url && (() => {
+                          const info = parseMediaUrl(welcome.video_url);
+                          if (info?.type === "video") {
+                            return (
+                              <div className="relative w-full max-w-[280px] mx-auto rounded overflow-hidden" style={{ paddingBottom: "40%" }}>
+                                <iframe src={info.embedUrl} className="absolute inset-0 w-full h-full" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen title="Vídeo" />
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
                         <p className="text-xl font-bold">{welcome.title || "Bem-vindo!"}</p>
                         {welcome.description && <p className="text-sm" style={{ color: local.text_secondary_color }}>{welcome.description}</p>}
                         <button className="px-6 py-2 rounded-md text-sm font-semibold" style={{ backgroundColor: local.button_color, color: local.button_text_color }}>

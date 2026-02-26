@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import type { FormTheme, WelcomeScreen as WelcomeScreenType } from "@/lib/formTheme";
 import { getThemeStyle } from "@/lib/formTheme";
+import { parseMediaUrl } from "@/lib/mediaUtils";
 import logoPratique from "@/assets/logo-pratique.png";
 
 interface WelcomeScreenProps {
@@ -59,6 +60,30 @@ export const WelcomeScreen = ({ formName, theme, welcome, onStart }: WelcomeScre
             className="max-h-40 max-w-xs object-contain rounded-lg mx-auto"
           />
         )}
+        {welcome.video_url && (() => {
+          const info = parseMediaUrl(welcome.video_url);
+          if (info?.type === "video") {
+            return (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.15 }}
+                className="w-full max-w-md mx-auto rounded-xl overflow-hidden shadow-lg"
+              >
+                <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
+                  <iframe
+                    src={info.embedUrl}
+                    className="absolute inset-0 w-full h-full"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    title="Vídeo de boas-vindas"
+                  />
+                </div>
+              </motion.div>
+            );
+          }
+          return null;
+        })()}
         <motion.h1
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}

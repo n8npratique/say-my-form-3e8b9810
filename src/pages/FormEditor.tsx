@@ -472,7 +472,7 @@ const FormEditor = () => {
               <Plus className="h-4 w-4 mr-1" /> Adicionar
             </Button>
           </div>
-          <ScrollArea className="flex-1">
+          <ScrollArea className="flex-1 min-h-0">
             <div className="p-3 space-y-2">
               {fields.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground text-sm">

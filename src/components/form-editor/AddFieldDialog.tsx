@@ -36,9 +36,9 @@ export const AddFieldDialog = ({ open, onOpenChange, onAddField }: AddFieldDialo
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden flex flex-col p-0">
-        <Tabs defaultValue="elements" className="flex flex-col h-full">
-          <DialogHeader className="px-6 pt-6 pb-0">
+      <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col p-0">
+        <Tabs defaultValue="elements" className="flex flex-col min-h-0 h-full">
+          <DialogHeader className="px-6 pt-6 pb-0 shrink-0">
             <TabsList className="w-full justify-start bg-transparent border-b rounded-none h-auto p-0 gap-6">
               <TabsTrigger
                 value="elements"
@@ -55,7 +55,7 @@ export const AddFieldDialog = ({ open, onOpenChange, onAddField }: AddFieldDialo
             </TabsList>
           </DialogHeader>
 
-          <TabsContent value="elements" className="flex-1 overflow-auto px-6 pb-6 mt-0">
+          <TabsContent value="elements" className="flex-1 min-h-0 overflow-y-auto px-6 pb-6 mt-0">
             <div className="flex gap-6 mt-4">
               {/* Sidebar */}
               <div className="w-48 shrink-0 space-y-4">
