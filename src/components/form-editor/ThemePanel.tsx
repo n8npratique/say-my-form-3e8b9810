@@ -32,7 +32,9 @@ interface ThemePanelProps {
 export const ThemePanel = ({ open, onOpenChange, theme, onChange }: ThemePanelProps) => {
   const [local, setLocal] = useState<FormTheme>(theme);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
   const logoFileRef = useRef<HTMLInputElement>(null);
+  const videoFileRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -319,17 +321,31 @@ export const ThemePanel = ({ open, onOpenChange, theme, onChange }: ThemePanelPr
                   {/* Vídeo */}
                   <div className="space-y-2">
                     <Label className="text-xs font-semibold flex items-center gap-1.5">
-                      <Video className="h-3.5 w-3.5" /> Vídeo (YouTube ou Vimeo)
+                      <Video className="h-3.5 w-3.5" /> Vídeo
                     </Label>
-                    <p className="text-[10px] text-muted-foreground">Cole a URL do YouTube ou Vimeo para exibir um vídeo na tela de boas-vindas</p>
-                    <Input
-                      placeholder="https://youtube.com/watch?v=... ou https://vimeo.com/..."
-                      value={welcome.video_url || ""}
-                      onChange={(e) => updateWelcome({ video_url: e.target.value || undefined })}
-                      className="h-8 text-xs"
-                    />
+                    <p className="text-[10px] text-muted-foreground">Faça upload de um vídeo (MP4, WebM, MOV — máx. 50MB) ou cole uma URL do YouTube/Vimeo</p>
                     {welcome.video_url && (() => {
                       const info = parseMediaUrl(welcome.video_url);
+                      if (info?.type === "video" && info.direct) {
+                        return (
+                          <div className="relative rounded-md overflow-hidden border">
+                            <video
+                              src={info.embedUrl}
+                              controls
+                              className="w-full max-h-[200px]"
+                              preload="metadata"
+                            />
+                            <Button
+                              variant="destructive"
+                              size="icon"
+                              className="absolute top-1 right-1 h-6 w-6"
+                              onClick={() => updateWelcome({ video_url: undefined })}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        );
+                      }
                       if (info?.type === "video") {
                         return (
                           <div className="relative rounded-md overflow-hidden border">
@@ -354,9 +370,59 @@ export const ThemePanel = ({ open, onOpenChange, theme, onChange }: ThemePanelPr
                         );
                       }
                       return (
-                        <p className="text-[10px] text-destructive">URL não reconhecida. Use um link do YouTube ou Vimeo.</p>
+                        <p className="text-[10px] text-destructive">URL não reconhecida. Use um link do YouTube, Vimeo, ou um arquivo de vídeo.</p>
                       );
                     })()}
+                    <input
+                      ref={videoFileRef}
+                      type="file"
+                      accept="video/mp4,video/webm,video/quicktime,video/ogg"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        if (!file.type.startsWith("video/")) {
+                          toast({ title: "Selecione um arquivo de vídeo", variant: "destructive" });
+                          return;
+                        }
+                        if (file.size > 50 * 1024 * 1024) {
+                          toast({ title: "Vídeo deve ter no máximo 50MB", variant: "destructive" });
+                          return;
+                        }
+                        setUploadingVideo(true);
+                        const ext = file.name.split(".").pop();
+                        const path = `videos/${crypto.randomUUID()}.${ext}`;
+                        const { error } = await supabase.storage.from("form-assets").upload(path, file);
+                        if (error) {
+                          toast({ title: "Erro ao enviar vídeo", description: error.message, variant: "destructive" });
+                          setUploadingVideo(false);
+                          return;
+                        }
+                        const { data: urlData } = supabase.storage.from("form-assets").getPublicUrl(path);
+                        updateWelcome({ video_url: urlData.publicUrl });
+                        setUploadingVideo(false);
+                        if (videoFileRef.current) videoFileRef.current.value = "";
+                      }}
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-xs"
+                        onClick={() => videoFileRef.current?.click()}
+                        disabled={uploadingVideo}
+                      >
+                        <Upload className="h-3 w-3 mr-1" />
+                        {uploadingVideo ? "Enviando..." : "Upload vídeo"}
+                      </Button>
+                    </div>
+                    <Input
+                      placeholder="Ou cole uma URL: YouTube, Vimeo, ou link direto do vídeo..."
+                      value={welcome.video_url || ""}
+                      onChange={(e) => updateWelcome({ video_url: e.target.value || undefined })}
+                      className="h-8 text-xs"
+                    />
                   </div>
 
                   <Separator />
@@ -414,6 +480,13 @@ export const ThemePanel = ({ open, onOpenChange, theme, onChange }: ThemePanelPr
                         )}
                         {welcome.video_url && (() => {
                           const info = parseMediaUrl(welcome.video_url);
+                          if (info?.type === "video" && info.direct) {
+                            return (
+                              <div className="w-full max-w-[280px] mx-auto rounded overflow-hidden">
+                                <video src={info.embedUrl} controls muted className="w-full" preload="metadata" />
+                              </div>
+                            );
+                          }
                           if (info?.type === "video") {
                             return (
                               <div className="relative w-full max-w-[280px] mx-auto rounded overflow-hidden" style={{ paddingBottom: "40%" }}>

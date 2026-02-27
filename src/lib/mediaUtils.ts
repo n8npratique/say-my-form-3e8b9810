@@ -3,10 +3,13 @@ export type MediaType = "video" | "image";
 interface MediaInfo {
   type: MediaType;
   embedUrl: string;
+  /** true when the URL points to a video file (mp4/webm/etc.) instead of a YouTube/Vimeo embed */
+  direct?: boolean;
 }
 
 const YOUTUBE_REGEX = /(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
 const VIMEO_REGEX = /vimeo\.com\/(\d+)/;
+const VIDEO_EXTENSIONS = /\.(mp4|webm|mov|ogg|avi|mkv)(\?.*)?$/i;
 const IMAGE_EXTENSIONS = /\.(jpg|jpeg|png|gif|webp|svg|bmp|avif)(\?.*)?$/i;
 
 export function parseMediaUrl(url: string): MediaInfo | null {
@@ -20,6 +23,10 @@ export function parseMediaUrl(url: string): MediaInfo | null {
   const vimeoMatch = url.match(VIMEO_REGEX);
   if (vimeoMatch) {
     return { type: "video", embedUrl: `https://player.vimeo.com/video/${vimeoMatch[1]}` };
+  }
+
+  if (VIDEO_EXTENSIONS.test(url)) {
+    return { type: "video", embedUrl: url, direct: true };
   }
 
   if (IMAGE_EXTENSIONS.test(url)) {

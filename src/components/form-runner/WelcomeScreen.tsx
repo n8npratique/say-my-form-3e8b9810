@@ -62,6 +62,25 @@ export const WelcomeScreen = ({ formName, theme, welcome, onStart }: WelcomeScre
         )}
         {welcome.video_url && (() => {
           const info = parseMediaUrl(welcome.video_url);
+          if (info?.type === "video" && info.direct) {
+            return (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.15 }}
+                className="w-full max-w-md mx-auto rounded-xl overflow-hidden shadow-lg"
+              >
+                <video
+                  src={info.embedUrl}
+                  controls
+                  autoPlay
+                  muted
+                  className="w-full"
+                  preload="metadata"
+                />
+              </motion.div>
+            );
+          }
           if (info?.type === "video") {
             return (
               <motion.div
