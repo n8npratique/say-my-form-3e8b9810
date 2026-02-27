@@ -5,7 +5,7 @@ import { Progress } from "@/components/ui/progress";
 import { EmailGate } from "@/components/form-runner/EmailGate";
 import { RunnerField } from "@/components/form-runner/RunnerField";
 import { WelcomeScreen } from "@/components/form-runner/WelcomeScreen";
-import { CheckCircle2, Trophy, AlertTriangle } from "lucide-react";
+import { CheckCircle2, Trophy, AlertTriangle, Eye } from "lucide-react";
 import logoPratique from "@/assets/logo-pratique.png";
 import { AnimatePresence, motion } from "framer-motion";
 import type { FormField, FieldTranslation } from "@/types/workflow";
@@ -16,8 +16,12 @@ import { getNextFieldId, calculateScore, collectTags, determineOutcome } from "@
 import type { FormTheme, WelcomeScreen as WelcomeScreenType } from "@/lib/formTheme";
 import { DEFAULT_THEME, getThemeStyle, loadGoogleFont } from "@/lib/formTheme";
 
-const FormRunner = () => {
-  const { slug } = useParams<{ slug: string }>();
+interface FormRunnerProps {
+  previewMode?: boolean;
+}
+
+const FormRunner = ({ previewMode = false }: FormRunnerProps) => {
+  const { slug, formId: paramFormId } = useParams<{ slug?: string; formId?: string }>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [formName, setFormName] = useState("");
@@ -54,8 +58,9 @@ const FormRunner = () => {
   const [endScreen, setEndScreen] = useState<FormField | null>(null);
 
   useEffect(() => {
-    if (slug) loadForm();
-  }, [slug]);
+    if (previewMode && paramFormId) loadFormPreview();
+    else if (slug) loadForm();
+  }, [slug, paramFormId, previewMode]);
 
   useEffect(() => {
     loadGoogleFont(theme.font_family);
@@ -142,8 +147,66 @@ const FormRunner = () => {
     setLoading(false);
   };
 
+  const loadFormPreview = async () => {
+    // Load form by ID without checking published status
+    const { data: form, error: formErr } = await supabase
+      .from("forms")
+      .select("id, name, settings")
+      .eq("id", paramFormId!)
+      .maybeSingle();
+
+    if (formErr || !form) {
+      setError("Formulário não encontrado.");
+      setLoading(false);
+      return;
+    }
+
+    setFormId(form.id);
+    setFormName(form.name);
+    const settings = form.settings as any;
+    setAccessMode("public"); // Preview always public
+
+    // Load latest form_version (draft)
+    const { data: version } = await supabase
+      .from("form_versions")
+      .select("id, schema")
+      .eq("form_id", form.id)
+      .order("version_number", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (version) {
+      setVersionId(version.id);
+      const schema = version.schema as any as FormSchema;
+      if (schema?.fields) {
+        const allF: FormField[] = schema.fields;
+        setAllFields(allF);
+        const answerable = allF.filter(
+          (f) => f.type !== "end_screen" && f.type !== "welcome_screen"
+        );
+        setFields(answerable);
+        setCurrentFieldId(answerable[0]?.id || null);
+      }
+      if (schema?.logic) setLogic(schema.logic);
+      if (schema?.scoring?.enabled) setScoring(schema.scoring);
+      if (schema?.tagging?.enabled) setTagging(schema.tagging);
+      if (schema?.outcomes?.enabled) setOutcomesConfig(schema.outcomes);
+      if (schema?.theme) setTheme(schema.theme);
+      if (schema?.locale) {
+        setLocale(schema.locale);
+        if (schema.field_translations?.[schema.locale]) {
+          setFieldTranslationsMap(schema.field_translations[schema.locale]);
+        }
+      }
+      if (schema?.theme?.welcome_screen?.enabled) setShowWelcome(true);
+    }
+
+    setLoading(false);
+  };
+
   const startResponse = async (email?: string) => {
     if (!formId || !versionId) return;
+    if (previewMode) return; // Don't create response records in preview
     const meta = email ? { respondent_email: email } : {};
     const { data } = await supabase
       .from("responses")
@@ -182,6 +245,37 @@ const FormRunner = () => {
   }, [loading, accessMode, fields]);
 
   const completeForm = async () => {
+    if (previewMode) {
+      // In preview: calculate scoring/outcomes for display but don't save anything
+      if (scoring) {
+        const score = calculateScore(answersRef.current, scoring.field_scores);
+        const range = scoring.ranges.find((r) => score >= r.min && score <= r.max);
+        setScoreResult({ score, label: range?.label });
+      }
+      if (outcomesConfig) {
+        const outcomeId = determineOutcome(answersRef.current, outcomesConfig.field_outcomes);
+        if (outcomeId) {
+          const def = outcomesConfig.definitions.find((d) => d.id === outcomeId);
+          setOutcomeLabel(def?.label || null);
+          setOutcomeDesc(def?.description || null);
+          if (def?.end_screen_id) {
+            const es = allFields.find((f) => f.id === def.end_screen_id);
+            if (es) setEndScreen(es);
+          }
+        }
+      }
+      if (scoring) {
+        const score = calculateScore(answersRef.current, scoring.field_scores);
+        const range = scoring.ranges.find((r) => score >= r.min && score <= r.max);
+        if (range?.end_screen_id) {
+          const es = allFields.find((f) => f.id === range.end_screen_id);
+          if (es) setEndScreen((prev) => prev ?? es);
+        }
+      }
+      setCompleted(true);
+      return;
+    }
+
     if (!responseId || !formId) return;
 
     // Check for duplicates
@@ -412,12 +506,13 @@ const FormRunner = () => {
   };
 
   const handleAnswer = async (value: any) => {
-    if (!responseId || !currentFieldId) return;
+    if (!previewMode && (!responseId || !currentFieldId)) return;
+    if (previewMode && !currentFieldId) return;
     const field = fields.find((f) => f.id === currentFieldId);
     if (!field) return;
 
     // Handle redirect_url: redirect to the configured URL
-    if (field.type === "redirect_url") {
+    if (field.type === "redirect_url" && !previewMode) {
       const redirectUrl = (field as any).redirect_url || field.placeholder || "";
       if (redirectUrl) {
         await completeForm();
@@ -429,13 +524,15 @@ const FormRunner = () => {
 
     answersRef.current[field.id] = value;
 
-    // Save answer
-    await supabase.from("response_answers").insert({
-      response_id: responseId,
-      field_key: field.id,
-      value: value as any,
-      value_text: formatValueText(value),
-    });
+    // Save answer (skip in preview mode)
+    if (!previewMode) {
+      await supabase.from("response_answers").insert({
+        response_id: responseId,
+        field_key: field.id,
+        value: value as any,
+        value_text: formatValueText(value),
+      });
+    }
 
     setAnsweredCount((prev) => prev + 1);
 
@@ -688,7 +785,13 @@ const FormRunner = () => {
       {hasOverlay && (
         <div className="absolute inset-0 z-0" style={{ backgroundColor: `rgba(0,0,0,${theme.background_overlay})` }} />
       )}
-      <div className="sticky top-0 z-50 backdrop-blur-sm" style={{ backgroundColor: `${theme.background_color}CC` }}>
+      {previewMode && (
+        <div className="sticky top-0 z-50 bg-yellow-400 text-yellow-900 text-center text-sm font-medium py-1.5 px-4 flex items-center justify-center gap-2">
+          <Eye className="h-4 w-4" />
+          Modo Preview — as respostas não serão salvas
+        </div>
+      )}
+      <div className="sticky top-0 z-40 backdrop-blur-sm" style={{ backgroundColor: `${theme.background_color}CC` }}>
         <Progress value={progress} className="h-1.5 rounded-none" />
       </div>
 

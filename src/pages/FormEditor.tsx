@@ -289,11 +289,7 @@ const FormEditor = () => {
   };
 
   const handlePreview = () => {
-    if (slug) {
-      window.open(`/f/${slug}`, "_blank");
-    } else {
-      toast({ title: "Publique o formulário primeiro para gerar o preview.", variant: "destructive" });
-    }
+    window.open(`/form/${formId}/preview`, "_blank");
   };
 
   const translateWithAI = async () => {

@@ -94,6 +94,14 @@ const App = () => (
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/form/:formId/preview"
+            element={
+              <ProtectedRoute>
+                <FormRunner previewMode />
+              </ProtectedRoute>
+            }
+          />
           <Route path="/f/:slug" element={<FormRunner />} />
           <Route path="/cancel/:token" element={<CancelAppointment />} />
           <Route path="/reschedule/:token" element={<RescheduleAppointment />} />

@@ -11,10 +11,12 @@ import { ScoringPanel } from "@/components/workflow/ScoringPanel";
 import { TaggingPanel } from "@/components/workflow/TaggingPanel";
 import { OutcomePanel } from "@/components/workflow/OutcomePanel";
 import { ActionsPanel } from "@/components/workflow/ActionsPanel";
+import { AddFieldDialog } from "@/components/form-editor/AddFieldDialog";
 import { ArrowLeft, Save, GitBranch, Award, Tag, Trophy } from "lucide-react";
 import logoPratique from "@/assets/logo-pratique.png";
 import type { FormField, FieldLogic, ScoringConfig, TaggingConfig, OutcomesConfig, FormSchema, EmailTemplate } from "@/types/workflow";
 import { DEFAULT_SCORING, DEFAULT_TAGGING, DEFAULT_OUTCOMES } from "@/types/workflow";
+import type { FieldType } from "@/config/fieldTypes";
 
 const FormWorkflow = () => {
   const { workspaceId, formId } = useParams<{ workspaceId: string; formId: string }>();
@@ -32,8 +34,56 @@ const FormWorkflow = () => {
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState("branching");
+  const [insertAfterIndex, setInsertAfterIndex] = useState<number | null>(null);
+  const [insertDialogOpen, setInsertDialogOpen] = useState(false);
 
   const selectedField = fields.find((f) => f.id === selectedFieldId) || null;
+
+  const handleInsertField = (afterIndex: number) => {
+    setInsertAfterIndex(afterIndex);
+    setInsertDialogOpen(true);
+  };
+
+  const handleAddFieldAtIndex = async (type: FieldType) => {
+    const newField: FormField = {
+      id: crypto.randomUUID(),
+      type,
+      label: "",
+      required: false,
+      options: ["multiple_choice", "dropdown", "image_choice", "checkbox", "ranking"].includes(type)
+        ? ["Opção 1", "Opção 2"]
+        : undefined,
+      contact_fields: type === "contact_info" ? ["first_name", "last_name", "email", "phone"] : undefined,
+    };
+
+    const insertAt = insertAfterIndex != null ? insertAfterIndex + 1 : fields.length;
+    const updatedFields = [...fields];
+    updatedFields.splice(insertAt, 0, newField);
+    setFields(updatedFields);
+    setSelectedFieldId(newField.id);
+    setInsertDialogOpen(false);
+    setInsertAfterIndex(null);
+
+    // Persist to database
+    if (versionId) {
+      const { data: current } = await supabase
+        .from("form_versions")
+        .select("schema")
+        .eq("id", versionId)
+        .maybeSingle();
+
+      const currentSchema = (current?.schema as any) || {};
+      const existingFields: FormField[] = currentSchema.fields || [];
+      existingFields.splice(insertAt, 0, newField);
+
+      await supabase
+        .from("form_versions")
+        .update({ schema: { ...currentSchema, fields: existingFields } as any })
+        .eq("id", versionId);
+
+      toast({ title: "Campo inserido no fluxo!" });
+    }
+  };
 
   useEffect(() => {
     if (formId) fetchData();
@@ -135,14 +185,13 @@ const FormWorkflow = () => {
         {/* Main area */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Canvas */}
-          <div className="border-b bg-muted/20">
-            <WorkflowCanvas
-              fields={fields}
-              logic={logic}
-              selectedFieldId={selectedFieldId}
-              onSelectField={setSelectedFieldId}
-            />
-          </div>
+          <WorkflowCanvas
+            fields={fields}
+            logic={logic}
+            selectedFieldId={selectedFieldId}
+            onSelectField={setSelectedFieldId}
+            onInsertField={handleInsertField}
+          />
 
           {/* Config panels */}
           <div className="flex-1 overflow-hidden">
@@ -206,6 +255,12 @@ const FormWorkflow = () => {
           outcomes={outcomes}
         />
       </div>
+
+      <AddFieldDialog
+        open={insertDialogOpen}
+        onOpenChange={setInsertDialogOpen}
+        onAddField={handleAddFieldAtIndex}
+      />
     </div>
   );
 };
