@@ -68,7 +68,7 @@ const WorkspaceForms = () => {
   const [activeTab, setActiveTab] = useState("active");
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiGenerating, setAiGenerating] = useState(false);
-  const [aiResult, setAiResult] = useState<{ name: string; fields: any[] } | null>(null);
+  const [aiResult, setAiResult] = useState<{ name: string; fields: any[]; logic?: any[] } | null>(null);
   const [listening, setListening] = useState(false);
   const [responseCounts, setResponseCounts] = useState<Record<string, number>>({});
   const recognitionRef = useRef<any>(null);
@@ -153,7 +153,7 @@ const WorkspaceForms = () => {
 
     // Build schema: blank, template, or AI-generated
     const schema = aiResult
-      ? { fields: aiResult.fields }
+      ? { fields: aiResult.fields, ...(aiResult.logic?.length ? { logic: aiResult.logic } : {}) }
       : selectedTemplate
         ? selectedTemplate.buildSchema()
         : { fields: [] };
@@ -224,9 +224,13 @@ const WorkspaceForms = () => {
       });
       if (error) throw error;
       if (data?.fields) {
-        setAiResult({ name: data.name || "Formulário IA", fields: data.fields });
+        const logicCount = data.logic?.length || 0;
+        setAiResult({ name: data.name || "Formulário IA", fields: data.fields, logic: data.logic || [] });
         setNewFormName(data.name || "Formulário IA");
-        toast({ title: "Formulário gerado!", description: `${data.fields.length} campos criados pela IA.` });
+        const desc = logicCount > 0
+          ? `${data.fields.length} campos e ${logicCount} regras de lógica criados pela IA.`
+          : `${data.fields.length} campos criados pela IA.`;
+        toast({ title: "Formulário gerado!", description: desc });
       }
     } catch (err: any) {
       toast({ title: "Erro na geração", description: err.message, variant: "destructive" });
@@ -481,7 +485,7 @@ const WorkspaceForms = () => {
                       <div className="flex items-center gap-2">
                         <Sparkles className="h-4 w-4 text-green-600" />
                         <p className="text-sm font-medium text-green-800">
-                          Formulário gerado: {aiResult.fields.length} campos
+                          Formulário gerado: {aiResult.fields.length} campos{aiResult.logic?.length ? ` + ${aiResult.logic.length} regras de lógica` : ""}
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-1">
