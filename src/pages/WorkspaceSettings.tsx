@@ -183,7 +183,7 @@ const WorkspaceSettings = () => {
     setConnectingOAuth(true);
     try {
       const { data, error } = await supabase.functions.invoke("google-oauth", {
-        body: { action: "authorize", workspace_id: workspaceId },
+        body: { action: "authorize", workspace_id: workspaceId, origin: window.location.origin },
       });
       if (error) throw error;
       if (data?.authorization_url) {

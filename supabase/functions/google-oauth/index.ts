@@ -41,7 +41,7 @@ async function signState(payload: string): Promise<string> {
   return btoa(JSON.stringify({ payload, sig: sigHex }));
 }
 
-async function verifyState(state: string): Promise<{ workspace_id: string; user_id: string } | null> {
+async function verifyState(state: string): Promise<{ workspace_id: string; user_id: string; origin?: string } | null> {
   try {
     const { payload, sig } = JSON.parse(atob(state));
     const key = await crypto.subtle.importKey(
@@ -110,7 +110,7 @@ Deno.serve(async (req) => {
 
     // ── ACTION: authorize ─────────────────────────────────────────────────
     if (action === "authorize") {
-      const { workspace_id } = body;
+      const { workspace_id, origin: clientOrigin } = body;
 
       const user = await getUser(req, supabaseAdmin);
       if (!user) return respond({ error: "unauthorized" }, 401);
@@ -118,6 +118,7 @@ Deno.serve(async (req) => {
       const statePayload = JSON.stringify({
         workspace_id,
         user_id: user.id,
+        origin: clientOrigin || "",
       });
       const state = await signState(statePayload);
 
@@ -141,28 +142,40 @@ Deno.serve(async (req) => {
       const code = url.searchParams.get("code");
       const state = url.searchParams.get("state");
       const error = url.searchParams.get("error");
+      const fallbackOrigin = Deno.env.get("SITE_URL") || "";
+
+      // Try to extract origin from state early (even before full verification)
+      let earlyOrigin = fallbackOrigin;
+      if (state) {
+        try {
+          const { payload } = JSON.parse(atob(state));
+          const parsed = JSON.parse(payload);
+          if (parsed.origin) earlyOrigin = parsed.origin;
+        } catch {}
+      }
 
       if (error) {
-        return new Response(callbackHTML("error", error), {
-          headers: { "Content-Type": "text/html" },
+        return new Response(callbackHTML("error", error, earlyOrigin), {
+          headers: { "Content-Type": "text/html; charset=utf-8" },
         });
       }
 
       if (!code || !state) {
-        return new Response(callbackHTML("error", "Missing code or state"), {
-          headers: { "Content-Type": "text/html" },
+        return new Response(callbackHTML("error", "Missing code or state", earlyOrigin), {
+          headers: { "Content-Type": "text/html; charset=utf-8" },
         });
       }
 
       // Verify HMAC state
       const stateData = await verifyState(state);
       if (!stateData) {
-        return new Response(callbackHTML("error", "Invalid state signature"), {
-          headers: { "Content-Type": "text/html" },
+        return new Response(callbackHTML("error", "Invalid state signature", earlyOrigin), {
+          headers: { "Content-Type": "text/html; charset=utf-8" },
         });
       }
 
-      const { workspace_id, user_id } = stateData;
+      const { workspace_id, user_id, origin: stateOrigin } = stateData;
+      const appOrigin = stateOrigin || fallbackOrigin;
 
       // Exchange code for tokens
       const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
@@ -180,7 +193,7 @@ Deno.serve(async (req) => {
 
       if (!tokenData.access_token) {
         return new Response(
-          callbackHTML("error", `Token exchange failed: ${tokenData.error || "unknown"}`),
+          callbackHTML("error", `Token exchange failed: ${tokenData.error || "unknown"}`, appOrigin),
           { headers: { "Content-Type": "text/html; charset=utf-8" } }
         );
       }
@@ -194,7 +207,7 @@ Deno.serve(async (req) => {
 
       if (!googleEmail) {
         return new Response(
-          callbackHTML("error", "Could not retrieve Google email"),
+          callbackHTML("error", "Could not retrieve Google email", appOrigin),
           { headers: { "Content-Type": "text/html; charset=utf-8" } }
         );
       }
@@ -224,14 +237,13 @@ Deno.serve(async (req) => {
       if (dbError) {
         console.error("DB upsert error:", dbError);
         return new Response(
-          callbackHTML("error", `Database error: ${dbError.message}`),
+          callbackHTML("error", `Database error: ${dbError.message}`, appOrigin),
           { headers: { "Content-Type": "text/html; charset=utf-8" } }
         );
       }
 
-      const siteUrl = Deno.env.get("SITE_URL") || "";
       return new Response(
-        callbackHTML("success", googleEmail, siteUrl),
+        callbackHTML("success", googleEmail, appOrigin),
         { headers: { "Content-Type": "text/html; charset=utf-8" } }
       );
     }
@@ -349,28 +361,40 @@ Deno.serve(async (req) => {
 });
 
 // ── Callback HTML page (shown in popup/redirect) ────────────────────────────
-function callbackHTML(status: "success" | "error", detail: string, siteUrl?: string): string {
-  const appUrl = siteUrl || "";
+function callbackHTML(status: "success" | "error", detail: string, appOrigin?: string): string {
+  const safeOrigin = (appOrigin || "").replace(/\/+$/, "");
   const isSuccess = status === "success";
+  const safeDetail = detail.replace(/</g, "&lt;").replace(/>/g, "&gt;");
   return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Google OAuth - TecForms</title>
   <style>
+    * { box-sizing: border-box; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       display: flex; align-items: center; justify-content: center;
-      min-height: 100vh; margin: 0; background: #f8fafc;
+      min-height: 100vh; margin: 0;
+      background: #f8fafc; color: #1a1a2e;
     }
     .card {
-      background: white; border-radius: 12px; padding: 2rem; text-align: center;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1); max-width: 400px; width: 90%;
+      background: white; border-radius: 16px; padding: 2.5rem 2rem; text-align: center;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08); max-width: 420px; width: 90%;
     }
     .icon { font-size: 3rem; margin-bottom: 1rem; }
-    h2 { margin: 0 0 0.5rem; color: #1a1a2e; font-size: 1.25rem; }
-    p { color: #64748b; font-size: 0.875rem; margin: 0; }
+    h2 { margin: 0 0 0.5rem; font-size: 1.25rem; font-weight: 700; }
+    p { color: #64748b; font-size: 0.875rem; margin: 0; line-height: 1.5; }
     .email { color: #3b82f6; font-weight: 600; }
+    .status-msg { margin-top: 1rem; color: #94a3b8; font-size: 0.75rem; }
+    .btn {
+      display: none; margin-top: 1.25rem; padding: 0.625rem 1.5rem;
+      background: #6366f1; color: white; border: none; border-radius: 8px;
+      font-size: 0.875rem; font-weight: 600; cursor: pointer;
+      text-decoration: none;
+    }
+    .btn:hover { background: #4f46e5; }
   </style>
 </head>
 <body>
@@ -378,45 +402,85 @@ function callbackHTML(status: "success" | "error", detail: string, siteUrl?: str
     <div class="icon">${isSuccess ? "&#10004;&#65039;" : "&#10060;"}</div>
     <h2>${isSuccess ? "Conta conectada!" : "Erro na conexao"}</h2>
     <p>${isSuccess
-      ? `A conta <span class="email">${detail}</span> foi conectada com sucesso.`
-      : `${detail}`
+      ? `A conta <span class="email">${safeDetail}</span> foi conectada com sucesso.`
+      : safeDetail
     }</p>
-    <p style="margin-top:1rem;color:#94a3b8;font-size:0.75rem;">
-      Esta janela vai fechar automaticamente...
-    </p>
+    <p class="status-msg" id="statusMsg">Fechando esta janela...</p>
+    <a class="btn" id="closeBtn" href="${safeOrigin}/dashboard">Voltar para o TecForms</a>
   </div>
   <script>
-    // Use localStorage event to notify parent window (works cross-origin)
-    try {
-      localStorage.setItem("google-oauth-result", JSON.stringify({
-        status: "${status}",
-        detail: ${JSON.stringify(detail)},
-        ts: Date.now()
-      }));
-    } catch(e) {}
-    // Also try postMessage (works if opener is same origin)
-    try {
-      if (window.opener) {
-        window.opener.postMessage({
-          type: "google-oauth-callback",
-          status: "${status}",
-          detail: ${JSON.stringify(detail)}
-        }, "*");
+    (function() {
+      var result = { status: "${status}", detail: ${JSON.stringify(detail)}, ts: Date.now() };
+      var appOrigin = "${safeOrigin}";
+      var isPopup = !!window.opener;
+      var closed = false;
+
+      // 1) Try postMessage to opener (works if same origin)
+      function notifyOpener() {
+        try {
+          if (window.opener && !window.opener.closed) {
+            window.opener.postMessage({
+              type: "google-oauth-callback",
+              status: result.status,
+              detail: result.detail
+            }, appOrigin || "*");
+          }
+        } catch(e) {}
       }
-    } catch(e) {}
-    // Close popup after short delay; if it can't close (same-tab flow), redirect back
-    setTimeout(() => {
-      try { window.close(); } catch(e) {}
-      // If window didn't close, redirect back to the app
-      setTimeout(() => {
-        var appUrl = "${appUrl}";
-        if (appUrl) {
-          window.location.href = appUrl + "/dashboard";
-        } else {
-          document.querySelector("p:last-of-type").textContent = "Pode fechar esta janela manualmente.";
+
+      // 2) Try localStorage (works if same origin, triggers storage event in other tabs)
+      function notifyStorage() {
+        try {
+          localStorage.setItem("google-oauth-result", JSON.stringify(result));
+        } catch(e) {}
+      }
+
+      // 3) Try closing the window
+      function tryClose() {
+        try {
+          window.close();
+          // Check if it actually closed after a tick
+          setTimeout(function() {
+            if (!window.closed) showFallback();
+          }, 300);
+        } catch(e) {
+          showFallback();
         }
-      }, 500);
-    }, 1500);
+      }
+
+      // 4) Fallback: show a button to go back or message to close manually
+      function showFallback() {
+        if (closed) return;
+        closed = true;
+        var msg = document.getElementById("statusMsg");
+        var btn = document.getElementById("closeBtn");
+        if (appOrigin) {
+          // Redirect back to app automatically
+          msg.textContent = "Redirecionando...";
+          btn.style.display = "inline-block";
+          setTimeout(function() {
+            window.location.href = appOrigin + "/dashboard";
+          }, 1000);
+        } else {
+          msg.textContent = "Pode fechar esta janela manualmente.";
+          btn.style.display = "none";
+        }
+      }
+
+      // Execute: notify, then close
+      notifyOpener();
+      notifyStorage();
+
+      // Give a moment for the user to see the success message, then close
+      setTimeout(function() {
+        if (isPopup) {
+          tryClose();
+        } else {
+          // Not a popup — redirect back to app
+          showFallback();
+        }
+      }, 1200);
+    })();
   </script>
 </body>
 </html>`;
