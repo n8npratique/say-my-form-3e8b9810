@@ -1,9 +1,10 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Progress } from "@/components/ui/progress";
+// Progress bar is now custom (motion.div) — shadcn Progress removed
 import { EmailGate } from "@/components/form-runner/EmailGate";
 import { RunnerField } from "@/components/form-runner/RunnerField";
+import { TypingIndicator } from "@/components/form-runner/TypingIndicator";
 import { WelcomeScreen } from "@/components/form-runner/WelcomeScreen";
 import { CheckCircle2, Trophy, AlertTriangle, Eye } from "lucide-react";
 import logoPratique from "@/assets/logo-pratique.png";
@@ -49,6 +50,8 @@ const FormRunner = ({ previewMode = false }: FormRunnerProps) => {
   const [duplicateError, setDuplicateError] = useState<string | null>(null);
   const [deadlineState, setDeadlineState] = useState<"ok" | "not_open" | "closed">("ok");
   const answersRef = useRef<Record<string, any>>({});
+  const [showTyping, setShowTyping] = useState(false);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Outcome result
   const [outcomeLabel, setOutcomeLabel] = useState<string | null>(null);
@@ -544,22 +547,31 @@ const FormRunner = ({ previewMode = false }: FormRunnerProps) => {
       return;
     }
 
+    // Determine the actual next field ID
+    let resolvedNextId: string | null = null;
     if (nextId) {
-      // Jump to specific field
       const idx = fields.findIndex((f) => f.id === nextId);
-      if (idx >= 0) {
-        setCurrentFieldId(nextId);
-        return;
+      if (idx >= 0) resolvedNextId = nextId;
+    }
+    if (!resolvedNextId) {
+      const currentIdx = fields.findIndex((f) => f.id === currentFieldId);
+      if (currentIdx < fields.length - 1) {
+        resolvedNextId = fields[currentIdx + 1].id;
       }
     }
 
-    // Default: next sequential field
-    const currentIdx = fields.findIndex((f) => f.id === currentFieldId);
-    if (currentIdx < fields.length - 1) {
-      setCurrentFieldId(fields[currentIdx + 1].id);
-    } else {
+    if (!resolvedNextId) {
       await completeForm();
+      return;
     }
+
+    // Show typing indicator before transitioning
+    setShowTyping(true);
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => {
+      setShowTyping(false);
+      setCurrentFieldId(resolvedNextId);
+    }, 800 + Math.random() * 400);
   };
 
   const themeStyle = getThemeStyle(theme);
@@ -791,13 +803,36 @@ const FormRunner = ({ previewMode = false }: FormRunnerProps) => {
           Modo Preview — as respostas não serão salvas
         </div>
       )}
-      <div className="sticky top-0 z-40 backdrop-blur-sm" style={{ backgroundColor: `${theme.background_color}CC` }}>
-        <Progress value={progress} className="h-1.5 rounded-none" />
+      <div className="sticky top-0 z-40 backdrop-blur-sm px-0" style={{ backgroundColor: `${theme.background_color}CC` }}>
+        {/* Progress track */}
+        <div className="w-full h-2.5 rounded-none" style={{ backgroundColor: `${theme.text_secondary_color}26` }}>
+          <motion.div
+            className="h-full rounded-r-full"
+            initial={false}
+            animate={{ width: `${progress}%` }}
+            transition={{ duration: 0.6, ease: "easeOut" }}
+            style={{
+              background: `linear-gradient(90deg, ${theme.button_color}, ${theme.button_color}CC)`,
+              boxShadow: `0 0 8px ${theme.button_color}66`,
+            }}
+          />
+        </div>
+        {/* Progress text */}
+        <div className="flex justify-between px-4 py-1">
+          <span className="text-xs font-medium" style={{ color: theme.text_secondary_color }}>
+            {Math.round(progress)}%
+          </span>
+          <span className="text-xs" style={{ color: theme.text_secondary_color }}>
+            {answeredCount} {t(locale).questionOf} {fields.length}
+          </span>
+        </div>
       </div>
 
       <div className="flex-1 flex items-center justify-center p-6 relative z-10">
         <AnimatePresence mode="wait">
-          {currentField && (
+          {showTyping ? (
+            <TypingIndicator key="typing" />
+          ) : currentField ? (
             <RunnerField
               key={currentField.id}
               field={currentField}
@@ -807,8 +842,10 @@ const FormRunner = ({ previewMode = false }: FormRunnerProps) => {
               formId={formId || undefined}
               locale={locale}
               fieldTranslation={fieldTranslationsMap[currentField.id]}
+              answers={answersRef.current}
+              allFields={fields}
             />
-          )}
+          ) : null}
         </AnimatePresence>
       </div>
 

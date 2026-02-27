@@ -16,6 +16,7 @@ import { PhoneInput } from "./PhoneInput";
 import { ValidatedEmailInput } from "./ValidatedEmailInput";
 import { AppointmentPicker } from "./AppointmentPicker";
 import { validateEmail } from "@/lib/countries";
+import { resolveAnswerPiping } from "@/lib/answerPiping";
 
 interface RunnerFieldProps {
   field: FormField;
@@ -25,9 +26,11 @@ interface RunnerFieldProps {
   formId?: string;
   locale?: Locale;
   fieldTranslation?: FieldTranslation;
+  answers?: Record<string, any>;
+  allFields?: FormField[];
 }
 
-export const RunnerField = ({ field, index, total, onAnswer, formId, locale, fieldTranslation }: RunnerFieldProps) => {
+export const RunnerField = ({ field, index, total, onAnswer, formId, locale, fieldTranslation, answers, allFields }: RunnerFieldProps) => {
   const [value, setValue] = useState<any>("");
   const [checkboxValues, setCheckboxValues] = useState<string[]>([]);
   const [rating, setRating] = useState(0);
@@ -46,9 +49,15 @@ export const RunnerField = ({ field, index, total, onAnswer, formId, locale, fie
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const i = t(locale);
-  const displayLabel = fieldTranslation?.label || field.label;
-  const displayPlaceholder = fieldTranslation?.placeholder || field.placeholder;
+  const rawLabel = fieldTranslation?.label || field.label;
+  const rawPlaceholder = fieldTranslation?.placeholder || field.placeholder;
   const displayOptions = fieldTranslation?.options || field.options;
+
+  // Apply answer piping to label and statement placeholder
+  const displayLabel = answers && allFields ? resolveAnswerPiping(rawLabel, answers, allFields) : rawLabel;
+  const displayPlaceholder = answers && allFields && rawPlaceholder
+    ? resolveAnswerPiping(rawPlaceholder, answers, allFields)
+    : rawPlaceholder;
 
   const formatCpf = (raw: string): string => {
     const digits = raw.replace(/\D/g, "").slice(0, 11);
@@ -612,18 +621,25 @@ export const RunnerField = ({ field, index, total, onAnswer, formId, locale, fie
 
   const isPassthrough = ["statement", "welcome_screen", "end_screen", "redirect_url"].includes(field.type);
 
+  const springTransition = { type: "spring" as const, stiffness: 300, damping: 30, mass: 0.8 };
+
   return (
     <motion.div
-      initial={{ opacity: 0, x: 40 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -40 }}
-      transition={{ duration: 0.3 }}
+      initial={{ opacity: 0, x: 30, y: 10, scale: 0.98 }}
+      animate={{ opacity: 1, x: 0, y: 0, scale: 1 }}
+      exit={{ opacity: 0, x: -30, y: -5, scale: 0.98 }}
+      transition={springTransition}
       className="w-full max-w-xl mx-auto space-y-8"
     >
       <FieldMedia field={field} />
 
-      <div className="space-y-2">
-      <p className="text-sm" style={{ color: "var(--runner-text-secondary)" }}>
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ ...springTransition, delay: 0.05 }}
+        className="space-y-2"
+      >
+        <p className="text-sm" style={{ color: "var(--runner-text-secondary)" }}>
           {index + 1} {i.questionOf} {total}
         </p>
         <h2 className="text-2xl font-bold">
@@ -632,18 +648,30 @@ export const RunnerField = ({ field, index, total, onAnswer, formId, locale, fie
         {displayPlaceholder && field.type === "statement" && (
           <p style={{ color: "var(--runner-text-secondary)" }}>{displayPlaceholder}</p>
         )}
-      </div>
+      </motion.div>
 
-      {renderInput()}
-
-      <Button
-        onClick={submit}
-        disabled={!isPassthrough && !canSubmit()}
-        className="btn-lift shadow-elevation-2 hover:shadow-elevation-3"
-        style={{ backgroundColor: "var(--runner-btn-bg)", color: "var(--runner-btn-text)" }}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ ...springTransition, delay: 0.15 }}
       >
-        {isPassthrough ? i.continue : i.ok} <Check className="h-4 w-4 ml-1" />
-      </Button>
+        {renderInput()}
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ ...springTransition, delay: 0.25 }}
+      >
+        <Button
+          onClick={submit}
+          disabled={!isPassthrough && !canSubmit()}
+          className="btn-lift shadow-elevation-2 hover:shadow-elevation-3"
+          style={{ backgroundColor: "var(--runner-btn-bg)", color: "var(--runner-btn-text)" }}
+        >
+          {isPassthrough ? i.continue : i.ok} <Check className="h-4 w-4 ml-1" />
+        </Button>
+      </motion.div>
     </motion.div>
   );
 };
