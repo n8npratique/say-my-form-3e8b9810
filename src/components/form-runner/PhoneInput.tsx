@@ -16,10 +16,13 @@ interface PhoneInputProps {
   onChange: (fullValue: string, isValid: boolean) => void;
   onKeyDown?: (e: React.KeyboardEvent) => void;
   autoFocus?: boolean;
+  defaultCountryCode?: string;
 }
 
-export const PhoneInput = ({ value, onChange, onKeyDown, autoFocus }: PhoneInputProps) => {
-  const [country, setCountry] = useState<Country>(getDefaultCountry());
+export const PhoneInput = ({ value, onChange, onKeyDown, autoFocus, defaultCountryCode }: PhoneInputProps) => {
+  const [country, setCountry] = useState<Country>(
+    (defaultCountryCode && COUNTRIES.find(c => c.code === defaultCountryCode)) || getDefaultCountry()
+  );
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [rawDigits, setRawDigits] = useState("");

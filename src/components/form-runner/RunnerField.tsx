@@ -229,6 +229,7 @@ export const RunnerField = ({ field, index, total, onAnswer, onBack, canGoBack, 
                       setContactValues(prev => ({ ...prev, [key]: v }));
                       setContactValidation(prev => ({ ...prev, phone: valid }));
                     }}
+                    defaultCountryCode={field.default_phone_country}
                   />
                 ) : key === "email" ? (
                   <ValidatedEmailInput
@@ -271,6 +272,7 @@ export const RunnerField = ({ field, index, total, onAnswer, onBack, canGoBack, 
             onChange={(v, valid) => { setValue(v); setPhoneValid(valid); }}
             onKeyDown={(e) => e.key === "Enter" && canSubmit() && submit()}
             autoFocus
+            defaultCountryCode={field.default_phone_country}
           />
         );
 

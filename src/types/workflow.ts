@@ -47,6 +47,7 @@ export interface FormField {
   appointment_config?: AppointmentConfig;
   accepted_file_types?: string[];
   max_file_size_mb?: number;
+  default_phone_country?: string; // ISO code: "BR", "US", "AR"
 }
 
 // ── Logic / Branching ──

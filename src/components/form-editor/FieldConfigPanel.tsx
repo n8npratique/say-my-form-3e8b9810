@@ -4,6 +4,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, X, Image, Video, PanelBottom, ExternalLink, Trash2 } from "lucide-react";
 import { getFieldTypeConfig } from "@/config/fieldTypes";
 import type { FormField } from "./FieldItem";
@@ -12,6 +13,20 @@ import { parseMediaUrl } from "@/lib/mediaUtils";
 import { supabase } from "@/integrations/supabase/client";
 import { useRef } from "react";
 import { AppointmentConfigSection } from "./AppointmentConfigSection";
+
+const PHONE_COUNTRY_OPTIONS = [
+  { code: "", label: "Brasil (padrão)" },
+  { code: "BR", label: "🇧🇷 Brasil (+55)" },
+  { code: "US", label: "🇺🇸 Estados Unidos (+1)" },
+  { code: "AR", label: "🇦🇷 Argentina (+54)" },
+  { code: "PT", label: "🇵🇹 Portugal (+351)" },
+  { code: "MX", label: "🇲🇽 México (+52)" },
+  { code: "GB", label: "🇬🇧 Reino Unido (+44)" },
+  { code: "DE", label: "🇩🇪 Alemanha (+49)" },
+  { code: "FR", label: "🇫🇷 França (+33)" },
+  { code: "ES", label: "🇪🇸 Espanha (+34)" },
+  { code: "CO", label: "🇨🇴 Colômbia (+57)" },
+];
 
 const OPTION_TYPES = ["multiple_choice", "dropdown", "image_choice", "checkbox", "ranking"];
 
@@ -218,6 +233,26 @@ export const FieldConfigPanel = ({ field, onChange, onDelete, workspaceId, field
                     );
                   })}
                 </div>
+                {(field.contact_fields || ["first_name", "email"]).includes("phone") && (
+                  <div className="space-y-1.5 pt-2 border-t">
+                    <Label className="text-sm">País padrão do telefone</Label>
+                    <Select
+                      value={field.default_phone_country || ""}
+                      onValueChange={(v) => onChange({ ...field, default_phone_country: v || undefined })}
+                    >
+                      <SelectTrigger className="h-9 text-sm">
+                        <SelectValue placeholder="Brasil (padrão)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PHONE_COUNTRY_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.code} value={opt.code || "__default__"}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
             )}
 
