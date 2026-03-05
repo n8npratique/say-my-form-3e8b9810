@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Star, ArrowRight, Check, Loader2, FileUp, X, FileText, Image as ImageIcon } from "lucide-react";
+import { Star, ArrowRight, ArrowLeft, Check, Loader2, FileUp, X, FileText, Image as ImageIcon } from "lucide-react";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import type { FormField, ContactFieldKey, FieldTranslation } from "@/types/workflow";
@@ -23,6 +23,8 @@ interface RunnerFieldProps {
   index: number;
   total: number;
   onAnswer: (value: any) => void;
+  onBack?: () => void;
+  canGoBack?: boolean;
   formId?: string;
   locale?: Locale;
   fieldTranslation?: FieldTranslation;
@@ -30,7 +32,7 @@ interface RunnerFieldProps {
   allFields?: FormField[];
 }
 
-export const RunnerField = ({ field, index, total, onAnswer, formId, locale, fieldTranslation, answers, allFields }: RunnerFieldProps) => {
+export const RunnerField = ({ field, index, total, onAnswer, onBack, canGoBack, formId, locale, fieldTranslation, answers, allFields }: RunnerFieldProps) => {
   const [value, setValue] = useState<any>("");
   const [checkboxValues, setCheckboxValues] = useState<string[]>([]);
   const [rating, setRating] = useState(0);
@@ -662,7 +664,18 @@ export const RunnerField = ({ field, index, total, onAnswer, formId, locale, fie
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ ...springTransition, delay: 0.25 }}
+        className="flex items-center gap-2"
       >
+        {canGoBack && onBack && (
+          <Button
+            variant="ghost"
+            onClick={onBack}
+            className="h-10 w-10 p-0 rounded-full"
+            style={{ color: "var(--runner-text-secondary)" }}
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+        )}
         <Button
           onClick={submit}
           disabled={!isPassthrough && !canSubmit()}

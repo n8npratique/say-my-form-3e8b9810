@@ -52,6 +52,7 @@ const FormRunner = ({ previewMode = false }: FormRunnerProps) => {
   const answersRef = useRef<Record<string, any>>({});
   const [showTyping, setShowTyping] = useState(false);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [fieldHistory, setFieldHistory] = useState<string[]>([]);
 
   // Outcome result
   const [outcomeLabel, setOutcomeLabel] = useState<string | null>(null);
@@ -565,6 +566,9 @@ const FormRunner = ({ previewMode = false }: FormRunnerProps) => {
       return;
     }
 
+    // Push current field to history before advancing
+    setFieldHistory((prev) => [...prev, currentFieldId!]);
+
     // Show typing indicator before transitioning
     setShowTyping(true);
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
@@ -572,6 +576,14 @@ const FormRunner = ({ previewMode = false }: FormRunnerProps) => {
       setShowTyping(false);
       setCurrentFieldId(resolvedNextId);
     }, 800 + Math.random() * 400);
+  };
+
+  const handleBack = () => {
+    if (fieldHistory.length === 0 || showTyping) return;
+    const prevFieldId = fieldHistory[fieldHistory.length - 1];
+    setFieldHistory((prev) => prev.slice(0, -1));
+    setCurrentFieldId(prevFieldId);
+    setAnsweredCount((prev) => Math.max(0, prev - 1));
   };
 
   const themeStyle = getThemeStyle(theme);
@@ -839,6 +851,8 @@ const FormRunner = ({ previewMode = false }: FormRunnerProps) => {
               index={currentIdx}
               total={fields.length}
               onAnswer={handleAnswer}
+              onBack={handleBack}
+              canGoBack={fieldHistory.length > 0}
               formId={formId || undefined}
               locale={locale}
               fieldTranslation={fieldTranslationsMap[currentField.id]}
