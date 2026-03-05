@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { WorkflowCanvas } from "@/components/workflow/WorkflowCanvas";
 import { BranchingPanel } from "@/components/workflow/BranchingPanel";
+import { FlowPreview } from "@/components/workflow/FlowPreview";
 import { ScoringPanel } from "@/components/workflow/ScoringPanel";
 import { TaggingPanel } from "@/components/workflow/TaggingPanel";
 import { OutcomePanel } from "@/components/workflow/OutcomePanel";
@@ -213,22 +214,40 @@ const FormWorkflow = () => {
                 </TabsList>
               </div>
 
-              <ScrollArea className="flex-1">
-                <div className="max-w-lg mx-auto p-6">
-                  <TabsContent value="branching" className="mt-0">
-                    {selectedField ? (
-                      <BranchingPanel
-                        field={selectedField}
+              <TabsContent value="branching" className="mt-0 flex-1 overflow-hidden">
+                <div className="flex h-full">
+                  {/* Flow Preview - left side */}
+                  <ScrollArea className="w-72 shrink-0 border-r">
+                    <div className="p-4">
+                      <FlowPreview
                         fields={fields}
                         logic={logic}
-                        onUpdateLogic={setLogic}
+                        selectedFieldId={selectedFieldId}
+                        onSelectField={setSelectedFieldId}
                       />
-                    ) : (
-                      <p className="text-sm text-muted-foreground text-center py-8">
-                        Selecione um campo no pipeline acima.
-                      </p>
-                    )}
-                  </TabsContent>
+                    </div>
+                  </ScrollArea>
+                  {/* Branching config - right side */}
+                  <ScrollArea className="flex-1">
+                    <div className="max-w-lg mx-auto p-6">
+                      {selectedField ? (
+                        <BranchingPanel
+                          field={selectedField}
+                          fields={fields}
+                          logic={logic}
+                          onUpdateLogic={setLogic}
+                        />
+                      ) : (
+                        <p className="text-sm text-muted-foreground text-center py-8">
+                          Selecione um campo no pipeline acima ou no fluxo ao lado.
+                        </p>
+                      )}
+                    </div>
+                  </ScrollArea>
+                </div>
+              </TabsContent>
+              <ScrollArea className="flex-1">
+                <div className="max-w-lg mx-auto p-6">
                   <TabsContent value="scoring" className="mt-0">
                     <ScoringPanel fields={fields} scoring={scoring} onUpdateScoring={setScoring} />
                   </TabsContent>
