@@ -248,7 +248,7 @@ const FormWorkflow = () => {
                     </div>
                   </ScrollArea>
                   {/* Live form preview - right side */}
-                  <div className="w-[380px] shrink-0 flex flex-col bg-muted/30">
+                  <div className="flex-1 min-w-[480px] flex flex-col bg-muted/30">
                     <div className="flex items-center justify-between px-3 py-2 border-b bg-card/50">
                       <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Preview</span>
                       <div className="flex items-center gap-1">
@@ -282,12 +282,11 @@ const FormWorkflow = () => {
                         </Button>
                       </div>
                     </div>
-                    <div className="flex-1 flex items-start justify-center p-3 overflow-auto">
+                    <div className="flex-1 flex items-center justify-center p-4 overflow-auto">
                       <div
-                        className={`bg-background rounded-xl shadow-lg border overflow-hidden transition-all ${
-                          previewSize === "mobile" ? "w-[360px]" : "w-full"
+                        className={`bg-background rounded-xl shadow-lg border overflow-hidden transition-all h-full ${
+                          previewSize === "mobile" ? "w-[420px] max-h-[780px]" : "w-full"
                         }`}
-                        style={{ height: previewSize === "mobile" ? "640px" : "100%" }}
                       >
                         <iframe
                           key={previewKey}
@@ -297,9 +296,9 @@ const FormWorkflow = () => {
                         />
                       </div>
                     </div>
-                    <div className="px-3 py-2 border-t bg-card/50">
+                    <div className="px-3 py-1.5 border-t bg-card/50">
                       <p className="text-[10px] text-muted-foreground text-center">
-                        Salve as integracoes para atualizar o preview
+                        Salve para atualizar o preview | Clique em recarregar para reiniciar
                       </p>
                     </div>
                   </div>
