@@ -282,18 +282,17 @@ const FormWorkflow = () => {
                         </Button>
                       </div>
                     </div>
-                    <div className="flex-1 flex items-stretch justify-center p-3 overflow-hidden">
+                    <div className="flex-1 flex items-stretch justify-center p-2 overflow-hidden" style={{ minHeight: 0 }}>
                       <div
-                        className={`bg-background rounded-xl shadow-lg border overflow-hidden transition-all ${
+                        className={`bg-background rounded-xl shadow-lg border overflow-hidden ${
                           previewSize === "mobile" ? "w-[420px]" : "w-full"
                         }`}
-                        style={{ minHeight: "500px" }}
+                        style={{ height: "calc(100vh - 280px)" }}
                       >
                         <iframe
                           key={previewKey}
                           src={`/form/${formId}/preview`}
-                          className="w-full border-0"
-                          style={{ height: "100%", minHeight: "500px" }}
+                          className="w-full h-full border-0"
                           title="Form Preview"
                         />
                       </div>
