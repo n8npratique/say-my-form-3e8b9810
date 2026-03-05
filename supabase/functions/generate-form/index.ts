@@ -33,7 +33,7 @@ Você recebe uma descrição do usuário e retorna SOMENTE um JSON válido (sem 
 ## TIPOS DE CAMPO DISPONÍVEIS E QUANDO USAR CADA UM:
 
 ### Contato e dados pessoais:
-- "contact_info" — Use quando pedirem nome, sobrenome, dados pessoais, informações de contato. Inclua "contact_fields" com array dos sub-campos necessários: "first_name", "last_name", "email", "phone", "cpf", "cep", "address". Exemplo: se pedirem nome e sobrenome, use contact_info com contact_fields: ["first_name", "last_name"]
+- "contact_info" — Use quando pedirem nome, sobrenome, dados pessoais, informações de contato. Inclua "contact_fields" com array dos sub-campos necessários: "first_name", "last_name", "email", "phone", "cpf", "cep", "address". Exemplo: se pedirem nome e sobrenome, use contact_info com contact_fields: ["first_name", "last_name"]. Para formulários multi-país, inclua "default_country" com o código ISO (ex: "BR", "US", "AR") — isso ajusta automaticamente: telefone (+55/+1/+54), documento (CPF/SSN/DNI), e código postal (CEP/ZIP/Código postal)
 - "email" — Use APENAS quando precisar de um campo de email isolado (sem outros dados de contato)
 - "phone" — Use APENAS quando precisar de um campo de telefone isolado
 - "address" — Endereço completo como campo separado
@@ -100,8 +100,17 @@ A lógica é um array de objetos FieldLogic:
 
 ### Tipos de action:
 - { "type": "next" } — ir para a próxima pergunta (padrão)
-- { "type": "jump_to", "target": "campo-id" } — pular para um campo específico
-- { "type": "end" } — encerrar o formulário
+- { "type": "jump_to", "target": "campo-id" } — pular para um campo específico (pode ser um end_screen para telas finais diferentes por caminho)
+- { "type": "end" } — encerrar o formulário (tela padrão de obrigado)
+
+### Formulários multi-país/multi-caminho:
+Quando o formulário tiver caminhos diferentes por país/região/perfil:
+1. Use um dropdown ou multiple_choice como primeira pergunta para escolher o caminho
+2. Crie blocos de campos separados para cada caminho
+3. Use contact_info com "default_country" correto em cada bloco (ex: "BR", "US", "AR")
+4. Crie end_screens específicos para cada caminho (ex: "Obrigado!", "Thank you!", "Gracias!")
+5. Configure jumps no dropdown para direcionar cada opção ao bloco correto
+6. O último campo de cada caminho deve ter jump_to para seu end_screen correspondente
 
 ### Exemplos de lógica:
 1. Se "Sim" → mostrar pergunta de detalhe, Se "Não" → pular para seção seguinte:
