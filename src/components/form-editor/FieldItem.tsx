@@ -1,6 +1,6 @@
 import { getFieldTypeConfig } from "@/config/fieldTypes";
 import { Button } from "@/components/ui/button";
-import { GripVertical, Trash2 } from "lucide-react";
+import { GripVertical, Trash2, Copy } from "lucide-react";
 import type { FormField } from "@/types/workflow";
 
 export type { FormField };
@@ -11,6 +11,7 @@ interface FieldItemProps {
   selected: boolean;
   onClick: () => void;
   onDelete: () => void;
+  onDuplicate?: () => void;
   draggable?: boolean;
   onDragStart?: (e: React.DragEvent) => void;
   onDragOver?: (e: React.DragEvent) => void;
@@ -20,7 +21,7 @@ interface FieldItemProps {
 }
 
 export const FieldItem = ({
-  field, index, selected, onClick, onDelete,
+  field, index, selected, onClick, onDelete, onDuplicate,
   draggable, onDragStart, onDragOver, onDrop, onDragEnd, dragOver,
 }: FieldItemProps) => {
   const cfg = getFieldTypeConfig(field.type);
@@ -54,6 +55,19 @@ export const FieldItem = ({
       </div>
       {field.required && (
         <span className="text-xs text-destructive font-medium">*</span>
+      )}
+      {onDuplicate && (
+        <button
+          type="button"
+          className="h-6 w-6 shrink-0 flex items-center justify-center rounded bg-blue-50 hover:bg-blue-100 transition-colors opacity-0 group-hover:opacity-100"
+          draggable={false}
+          onMouseDown={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => { e.stopPropagation(); onDuplicate(); }}
+          title="Duplicar campo"
+        >
+          <Copy className="h-3.5 w-3.5 text-blue-500" />
+        </button>
       )}
       <button
         type="button"

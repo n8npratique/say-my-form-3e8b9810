@@ -126,6 +126,23 @@ const FormEditor = () => {
     setFields((prev) => prev.map((f) => (f.id === updated.id ? updated : f)));
   }, []);
 
+  const duplicateField = useCallback((id: string) => {
+    setFields((prev) => {
+      const idx = prev.findIndex((f) => f.id === id);
+      if (idx < 0) return prev;
+      const original = prev[idx];
+      const clone: FormField = {
+        ...original,
+        id: crypto.randomUUID(),
+        label: `${original.label} (cópia)`,
+      };
+      const next = [...prev];
+      next.splice(idx + 1, 0, clone);
+      setSelectedId(clone.id);
+      return next;
+    });
+  }, []);
+
   const [deletedField, setDeletedField] = useState<{ field: FormField; index: number } | null>(null);
 
   const deleteField = useCallback((id: string) => {
@@ -487,6 +504,7 @@ const FormEditor = () => {
                     selected={selectedId === field.id}
                     onClick={() => setSelectedId(field.id)}
                     onDelete={() => deleteField(field.id)}
+                    onDuplicate={() => duplicateField(field.id)}
                     draggable
                     onDragStart={(e) => {
                       dragIndexRef.current = i;
