@@ -147,6 +147,9 @@ const FormRunner = ({ previewMode = false }: FormRunnerProps) => {
         }
       }
       if (schema?.theme?.welcome_screen?.enabled) setShowWelcome(true);
+      // Also show welcome if there's a welcome_screen field (e.g. from AI generation)
+      const wsField = allF.find((f) => f.type === "welcome_screen");
+      if (wsField && !schema?.theme?.welcome_screen?.enabled) setShowWelcome(true);
     }
 
     setLoading(false);
@@ -204,6 +207,8 @@ const FormRunner = ({ previewMode = false }: FormRunnerProps) => {
         }
       }
       if (schema?.theme?.welcome_screen?.enabled) setShowWelcome(true);
+      const wsField = allF.find((f) => f.type === "welcome_screen");
+      if (wsField && !schema?.theme?.welcome_screen?.enabled) setShowWelcome(true);
     }
 
     setLoading(false);
@@ -657,13 +662,25 @@ const FormRunner = ({ previewMode = false }: FormRunnerProps) => {
     return <EmailGate formName={formName} onSubmit={handleEmailSubmit} themeStyle={themeStyle} theme={theme} locale={locale} />;
   }
 
-  if (showWelcome && theme.welcome_screen?.enabled) {
+  if (showWelcome) {
+    // Build welcome data from theme or from welcome_screen field
+    const wsField = allFields.find((f) => f.type === "welcome_screen");
+    const welcomeData: WelcomeScreenType = theme.welcome_screen?.enabled
+      ? theme.welcome_screen
+      : {
+          enabled: true,
+          title: wsField?.label || formName,
+          description: wsField?.placeholder || "",
+          button_text: "Começar",
+          image_url: wsField?.media_url || "",
+        };
+
     return (
       <AnimatePresence mode="wait">
         <WelcomeScreen
           formName={formName}
           theme={theme}
-          welcome={theme.welcome_screen}
+          welcome={welcomeData}
           onStart={() => setShowWelcome(false)}
         />
       </AnimatePresence>
