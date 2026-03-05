@@ -548,6 +548,16 @@ const FormRunner = ({ previewMode = false }: FormRunnerProps) => {
       return;
     }
 
+    // Check if jump target is an end_screen
+    if (nextId) {
+      const targetEndScreen = allFields.find((f) => f.id === nextId && f.type === "end_screen");
+      if (targetEndScreen) {
+        setEndScreen(targetEndScreen);
+        await completeForm();
+        return;
+      }
+    }
+
     // Determine the actual next field ID
     let resolvedNextId: string | null = null;
     if (nextId) {

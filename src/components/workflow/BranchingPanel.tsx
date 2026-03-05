@@ -181,6 +181,8 @@ export const BranchingPanel = ({ field, fields, logic, onUpdateLogic }: Branchin
     (f) => !["welcome_screen", "end_screen", "statement", "redirect_url"].includes(f.type)
   );
 
+  const endScreenFields = fields.filter((f) => f.type === "end_screen");
+
   const jumpTargets = [
     { value: "__next__", label: "Próxima pergunta (padrão)" },
     ...answerableFields.filter((f) => f.id !== field.id).map((f) => {
@@ -190,7 +192,14 @@ export const BranchingPanel = ({ field, fields, logic, onUpdateLogic }: Branchin
         label: `Q${idx + 1}. ${f.label || f.type}`,
       };
     }),
-    { value: "__end__", label: "Encerrar formulário" },
+    ...(endScreenFields.length > 0 ? [
+      { value: "__end_divider__", label: "── Telas finais ──" },
+      ...endScreenFields.map((f, i) => ({
+        value: f.id,
+        label: `🏁 ${f.label || `Tela final ${i + 1}`}`,
+      })),
+    ] : []),
+    { value: "__end__", label: "Encerrar formulário (padrão)" },
   ];
 
   // Helper to resolve a target value to a human-readable label
@@ -203,6 +212,8 @@ export const BranchingPanel = ({ field, fields, logic, onUpdateLogic }: Branchin
         const idx = answerableFields.findIndex((f) => f.id === action.target);
         return `Q${idx + 1}. ${t.label || t.type}`;
       }
+      const es = endScreenFields.find((f) => f.id === action.target);
+      if (es) return `🏁 ${es.label || "Tela final"}`;
     }
     return "Próxima";
   };
