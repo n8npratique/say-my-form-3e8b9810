@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -219,10 +219,20 @@ const WorkspaceForms = () => {
     if (!aiPrompt.trim()) return;
     setAiGenerating(true);
     try {
-      const { data, error } = await supabase.functions.invoke("generate-form", {
-        body: { description: aiPrompt },
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/generate-form`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": SUPABASE_ANON_KEY,
+          "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({ description: aiPrompt }),
       });
-      if (error) throw error;
+      if (!res.ok) {
+        const errBody = await res.text();
+        throw new Error(errBody || `HTTP ${res.status}`);
+      }
+      const data = await res.json();
       if (data?.fields) {
         const logicCount = data.logic?.length || 0;
         setAiResult({ name: data.name || "Formulário IA", fields: data.fields, logic: data.logic || [] });
