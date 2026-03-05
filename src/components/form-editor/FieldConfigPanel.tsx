@@ -30,15 +30,23 @@ const COUNTRY_OPTIONS = [
 
 const OPTION_TYPES = ["multiple_choice", "dropdown", "image_choice", "checkbox", "ranking"];
 
-const ALL_CONTACT_FIELDS: { key: ContactFieldKey; label: string }[] = [
-  { key: "first_name", label: "Nome" },
-  { key: "last_name", label: "Sobrenome" },
-  { key: "email", label: "E-mail" },
-  { key: "phone", label: "Telefone" },
-  { key: "cpf", label: "CPF" },
-  { key: "cep", label: "CEP" },
-  { key: "address", label: "Endereço" },
-];
+const CONTACT_LABELS_BY_COUNTRY: Record<string, Record<ContactFieldKey, string>> = {
+  BR: { first_name: "Nome", last_name: "Sobrenome", email: "E-mail", phone: "Telefone", cpf: "CPF", cep: "CEP", address: "Endereço" },
+  US: { first_name: "First name", last_name: "Last name", email: "Email", phone: "Phone", cpf: "SSN", cep: "ZIP Code", address: "Address" },
+  AR: { first_name: "Nombre", last_name: "Apellido", email: "Correo", phone: "Teléfono", cpf: "DNI", cep: "Código postal", address: "Dirección" },
+  PT: { first_name: "Nome", last_name: "Apelido", email: "E-mail", phone: "Telefone", cpf: "NIF", cep: "Código postal", address: "Morada" },
+  MX: { first_name: "Nombre", last_name: "Apellido", email: "Correo", phone: "Teléfono", cpf: "CURP", cep: "Código postal", address: "Dirección" },
+  GB: { first_name: "First name", last_name: "Last name", email: "Email", phone: "Phone", cpf: "NI Number", cep: "Postcode", address: "Address" },
+  DE: { first_name: "Vorname", last_name: "Nachname", email: "E-Mail", phone: "Telefon", cpf: "Steuer-ID", cep: "PLZ", address: "Adresse" },
+  FR: { first_name: "Prénom", last_name: "Nom", email: "E-mail", phone: "Téléphone", cpf: "N° Sécu", cep: "Code postal", address: "Adresse" },
+  ES: { first_name: "Nombre", last_name: "Apellido", email: "Correo", phone: "Teléfono", cpf: "DNI/NIE", cep: "Código postal", address: "Dirección" },
+  CO: { first_name: "Nombre", last_name: "Apellido", email: "Correo", phone: "Teléfono", cpf: "Cédula", cep: "Código postal", address: "Dirección" },
+};
+
+const getContactFields = (countryCode?: string): { key: ContactFieldKey; label: string }[] => {
+  const labels = CONTACT_LABELS_BY_COUNTRY[countryCode || "BR"] || CONTACT_LABELS_BY_COUNTRY.BR;
+  return (Object.keys(labels) as ContactFieldKey[]).map((key) => ({ key, label: labels[key] }));
+};
 
 interface FieldConfigPanelProps {
   field: FormField;
@@ -223,7 +231,7 @@ export const FieldConfigPanel = ({ field, onChange, onDelete, workspaceId, field
                 <Label className="text-sm font-medium">Campos visíveis</Label>
                 <p className="text-xs text-muted-foreground mb-2">Escolha quais campos exibir nesta pergunta</p>
                 <div className="space-y-2">
-                  {ALL_CONTACT_FIELDS.map(({ key, label }) => {
+                  {getContactFields(field.default_country).map(({ key, label }) => {
                     const active = (field.contact_fields || ["first_name", "email"]).includes(key);
                     return (
                       <label key={key} className="flex items-center gap-2 cursor-pointer">
