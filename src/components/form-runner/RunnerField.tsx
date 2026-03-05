@@ -61,36 +61,78 @@ export const RunnerField = ({ field, index, total, onAnswer, onBack, canGoBack, 
     ? resolveAnswerPiping(rawPlaceholder, answers, allFields)
     : rawPlaceholder;
 
-  const formatCpf = (raw: string): string => {
-    const digits = raw.replace(/\D/g, "").slice(0, 11);
-    if (digits.length <= 3) return digits;
-    if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`;
-    if (digits.length <= 9) return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
-    return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
-  };
+  const country = field.default_country || "BR";
 
-  const formatCep = (raw: string): string => {
-    const digits = raw.replace(/\D/g, "").slice(0, 8);
-    if (digits.length <= 5) return digits;
-    return `${digits.slice(0, 5)}-${digits.slice(5)}`;
+  // Country-specific configs for CPF/ID document
+  const DOC_CONFIG: Record<string, { label: string; placeholder: string; maxLen: number; maxDigits: number; format: (raw: string) => string; validate: (v: string) => boolean }> = {
+    BR: {
+      label: "CPF", placeholder: "000.000.000-00", maxLen: 14, maxDigits: 11,
+      format: (raw) => {
+        const d = raw.replace(/\D/g, "").slice(0, 11);
+        if (d.length <= 3) return d;
+        if (d.length <= 6) return `${d.slice(0, 3)}.${d.slice(3)}`;
+        if (d.length <= 9) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6)}`;
+        return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
+      },
+      validate: (masked) => {
+        const d = masked.replace(/\D/g, "");
+        if (d.length !== 11 || /^(\d)\1{10}$/.test(d)) return false;
+        for (let t = 9; t <= 10; t++) {
+          let sum = 0;
+          for (let j = 0; j < t; j++) sum += Number(d[j]) * (t + 1 - j);
+          const r = (sum * 10) % 11;
+          if ((r === 10 ? 0 : r) !== Number(d[t])) return false;
+        }
+        return true;
+      },
+    },
+    US: {
+      label: "SSN", placeholder: "000-00-0000", maxLen: 11, maxDigits: 9,
+      format: (raw) => {
+        const d = raw.replace(/\D/g, "").slice(0, 9);
+        if (d.length <= 3) return d;
+        if (d.length <= 5) return `${d.slice(0, 3)}-${d.slice(3)}`;
+        return `${d.slice(0, 3)}-${d.slice(3, 5)}-${d.slice(5)}`;
+      },
+      validate: (masked) => masked.replace(/\D/g, "").length === 9,
+    },
+    AR: {
+      label: "DNI", placeholder: "00.000.000", maxLen: 10, maxDigits: 8,
+      format: (raw) => {
+        const d = raw.replace(/\D/g, "").slice(0, 8);
+        if (d.length <= 2) return d;
+        if (d.length <= 5) return `${d.slice(0, 2)}.${d.slice(2)}`;
+        return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5)}`;
+      },
+      validate: (masked) => { const d = masked.replace(/\D/g, ""); return d.length >= 7 && d.length <= 8; },
+    },
   };
+  const docCfg = DOC_CONFIG[country] || DOC_CONFIG.BR;
 
-  const validateCpf = (masked: string): boolean => {
-    const digits = masked.replace(/\D/g, "");
-    if (digits.length !== 11) return false;
-    if (/^(\d)\1{10}$/.test(digits)) return false;
-    for (let t = 9; t <= 10; t++) {
-      let sum = 0;
-      for (let i = 0; i < t; i++) sum += Number(digits[i]) * (t + 1 - i);
-      const remainder = (sum * 10) % 11;
-      if ((remainder === 10 ? 0 : remainder) !== Number(digits[t])) return false;
-    }
-    return true;
+  // Country-specific configs for CEP/ZIP/Postal
+  const CEP_CONFIG: Record<string, { label: string; placeholder: string; maxLen: number; digits: number; format: (raw: string) => string; canLookup: boolean }> = {
+    BR: {
+      label: "CEP", placeholder: "00000-000", maxLen: 9, digits: 8,
+      format: (raw) => { const d = raw.replace(/\D/g, "").slice(0, 8); return d.length <= 5 ? d : `${d.slice(0, 5)}-${d.slice(5)}`; },
+      canLookup: true,
+    },
+    US: {
+      label: "ZIP Code", placeholder: "00000", maxLen: 5, digits: 5,
+      format: (raw) => raw.replace(/\D/g, "").slice(0, 5),
+      canLookup: false,
+    },
+    AR: {
+      label: "Código postal", placeholder: "0000", maxLen: 4, digits: 4,
+      format: (raw) => raw.replace(/\D/g, "").slice(0, 4),
+      canLookup: false,
+    },
   };
+  const cepCfg = CEP_CONFIG[country] || CEP_CONFIG.BR;
 
   const fetchCep = useCallback(async (cep: string) => {
+    if (!cepCfg.canLookup) return;
     const digits = cep.replace(/\D/g, "");
-    if (digits.length !== 8) return;
+    if (digits.length !== cepCfg.digits) return;
     setCepLoading(true);
     setCepError("");
     try {
@@ -113,15 +155,15 @@ export const RunnerField = ({ field, index, total, onAnswer, onBack, canGoBack, 
     } finally {
       setCepLoading(false);
     }
-  }, [field.contact_fields]);
+  }, [field.contact_fields, cepCfg]);
 
   const CONTACT_LABELS: Record<ContactFieldKey, string> = {
     first_name: i.contactFirstName,
     last_name: i.contactLastName,
     email: i.contactEmail,
     phone: i.contactPhone,
-    cpf: i.contactCpf,
-    cep: i.contactCep,
+    cpf: docCfg.label,
+    cep: cepCfg.label,
     address: i.contactAddress,
   };
 
@@ -178,24 +220,24 @@ export const RunnerField = ({ field, index, total, onAnswer, onBack, canGoBack, 
                     <Input
                       type="text"
                       inputMode="numeric"
-                      placeholder="000.000.000-00"
+                      placeholder={docCfg.placeholder}
                       value={contactValues[key] || ""}
                       onChange={(e) => {
-                        const formatted = formatCpf(e.target.value);
+                        const formatted = docCfg.format(e.target.value);
                         setContactValues(prev => ({ ...prev, [key]: formatted }));
                         const digits = formatted.replace(/\D/g, "");
-                        if (digits.length === 11) {
-                          setContactValidation(prev => ({ ...prev, cpf: validateCpf(formatted) }));
+                        if (digits.length === docCfg.maxDigits) {
+                          setContactValidation(prev => ({ ...prev, cpf: docCfg.validate(formatted) }));
                         } else {
                           setContactValidation(prev => ({ ...prev, cpf: false }));
                         }
                       }}
                       onBlur={() => setContactTouched(prev => ({ ...prev, cpf: true }))}
-                      maxLength={14}
-                      className={`text-lg h-12 border-0 border-b-2 rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-primary ${contactTouched.cpf && contactValidation.cpf === false && (contactValues.cpf || "").replace(/\D/g, "").length === 11 ? "!border-red-500" : ""}`}
+                      maxLength={docCfg.maxLen}
+                      className={`text-lg h-12 border-0 border-b-2 rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-primary ${contactTouched.cpf && contactValidation.cpf === false && (contactValues.cpf || "").replace(/\D/g, "").length === docCfg.maxDigits ? "!border-red-500" : ""}`}
                     />
-                    {contactTouched.cpf && contactValidation.cpf === false && (contactValues.cpf || "").replace(/\D/g, "").length === 11 && (
-                      <p className="text-xs text-red-500">CPF inválido</p>
+                    {contactTouched.cpf && contactValidation.cpf === false && (contactValues.cpf || "").replace(/\D/g, "").length === docCfg.maxDigits && (
+                      <p className="text-xs text-red-500">{docCfg.label} inválido</p>
                     )}
                   </>
                 ) : key === "cep" ? (
@@ -203,15 +245,15 @@ export const RunnerField = ({ field, index, total, onAnswer, onBack, canGoBack, 
                     <Input
                       type="text"
                       inputMode="numeric"
-                      placeholder="00000-000"
+                      placeholder={cepCfg.placeholder}
                       value={contactValues[key] || ""}
                       onChange={(e) => {
-                        const formatted = formatCep(e.target.value);
+                        const formatted = cepCfg.format(e.target.value);
                         setContactValues(prev => ({ ...prev, [key]: formatted }));
                         const digits = formatted.replace(/\D/g, "");
-                        if (digits.length === 8) fetchCep(digits);
+                        if (digits.length === cepCfg.digits) fetchCep(digits);
                       }}
-                      maxLength={9}
+                      maxLength={cepCfg.maxLen}
                       className={`text-lg h-12 border-0 border-b-2 rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-primary ${cepError ? "!border-red-500" : ""}`}
                     />
                     {cepLoading && (
@@ -229,7 +271,7 @@ export const RunnerField = ({ field, index, total, onAnswer, onBack, canGoBack, 
                       setContactValues(prev => ({ ...prev, [key]: v }));
                       setContactValidation(prev => ({ ...prev, phone: valid }));
                     }}
-                    defaultCountryCode={field.default_phone_country}
+                    defaultCountryCode={field.default_country}
                   />
                 ) : key === "email" ? (
                   <ValidatedEmailInput
@@ -272,7 +314,7 @@ export const RunnerField = ({ field, index, total, onAnswer, onBack, canGoBack, 
             onChange={(v, valid) => { setValue(v); setPhoneValid(valid); }}
             onKeyDown={(e) => e.key === "Enter" && canSubmit() && submit()}
             autoFocus
-            defaultCountryCode={field.default_phone_country}
+            defaultCountryCode={field.default_country}
           />
         );
 

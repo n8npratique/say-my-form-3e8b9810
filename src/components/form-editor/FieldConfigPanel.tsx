@@ -14,7 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useRef } from "react";
 import { AppointmentConfigSection } from "./AppointmentConfigSection";
 
-const PHONE_COUNTRY_OPTIONS = [
+const COUNTRY_OPTIONS = [
   { code: "", label: "Brasil (padrão)" },
   { code: "BR", label: "🇧🇷 Brasil (+55)" },
   { code: "US", label: "🇺🇸 Estados Unidos (+1)" },
@@ -233,18 +233,18 @@ export const FieldConfigPanel = ({ field, onChange, onDelete, workspaceId, field
                     );
                   })}
                 </div>
-                {(field.contact_fields || ["first_name", "email"]).includes("phone") && (
-                  <div className="space-y-1.5 pt-2 border-t">
-                    <Label className="text-sm">País padrão do telefone</Label>
+                <div className="space-y-1.5 pt-2 border-t">
+                    <Label className="text-sm">País do contato</Label>
+                    <p className="text-xs text-muted-foreground">Define o padrão de telefone, CEP e documento</p>
                     <Select
-                      value={field.default_phone_country || ""}
-                      onValueChange={(v) => onChange({ ...field, default_phone_country: v || undefined })}
+                      value={field.default_country || ""}
+                      onValueChange={(v) => onChange({ ...field, default_country: v === "__default__" ? undefined : v || undefined })}
                     >
                       <SelectTrigger className="h-9 text-sm">
                         <SelectValue placeholder="Brasil (padrão)" />
                       </SelectTrigger>
                       <SelectContent>
-                        {PHONE_COUNTRY_OPTIONS.map((opt) => (
+                        {COUNTRY_OPTIONS.map((opt) => (
                           <SelectItem key={opt.code} value={opt.code || "__default__"}>
                             {opt.label}
                           </SelectItem>
@@ -252,7 +252,6 @@ export const FieldConfigPanel = ({ field, onChange, onDelete, workspaceId, field
                       </SelectContent>
                     </Select>
                   </div>
-                )}
               </div>
             )}
 
