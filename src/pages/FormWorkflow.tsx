@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -13,7 +13,7 @@ import { TaggingPanel } from "@/components/workflow/TaggingPanel";
 import { OutcomePanel } from "@/components/workflow/OutcomePanel";
 import { ActionsPanel } from "@/components/workflow/ActionsPanel";
 import { AddFieldDialog } from "@/components/form-editor/AddFieldDialog";
-import { ArrowLeft, Save, GitBranch, Award, Tag, Trophy } from "lucide-react";
+import { ArrowLeft, Save, GitBranch, Award, Tag, Trophy, RefreshCw, Smartphone, Monitor } from "lucide-react";
 import logoPratique from "@/assets/logo-pratique.png";
 import type { FormField, FieldLogic, ScoringConfig, TaggingConfig, OutcomesConfig, FormSchema, EmailTemplate } from "@/types/workflow";
 import { DEFAULT_SCORING, DEFAULT_TAGGING, DEFAULT_OUTCOMES } from "@/types/workflow";
@@ -37,6 +37,8 @@ const FormWorkflow = () => {
   const [activeTab, setActiveTab] = useState("branching");
   const [insertAfterIndex, setInsertAfterIndex] = useState<number | null>(null);
   const [insertDialogOpen, setInsertDialogOpen] = useState(false);
+  const [previewKey, setPreviewKey] = useState(0);
+  const [previewSize, setPreviewSize] = useState<"mobile" | "desktop">("mobile");
 
   const selectedField = fields.find((f) => f.id === selectedFieldId) || null;
 
@@ -150,6 +152,7 @@ const FormWorkflow = () => {
       toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
     } else {
       toast({ title: "Integrações salvas!" });
+      setPreviewKey((k) => k + 1); // refresh preview
     }
     setSaving(false);
   };
@@ -227,8 +230,8 @@ const FormWorkflow = () => {
                       />
                     </div>
                   </ScrollArea>
-                  {/* Branching config - right side */}
-                  <ScrollArea className="flex-1">
+                  {/* Branching config - center */}
+                  <ScrollArea className="flex-1 border-r">
                     <div className="max-w-lg mx-auto p-6">
                       {selectedField ? (
                         <BranchingPanel
@@ -244,6 +247,62 @@ const FormWorkflow = () => {
                       )}
                     </div>
                   </ScrollArea>
+                  {/* Live form preview - right side */}
+                  <div className="w-[380px] shrink-0 flex flex-col bg-muted/30">
+                    <div className="flex items-center justify-between px-3 py-2 border-b bg-card/50">
+                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Preview</span>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant={previewSize === "mobile" ? "secondary" : "ghost"}
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => setPreviewSize("mobile")}
+                          title="Mobile"
+                        >
+                          <Smartphone className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant={previewSize === "desktop" ? "secondary" : "ghost"}
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => setPreviewSize("desktop")}
+                          title="Desktop"
+                        >
+                          <Monitor className="h-3.5 w-3.5" />
+                        </Button>
+                        <div className="w-px h-4 bg-border mx-0.5" />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => setPreviewKey((k) => k + 1)}
+                          title="Recarregar preview"
+                        >
+                          <RefreshCw className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="flex-1 flex items-start justify-center p-3 overflow-auto">
+                      <div
+                        className={`bg-background rounded-xl shadow-lg border overflow-hidden transition-all ${
+                          previewSize === "mobile" ? "w-[360px]" : "w-full"
+                        }`}
+                        style={{ height: previewSize === "mobile" ? "640px" : "100%" }}
+                      >
+                        <iframe
+                          key={previewKey}
+                          src={`/form/${formId}/preview`}
+                          className="w-full h-full border-0"
+                          title="Form Preview"
+                        />
+                      </div>
+                    </div>
+                    <div className="px-3 py-2 border-t bg-card/50">
+                      <p className="text-[10px] text-muted-foreground text-center">
+                        Salve as integracoes para atualizar o preview
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </TabsContent>
               <ScrollArea className="flex-1">
