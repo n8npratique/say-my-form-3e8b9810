@@ -16,6 +16,7 @@ import { t } from "@/lib/i18n";
 import { getNextFieldId, calculateScore, collectTags, determineOutcome } from "@/lib/logicEngine";
 import type { FormTheme, WelcomeScreen as WelcomeScreenType } from "@/lib/formTheme";
 import { DEFAULT_THEME, getThemeStyle, loadGoogleFont } from "@/lib/formTheme";
+import { parseMediaUrl } from "@/lib/mediaUtils";
 
 interface FormRunnerProps {
   previewMode?: boolean;
@@ -721,16 +722,37 @@ const FormRunner = ({ previewMode = false }: FormRunnerProps) => {
           {endScreen ? (
             /* ── Conditional End Screen ── */
             <>
-              {endScreen.media_url && (
-                <motion.img
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 0.2, duration: 0.5 }}
-                  src={endScreen.media_url}
-                  alt=""
-                  className="w-full max-h-48 object-contain rounded-xl mb-2"
-                />
-              )}
+              {endScreen.media_url && (() => {
+                const mediaInfo = parseMediaUrl(endScreen.media_url);
+                if (!mediaInfo) return null;
+                if (mediaInfo.type === "video") {
+                  return (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: 0.2, duration: 0.5 }}
+                      className="relative w-full rounded-xl overflow-hidden mb-2"
+                      style={{ paddingBottom: "56.25%" }}
+                    >
+                      {mediaInfo.direct ? (
+                        <video src={mediaInfo.embedUrl} controls autoPlay className="absolute inset-0 w-full h-full object-contain" />
+                      ) : (
+                        <iframe src={mediaInfo.embedUrl} className="absolute inset-0 w-full h-full" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
+                      )}
+                    </motion.div>
+                  );
+                }
+                return (
+                  <motion.img
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.2, duration: 0.5 }}
+                    src={mediaInfo.embedUrl}
+                    alt=""
+                    className="w-full max-h-48 object-contain rounded-xl mb-2"
+                  />
+                );
+              })()}
               <motion.div
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
