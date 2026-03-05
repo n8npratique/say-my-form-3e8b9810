@@ -3,7 +3,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, GitBranch, ArrowRight, ChevronDown, Star, ThumbsUp, ThumbsDown, Hash, Type, ListChecks } from "lucide-react";
+import { Plus, Trash2, GitBranch, ArrowRight, ChevronDown, Star, ThumbsUp, ThumbsDown, Hash, Type, ListChecks, CornerDownRight, Ban, SkipForward } from "lucide-react";
 import type { FormField, FieldLogic, LogicRule, ConditionOp } from "@/types/workflow";
 
 interface BranchingPanelProps {
@@ -183,12 +183,39 @@ export const BranchingPanel = ({ field, fields, logic, onUpdateLogic }: Branchin
 
   const jumpTargets = [
     { value: "__next__", label: "Próxima pergunta (padrão)" },
-    ...answerableFields.filter((f) => f.id !== field.id).map((f) => ({
-      value: f.id,
-      label: f.label || f.type,
-    })),
+    ...answerableFields.filter((f) => f.id !== field.id).map((f) => {
+      const idx = answerableFields.findIndex((af) => af.id === f.id);
+      return {
+        value: f.id,
+        label: `Q${idx + 1}. ${f.label || f.type}`,
+      };
+    }),
     { value: "__end__", label: "Encerrar formulário" },
   ];
+
+  // Helper to resolve a target value to a human-readable label
+  const resolveTargetLabel = (action: { type: string; target?: string }) => {
+    if (action.type === "end") return "Encerrar";
+    if (action.type === "next") return "Próxima";
+    if (action.type === "jump_to" && action.target) {
+      const t = answerableFields.find((f) => f.id === action.target);
+      if (t) {
+        const idx = answerableFields.findIndex((f) => f.id === action.target);
+        return `Q${idx + 1}. ${t.label || t.type}`;
+      }
+    }
+    return "Próxima";
+  };
+
+  // Helper to get a short condition description
+  const describeCondition = (rule: LogicRule) => {
+    const opLabel = OPS.find((o) => o.value === rule.condition.op)?.label || rule.condition.op;
+    if (["is_set", "is_not_set"].includes(rule.condition.op)) {
+      return opLabel.toLowerCase();
+    }
+    const val = String(rule.condition.value ?? "");
+    return `${opLabel.toLowerCase()} "${val}"`;
+  };
 
   const typeBadge = getFieldTypeBadge(field.type);
   const TypeIcon = typeBadge.icon;
@@ -375,6 +402,48 @@ export const BranchingPanel = ({ field, fields, logic, onUpdateLogic }: Branchin
               ))}
             </SelectContent>
           </Select>
+        </div>
+      )}
+
+      {/* Flow summary */}
+      {fieldLogic.rules.length > 0 && (
+        <div className="rounded-lg border bg-muted/20 p-3 space-y-2">
+          <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+            <GitBranch className="h-3.5 w-3.5" /> Resumo do fluxo
+          </p>
+          <div className="space-y-1.5">
+            {fieldLogic.rules.map((rule, i) => {
+              const targetLabel = resolveTargetLabel(rule.action);
+              const isEnd = rule.action.type === "end";
+              const isJump = rule.action.type === "jump_to";
+              return (
+                <div
+                  key={i}
+                  className="flex items-start gap-2 text-xs rounded-md px-2.5 py-1.5 bg-background border"
+                >
+                  <CornerDownRight className="h-3.5 w-3.5 mt-0.5 shrink-0 text-primary" />
+                  <span className="text-muted-foreground">
+                    Se <span className="font-medium text-foreground">{describeCondition(rule)}</span>
+                  </span>
+                  <ArrowRight className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground" />
+                  <span className={`font-medium truncate ${isEnd ? "text-destructive" : isJump ? "text-primary" : "text-muted-foreground"}`}>
+                    {isEnd && <Ban className="h-3 w-3 inline mr-1 -mt-0.5" />}
+                    {isJump && <SkipForward className="h-3 w-3 inline mr-1 -mt-0.5" />}
+                    {targetLabel}
+                  </span>
+                </div>
+              );
+            })}
+            {/* Default */}
+            <div className="flex items-start gap-2 text-xs rounded-md px-2.5 py-1.5 bg-background border border-dashed">
+              <CornerDownRight className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground" />
+              <span className="text-muted-foreground">Senão</span>
+              <ArrowRight className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground" />
+              <span className={`font-medium truncate ${fieldLogic.default_action.type === "end" ? "text-destructive" : fieldLogic.default_action.type === "jump_to" ? "text-primary" : "text-muted-foreground"}`}>
+                {resolveTargetLabel(fieldLogic.default_action)}
+              </span>
+            </div>
+          </div>
         </div>
       )}
 
