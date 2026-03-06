@@ -219,11 +219,11 @@ const FormWorkflow = () => {
                 </TabsList>
               </div>
 
-              <TabsContent value="branching" className="mt-0 flex-1 overflow-hidden">
-                <div className="flex h-full">
-                  {/* Flow Preview - left side */}
-                  <ScrollArea className="w-72 shrink-0 border-r">
-                    <div className="p-4">
+              <TabsContent value="branching" className="mt-0 flex-1 overflow-hidden" forceMount style={{ display: activeTab === "branching" ? undefined : "none" }}>
+                <div className="flex" style={{ height: "calc(100vh - 96px)" }}>
+                  {/* Flow Preview - left */}
+                  <div className="w-64 shrink-0 border-r overflow-y-auto">
+                    <div className="p-3">
                       <FlowPreview
                         fields={fields}
                         logic={logic}
@@ -231,9 +231,9 @@ const FormWorkflow = () => {
                         onSelectField={setSelectedFieldId}
                       />
                     </div>
-                  </ScrollArea>
+                  </div>
                   {/* Branching config - center */}
-                  <ScrollArea className="w-[360px] shrink-0 border-r">
+                  <div className="w-[340px] shrink-0 border-r overflow-y-auto">
                     <div className="p-4">
                       {selectedField ? (
                         <BranchingPanel
@@ -244,53 +244,44 @@ const FormWorkflow = () => {
                         />
                       ) : (
                         <p className="text-sm text-muted-foreground text-center py-8">
-                          Selecione um campo no pipeline acima ou no fluxo ao lado.
+                          Selecione um campo no fluxo ao lado.
                         </p>
                       )}
                     </div>
-                  </ScrollArea>
-                  {/* Live form preview - right side */}
-                  <div className="flex-1 flex flex-col bg-muted/30" style={{ height: "calc(100vh - 100px)" }}>
-                    <div className="flex items-center justify-between px-3 py-2 border-b bg-card/50">
-                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Preview</span>
+                  </div>
+                  {/* Live form preview - right, fills all remaining space */}
+                  <div className="flex-1 flex flex-col min-w-0">
+                    <div className="flex items-center justify-between px-3 py-1.5 border-b bg-card/50 shrink-0">
+                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Preview</span>
                       <div className="flex items-center gap-1">
                         <Button
                           variant={previewSize === "mobile" ? "secondary" : "ghost"}
                           size="icon"
-                          className="h-7 w-7"
+                          className="h-6 w-6"
                           onClick={() => setPreviewSize("mobile")}
-                          title="Mobile"
                         >
-                          <Smartphone className="h-3.5 w-3.5" />
+                          <Smartphone className="h-3 w-3" />
                         </Button>
                         <Button
                           variant={previewSize === "desktop" ? "secondary" : "ghost"}
                           size="icon"
-                          className="h-7 w-7"
+                          className="h-6 w-6"
                           onClick={() => setPreviewSize("desktop")}
-                          title="Desktop"
                         >
-                          <Monitor className="h-3.5 w-3.5" />
+                          <Monitor className="h-3 w-3" />
                         </Button>
-                        <div className="w-px h-4 bg-border mx-0.5" />
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7"
+                          className="h-6 w-6"
                           onClick={() => setPreviewKey((k) => k + 1)}
-                          title="Recarregar preview"
                         >
-                          <RefreshCw className="h-3.5 w-3.5" />
+                          <RefreshCw className="h-3 w-3" />
                         </Button>
                       </div>
                     </div>
-                    <div className="flex-1 flex items-stretch justify-center p-2 overflow-hidden" style={{ minHeight: 0 }}>
-                      <div
-                        className={`bg-background rounded-xl shadow-lg border overflow-hidden ${
-                          previewSize === "mobile" ? "w-[480px]" : "w-full"
-                        }`}
-                        style={{ height: "calc(100vh - 100px)" }}
-                      >
+                    <div className="flex-1 flex items-stretch justify-center p-2 min-h-0">
+                      <div className={`bg-background rounded-lg shadow-lg border overflow-hidden ${previewSize === "mobile" ? "w-[480px]" : "w-full"}`}>
                         <iframe
                           key={previewKey}
                           src={`/form/${formId}/preview`}
@@ -298,11 +289,6 @@ const FormWorkflow = () => {
                           title="Form Preview"
                         />
                       </div>
-                    </div>
-                    <div className="px-3 py-1.5 border-t bg-card/50">
-                      <p className="text-[10px] text-muted-foreground text-center">
-                        Salve para atualizar o preview | Clique em recarregar para reiniciar
-                      </p>
                     </div>
                   </div>
                 </div>
