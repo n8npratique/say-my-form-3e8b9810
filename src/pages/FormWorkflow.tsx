@@ -322,16 +322,18 @@ const FormWorkflow = () => {
           </div>
         </div>
 
-        {/* Actions sidebar */}
-        <ActionsPanel
-          formId={formId!}
-          emailTemplates={emailTemplates}
-          onUpdateEmailTemplates={setEmailTemplates}
-          fields={fields}
-          scoring={scoring}
-          tagging={tagging}
-          outcomes={outcomes}
-        />
+        {/* Actions sidebar - hidden on branching tab to give preview more space */}
+        {activeTab !== "branching" && (
+          <ActionsPanel
+            formId={formId!}
+            emailTemplates={emailTemplates}
+            onUpdateEmailTemplates={setEmailTemplates}
+            fields={fields}
+            scoring={scoring}
+            tagging={tagging}
+            outcomes={outcomes}
+          />
+        )}
       </div>
 
       <AddFieldDialog
