@@ -188,16 +188,14 @@ const FormWorkflow = () => {
       <div className="flex flex-1 overflow-hidden">
         {/* Main area */}
         <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Canvas - hidden on branching tab to maximize preview height */}
-          {activeTab !== "branching" && (
-            <WorkflowCanvas
-              fields={fields}
-              logic={logic}
-              selectedFieldId={selectedFieldId}
-              onSelectField={setSelectedFieldId}
-              onInsertField={handleInsertField}
-            />
-          )}
+          {/* Canvas - always visible at top */}
+          <WorkflowCanvas
+            fields={fields}
+            logic={logic}
+            selectedFieldId={selectedFieldId}
+            onSelectField={setSelectedFieldId}
+            onInsertField={handleInsertField}
+          />
 
           {/* Config panels */}
           <div className="flex-1 overflow-hidden">
@@ -219,21 +217,11 @@ const FormWorkflow = () => {
                 </TabsList>
               </div>
 
+              {/* Branching tab: two columns - Regras | Preview */}
               <TabsContent value="branching" className="mt-0 flex-1 overflow-hidden">
-                <div className="flex" style={{ height: "calc(100vh - 96px)" }}>
-                  {/* Flow Preview - left */}
-                  <div className="w-64 shrink-0 border-r overflow-y-auto">
-                    <div className="p-3">
-                      <FlowPreview
-                        fields={fields}
-                        logic={logic}
-                        selectedFieldId={selectedFieldId}
-                        onSelectField={setSelectedFieldId}
-                      />
-                    </div>
-                  </div>
-                  {/* Branching config - center */}
-                  <div className="w-[340px] shrink-0 border-r overflow-y-auto">
+                <div className="flex h-full">
+                  {/* Regras - left half */}
+                  <div className="w-1/2 border-r overflow-y-auto">
                     <div className="p-4">
                       {selectedField ? (
                         <BranchingPanel
@@ -244,55 +232,40 @@ const FormWorkflow = () => {
                         />
                       ) : (
                         <p className="text-sm text-muted-foreground text-center py-8">
-                          Selecione um campo no fluxo ao lado.
+                          Selecione um campo no pipeline acima.
                         </p>
                       )}
                     </div>
                   </div>
-                  {/* Live form preview - right, fills all remaining space */}
-                  <div className="flex-1 flex flex-col min-w-0">
+                  {/* Preview - right half */}
+                  <div className="w-1/2 flex flex-col min-h-0">
                     <div className="flex items-center justify-between px-3 py-1.5 border-b bg-card/50 shrink-0">
                       <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Preview</span>
                       <div className="flex items-center gap-1">
-                        <Button
-                          variant={previewSize === "mobile" ? "secondary" : "ghost"}
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={() => setPreviewSize("mobile")}
-                        >
+                        <Button variant={previewSize === "mobile" ? "secondary" : "ghost"} size="icon" className="h-6 w-6" onClick={() => setPreviewSize("mobile")}>
                           <Smartphone className="h-3 w-3" />
                         </Button>
-                        <Button
-                          variant={previewSize === "desktop" ? "secondary" : "ghost"}
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={() => setPreviewSize("desktop")}
-                        >
+                        <Button variant={previewSize === "desktop" ? "secondary" : "ghost"} size="icon" className="h-6 w-6" onClick={() => setPreviewSize("desktop")}>
                           <Monitor className="h-3 w-3" />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={() => setPreviewKey((k) => k + 1)}
-                        >
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setPreviewKey((k) => k + 1)}>
                           <RefreshCw className="h-3 w-3" />
                         </Button>
                       </div>
                     </div>
-                    <div className="flex-1 flex items-stretch justify-center p-2 min-h-0">
-                      <div className={`bg-background rounded-lg shadow-lg border overflow-hidden ${previewSize === "mobile" ? "w-[480px]" : "w-full"}`}>
-                        <iframe
-                          key={previewKey}
-                          src={`/form/${formId}/preview`}
-                          className="w-full h-full border-0"
-                          title="Form Preview"
-                        />
-                      </div>
+                    <div className="flex-1 min-h-0 p-2">
+                      <iframe
+                        key={previewKey}
+                        src={`/form/${formId}/preview`}
+                        className="w-full h-full border-0 rounded-lg"
+                        title="Form Preview"
+                      />
                     </div>
                   </div>
                 </div>
               </TabsContent>
+
+              {/* Other tabs */}
               <ScrollArea className="flex-1">
                 <div className="max-w-lg mx-auto p-6">
                   <TabsContent value="scoring" className="mt-0">
@@ -310,18 +283,16 @@ const FormWorkflow = () => {
           </div>
         </div>
 
-        {/* Actions sidebar - hidden on branching tab to give preview more space */}
-        {activeTab !== "branching" && (
-          <ActionsPanel
-            formId={formId!}
-            emailTemplates={emailTemplates}
-            onUpdateEmailTemplates={setEmailTemplates}
-            fields={fields}
-            scoring={scoring}
-            tagging={tagging}
-            outcomes={outcomes}
-          />
-        )}
+        {/* Actions sidebar */}
+        <ActionsPanel
+          formId={formId!}
+          emailTemplates={emailTemplates}
+          onUpdateEmailTemplates={setEmailTemplates}
+          fields={fields}
+          scoring={scoring}
+          tagging={tagging}
+          outcomes={outcomes}
+        />
       </div>
 
       <AddFieldDialog
