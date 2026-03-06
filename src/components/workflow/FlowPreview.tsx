@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import type { FormField, FieldLogic } from "@/types/workflow";
-import { ArrowDown, GitBranch, Ban, SkipForward, CheckCircle2, Play } from "lucide-react";
+import { ArrowDown, GitBranch, Ban, SkipForward, CheckCircle2, Play, AlertTriangle } from "lucide-react";
+import { validateLogic } from "@/lib/logicEngine";
 
 interface FlowPreviewProps {
   fields: FormField[];
@@ -18,6 +19,7 @@ interface FlowNode {
     targetLabel: string;
     isDefault: boolean;
   }[];
+  issues: string[];
 }
 
 const TYPE_COLORS: Record<string, string> = {
@@ -68,6 +70,9 @@ const OP_LABELS: Record<string, string> = {
 
 export const FlowPreview = ({ fields, logic, selectedFieldId, onSelectField }: FlowPreviewProps) => {
   const flowNodes = useMemo<FlowNode[]>(() => {
+    const allFieldIds = fields.map((f) => f.id);
+    const allIssues = validateLogic(logic, allFieldIds);
+
     return fields.map((field, index) => {
       const fieldLogic = logic.find((l) => l.field_id === field.id);
       const branches: FlowNode["branches"] = [];
@@ -124,7 +129,8 @@ export const FlowPreview = ({ fields, logic, selectedFieldId, onSelectField }: F
         branches.push({ label: "senao", targetId: defaultTargetId, targetLabel: defaultTargetLabel, isDefault: true });
       }
 
-      return { field, index, branches };
+      const fieldIssues = allIssues.filter((i) => i.fieldId === field.id).map((i) => i.issue);
+      return { field, index, branches, issues: fieldIssues };
     });
   }, [fields, logic]);
 
@@ -147,6 +153,20 @@ export const FlowPreview = ({ fields, logic, selectedFieldId, onSelectField }: F
         </h4>
       </div>
 
+      <div className="flex items-center gap-3 mb-3 text-[10px] text-muted-foreground">
+        <span>{fields.length} campos</span>
+        <span>{logic.filter((l) => l.rules.length > 0).length} com logica</span>
+        {(() => {
+          const allFieldIds = fields.map((f) => f.id);
+          const issues = validateLogic(logic, allFieldIds);
+          return issues.length > 0 ? (
+            <span className="text-amber-500 font-medium flex items-center gap-1">
+              <AlertTriangle className="h-3 w-3" /> {issues.length} problema{issues.length > 1 ? "s" : ""}
+            </span>
+          ) : null;
+        })()}
+      </div>
+
       <div className="relative">
         {flowNodes.map((node, ni) => {
           const isSelected = node.field.id === selectedFieldId;
@@ -166,6 +186,7 @@ export const FlowPreview = ({ fields, logic, selectedFieldId, onSelectField }: F
                   hover:ring-2 hover:ring-primary/30
                   ${colorClass}
                   ${isSelected ? "ring-2 ring-primary shadow-sm" : ""}
+                  ${hasBranches ? "border-l-2 border-l-primary" : ""}
                 `}
               >
                 <div className="flex items-center gap-2">
@@ -182,6 +203,9 @@ export const FlowPreview = ({ fields, logic, selectedFieldId, onSelectField }: F
                   <span className="text-[9px] text-muted-foreground shrink-0">
                     {typeLabel}
                   </span>
+                  {node.issues.length > 0 && (
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-500" title={node.issues.join(", ")} />
+                  )}
                 </div>
 
                 {/* Branch indicators */}

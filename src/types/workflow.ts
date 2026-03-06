@@ -51,7 +51,7 @@ export interface FormField {
 }
 
 // ── Logic / Branching ──
-export type ConditionOp = "equals" | "not_equals" | "contains" | "greater_than" | "less_than" | "is_set" | "is_not_set";
+export type ConditionOp = "equals" | "not_equals" | "contains" | "greater_than" | "less_than" | "is_set" | "is_not_set" | "always";
 
 export interface LogicCondition {
   op: ConditionOp;

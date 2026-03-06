@@ -3,8 +3,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, GitBranch, ArrowRight, ChevronDown, Star, ThumbsUp, ThumbsDown, Hash, Type, ListChecks, CornerDownRight, Ban, SkipForward } from "lucide-react";
+import { Plus, Trash2, GitBranch, ArrowRight, ChevronDown, Star, ThumbsUp, ThumbsDown, Hash, Type, ListChecks, CornerDownRight, Ban, SkipForward, AlertTriangle } from "lucide-react";
 import type { FormField, FieldLogic, LogicRule, ConditionOp } from "@/types/workflow";
+import { validateLogic } from "@/lib/logicEngine";
 
 interface BranchingPanelProps {
   field: FormField;
@@ -14,6 +15,7 @@ interface BranchingPanelProps {
 }
 
 const OPS: { value: ConditionOp; label: string }[] = [
+  { value: "always", label: "Sempre (pular sem condição)" },
   { value: "equals", label: "É igual a" },
   { value: "not_equals", label: "Não é igual a" },
   { value: "contains", label: "Contém" },
@@ -28,28 +30,28 @@ const getOpsForField = (type: string): ConditionOp[] => {
   switch (type) {
     case "yes_no":
     case "legal":
-      return ["equals", "not_equals", "is_set", "is_not_set"];
+      return ["equals", "not_equals", "is_set", "is_not_set", "always"];
     case "multiple_choice":
     case "dropdown":
     case "image_choice":
-      return ["equals", "not_equals", "is_set", "is_not_set"];
+      return ["equals", "not_equals", "is_set", "is_not_set", "always"];
     case "checkbox":
     case "ranking":
-      return ["contains", "is_set", "is_not_set"];
+      return ["contains", "is_set", "is_not_set", "always"];
     case "rating":
     case "nps":
     case "opinion_scale":
-      return ["equals", "not_equals", "greater_than", "less_than", "is_set", "is_not_set"];
+      return ["equals", "not_equals", "greater_than", "less_than", "is_set", "is_not_set", "always"];
     case "short_text":
     case "long_text":
     case "email":
     case "phone":
     case "url":
-      return ["equals", "not_equals", "contains", "is_set", "is_not_set"];
+      return ["equals", "not_equals", "contains", "is_set", "is_not_set", "always"];
     case "number":
-      return ["equals", "not_equals", "greater_than", "less_than", "is_set", "is_not_set"];
+      return ["equals", "not_equals", "greater_than", "less_than", "is_set", "is_not_set", "always"];
     default:
-      return ["equals", "not_equals", "contains", "greater_than", "less_than", "is_set", "is_not_set"];
+      return ["equals", "not_equals", "contains", "greater_than", "less_than", "is_set", "is_not_set", "always"];
   }
 };
 
@@ -220,6 +222,7 @@ export const BranchingPanel = ({ field, fields, logic, onUpdateLogic }: Branchin
 
   // Helper to get a short condition description
   const describeCondition = (rule: LogicRule) => {
+    if (rule.condition.op === "always") return "sempre";
     const opLabel = OPS.find((o) => o.value === rule.condition.op)?.label || rule.condition.op;
     if (["is_set", "is_not_set"].includes(rule.condition.op)) {
       return opLabel.toLowerCase();
@@ -314,7 +317,7 @@ export const BranchingPanel = ({ field, fields, logic, onUpdateLogic }: Branchin
             </div>
 
             {/* Condition value */}
-            {!["is_set", "is_not_set"].includes(rule.condition.op) && (
+            {!["is_set", "is_not_set", "always"].includes(rule.condition.op) && (
               <div className="space-y-1.5">
                 <Label className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">Valor</Label>
                 {valueOptions ? (
@@ -388,6 +391,46 @@ export const BranchingPanel = ({ field, fields, logic, onUpdateLogic }: Branchin
         <Plus className="h-3.5 w-3.5" /> Adicionar regra
       </Button>
 
+      {fieldLogic.rules.length === 0 && (
+        <div className="flex items-center gap-2">
+          <div className="h-px flex-1 bg-border" />
+          <span className="text-[10px] text-muted-foreground">ou</span>
+          <div className="h-px flex-1 bg-border" />
+        </div>
+      )}
+      {fieldLogic.rules.length === 0 && (
+        <div className="rounded-lg border border-dashed p-3 space-y-2">
+          <p className="text-[11px] text-muted-foreground font-medium">Pular sempre para:</p>
+          <Select
+            value=""
+            onValueChange={(v) => {
+              if (v === "__end__") {
+                updateFieldLogic({
+                  ...fieldLogic,
+                  rules: [{ condition: { op: "always" as any }, action: { type: "end" } }],
+                  default_action: { type: "end" },
+                });
+              } else {
+                updateFieldLogic({
+                  ...fieldLogic,
+                  rules: [{ condition: { op: "always" as any }, action: { type: "jump_to", target: v } }],
+                  default_action: { type: "jump_to", target: v },
+                });
+              }
+            }}
+          >
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="Selecione o destino..." />
+            </SelectTrigger>
+            <SelectContent>
+              {jumpTargets.filter((t) => t.value !== "__next__" && t.value !== "__end_divider__").map((t) => (
+                <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
       {/* Default action */}
       {fieldLogic.rules.length > 0 && (
         <div className="rounded-lg border border-dashed p-3 space-y-2">
@@ -457,6 +500,26 @@ export const BranchingPanel = ({ field, fields, logic, onUpdateLogic }: Branchin
           </div>
         </div>
       )}
+
+      {/* Logic validation warnings */}
+      {(() => {
+        const allFieldIds = fields.map((f) => f.id);
+        const issues = validateLogic(logic, allFieldIds);
+        const fieldIssues = issues.filter((i) => i.fieldId === field.id);
+        if (fieldIssues.length === 0) return null;
+        return (
+          <div className="rounded-lg border border-amber-500/50 bg-amber-500/10 p-3 space-y-1.5">
+            <p className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+              <AlertTriangle className="h-3.5 w-3.5" /> Problemas detectados
+            </p>
+            {fieldIssues.map((issue, i) => (
+              <p key={i} className="text-xs text-amber-700 dark:text-amber-300">
+                {issue.issue}
+              </p>
+            ))}
+          </div>
+        );
+      })()}
 
       {/* Empty state */}
       {fieldLogic.rules.length === 0 && (
