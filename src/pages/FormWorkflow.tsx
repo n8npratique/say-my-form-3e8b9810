@@ -219,7 +219,7 @@ const FormWorkflow = () => {
                 </TabsList>
               </div>
 
-              <TabsContent value="branching" className="mt-0 flex-1 overflow-hidden" forceMount style={{ display: activeTab === "branching" ? undefined : "none" }}>
+              <TabsContent value="branching" className="mt-0 flex-1 overflow-hidden">
                 <div className="flex" style={{ height: "calc(100vh - 96px)" }}>
                   {/* Flow Preview - left */}
                   <div className="w-64 shrink-0 border-r overflow-y-auto">
