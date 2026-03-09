@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, invokeEdgeFunction } from "@/integrations/supabase/client";
 import {
   User, Hash, Tag, Briefcase, Plus, Trash2, RefreshCw, Loader2,
   AlertTriangle, CheckCircle2, Play, Unlink
@@ -163,8 +163,8 @@ export const UnnichatPanel = ({ formId, fields, scoring, tagging, outcomes }: Un
     if (!workspaceConfig) return;
     setLoadingFields(true);
     try {
-      const { data, error } = await supabase.functions.invoke("sync-unnichat", {
-        body: { form_id: formId, action: "list_fields", phone_token: activeToken },
+      const { data, error } = await invokeEdgeFunction("sync-unnichat", {
+        form_id: formId, action: "list_fields", phone_token: activeToken,
       });
       if (error) throw error;
       const list = data?.data ?? data?.customFields ?? [];
@@ -181,8 +181,8 @@ export const UnnichatPanel = ({ formId, fields, scoring, tagging, outcomes }: Un
     if (!workspaceConfig) return;
     setLoadingTags(true);
     try {
-      const { data, error } = await supabase.functions.invoke("sync-unnichat", {
-        body: { form_id: formId, action: "list_tags", phone_token: activeToken },
+      const { data, error } = await invokeEdgeFunction("sync-unnichat", {
+        form_id: formId, action: "list_tags", phone_token: activeToken,
       });
       if (error) throw error;
       const list = data?.data ?? data?.tags ?? [];
@@ -237,8 +237,8 @@ export const UnnichatPanel = ({ formId, fields, scoring, tagging, outcomes }: Un
         return;
       }
 
-      const { error } = await supabase.functions.invoke("sync-unnichat", {
-        body: { form_id: formId, response_id: resp.id },
+      const { error } = await invokeEdgeFunction("sync-unnichat", {
+        form_id: formId, response_id: resp.id,
       });
 
       if (error) throw error;

@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useMemo } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { invokeEdgeFunction } from "@/integrations/supabase/client";
 import { Loader2, CalendarClock, Check } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { ptBR } from "date-fns/locale/pt-BR";
@@ -47,14 +47,12 @@ export const AppointmentPicker = ({ field, formId, onSelect, locale }: Appointme
     setLoading(true);
     setError(null);
     try {
-      const { data, error: fnErr } = await supabase.functions.invoke("check-availability", {
-        body: {
+      const { data, error: fnErr } = await invokeEdgeFunction("check-availability", {
           action: "check",
           form_id: formId,
           field_id: field.id,
           appointment_config: config,
           session_id: sessionIdRef.current,
-        },
       });
 
       if (fnErr) throw new Error(fnErr.message);
@@ -84,15 +82,13 @@ export const AppointmentPicker = ({ field, formId, onSelect, locale }: Appointme
 
     // Create hold — check for conflict
     try {
-      const { data } = await supabase.functions.invoke("check-availability", {
-        body: {
+      const { data } = await invokeEdgeFunction("check-availability", {
           action: "hold",
           form_id: formId,
           field_id: field.id,
           slot_start: startDate.toISOString(),
           slot_end: slotEnd,
           session_id: sessionIdRef.current,
-        },
       });
 
       if (data?.conflict) {

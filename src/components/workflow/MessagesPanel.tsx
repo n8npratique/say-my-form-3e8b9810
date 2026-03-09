@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Mail, Plus, Trash2, ArrowLeft, Eye, EyeOff, Send, User, Shield, CheckCircle, AlertCircle, Calendar, Lock, Sparkles } from "lucide-react";
 import { GmailIcon } from "@/components/icons/BrandIcons";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, invokeEdgeFunction } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import type { EmailTemplate, FormField } from "@/types/workflow";
 
@@ -475,13 +475,11 @@ export const MessagesPanel = ({
       const { data: { user } } = await supabase.auth.getUser();
       if (!user?.email) throw new Error("Usuário não autenticado");
 
-      const { data, error } = await supabase.functions.invoke("send-email", {
-        body: {
-          form_id: formId,
-          test_mode: true,
-          test_email: user.email,
-          test_template: editing,
-        },
+      const { data, error } = await invokeEdgeFunction("send-email", {
+        form_id: formId,
+        test_mode: true,
+        test_email: user.email,
+        test_template: editing,
       });
 
       if (error) throw error;

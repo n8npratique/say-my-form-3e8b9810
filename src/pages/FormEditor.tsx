@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, invokeEdgeFunction } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
@@ -326,9 +326,7 @@ const FormEditor = () => {
         target_locale: locale,
       };
 
-      const { data, error } = await supabase.functions.invoke("translate-form", {
-        body: payload,
-      });
+      const { data, error } = await invokeEdgeFunction("translate-form", payload);
 
       if (error || !data?.translations) {
         toast({ title: "Erro na tradução", description: error?.message || "Sem resposta da IA", variant: "destructive" });

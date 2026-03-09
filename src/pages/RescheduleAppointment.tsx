@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, invokeEdgeFunction } from "@/integrations/supabase/client";
 import { AppointmentPicker } from "@/components/form-runner/AppointmentPicker";
 import { CalendarClock, CheckCircle2, AlertTriangle, Loader2, CalendarX2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -134,12 +134,10 @@ const RescheduleAppointment = () => {
     setState("submitting");
 
     try {
-      const { data, error } = await supabase.functions.invoke("reschedule-appointment", {
-        body: {
-          session_token: token,
-          new_slot_start: selectedSlot.slot_start,
-          new_slot_end: selectedSlot.slot_end,
-        },
+      const { data, error } = await invokeEdgeFunction("reschedule-appointment", {
+        session_token: token,
+        new_slot_start: selectedSlot.slot_start,
+        new_slot_end: selectedSlot.slot_end,
       });
 
       if (error) throw error;

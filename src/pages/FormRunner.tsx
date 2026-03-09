@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, invokeEdgeFunction } from "@/integrations/supabase/client";
 // Progress bar is now custom (motion.div) — shadcn Progress removed
 import { EmailGate } from "@/components/form-runner/EmailGate";
 import { RunnerField } from "@/components/form-runner/RunnerField";
@@ -233,9 +233,7 @@ const FormRunner = ({ previewMode = false }: FormRunnerProps) => {
       setSessionToken((data as any).session_token);
       // Fire webhooks for response.started (best-effort)
       try {
-        await supabase.functions.invoke("fire-webhooks", {
-          body: { form_id: formId, response_id: data.id, session_token: (data as any).session_token, event: "response.started" },
-        });
+        await invokeEdgeFunction("fire-webhooks", { form_id: formId, response_id: data.id, session_token: (data as any).session_token, event: "response.started" });
       } catch {
         // silent fail
       }
@@ -307,9 +305,7 @@ const FormRunner = ({ previewMode = false }: FormRunnerProps) => {
 
       if (checks.length > 0) {
         try {
-          const { data } = await supabase.functions.invoke("check-duplicate", {
-            body: { form_id: formId, checks },
-          });
+          const { data } = await invokeEdgeFunction("check-duplicate", { form_id: formId, checks });
           if (data?.duplicate) {
             const fieldLabel = fields.find((f) => f.id === data.field)?.label || data.field;
             setDuplicateError(`Já recebemos uma resposta com este ${fieldLabel}. Não é permitido enviar respostas duplicadas.`);
@@ -391,18 +387,14 @@ const FormRunner = ({ previewMode = false }: FormRunnerProps) => {
     }
 
     // 1) Fire webhooks (fire-and-forget, independent)
-    supabase.functions.invoke("fire-webhooks", {
-      body: { form_id: formId, response_id: responseId, session_token: sessionToken, event: "response.completed" },
-    }).catch(() => {});
+    invokeEdgeFunction("fire-webhooks", { form_id: formId, response_id: responseId, session_token: sessionToken, event: "response.completed" }).catch(() => {});
 
     // 2) Run calendar FIRST (email needs the calendar/meet links)
     let calendarMeta: Record<string, any> = {};
     const integrationStatus: Record<string, string> = {};
 
     try {
-      const calRes = await supabase.functions.invoke("create-calendar-event", {
-        body: { form_id: formId, response_id: responseId },
-      });
+      const calRes = await invokeEdgeFunction("create-calendar-event", { form_id: formId, response_id: responseId });
       const d = calRes.data;
       if (d?.created && d?.event_id) {
         integrationStatus.calendar = "ok";
@@ -424,28 +416,20 @@ const FormRunner = ({ previewMode = false }: FormRunnerProps) => {
 
     // 3) Run remaining integrations in parallel (email gets calendar links)
     const otherResults = await Promise.allSettled([
-      supabase.functions.invoke("send-email", {
-        body: {
-          form_id: formId,
-          response_id: responseId,
-          calendar_link: calendarMeta.calendar_html_link || "",
-          meet_link: calendarMeta.calendar_meet_link || "",
-        },
+      invokeEdgeFunction("send-email", {
+        form_id: formId,
+        response_id: responseId,
+        calendar_link: calendarMeta.calendar_html_link || "",
+        meet_link: calendarMeta.calendar_meet_link || "",
       }),
-      supabase.functions.invoke("send-whatsapp", {
-        body: {
-          form_id: formId,
-          response_id: responseId,
-          meet_link: calendarMeta.calendar_meet_link || "",
-          calendar_link: calendarMeta.calendar_html_link || "",
-        },
+      invokeEdgeFunction("send-whatsapp", {
+        form_id: formId,
+        response_id: responseId,
+        meet_link: calendarMeta.calendar_meet_link || "",
+        calendar_link: calendarMeta.calendar_html_link || "",
       }),
-      supabase.functions.invoke("sync-unnichat", {
-        body: { form_id: formId, response_id: responseId },
-      }),
-      supabase.functions.invoke("sync-chatguru", {
-        body: { form_id: formId, response_id: responseId },
-      }),
+      invokeEdgeFunction("sync-unnichat", { form_id: formId, response_id: responseId }),
+      invokeEdgeFunction("sync-chatguru", { form_id: formId, response_id: responseId }),
     ]).catch(() => []) as PromiseSettledResult<any>[] | [];
 
     // 4) Parse integration statuses
@@ -485,9 +469,7 @@ const FormRunner = ({ previewMode = false }: FormRunnerProps) => {
     setCompleted(true);
 
     // 6) Sync to Google Sheets LAST (so it captures integration status)
-    supabase.functions.invoke("sync-google-sheets", {
-      body: { form_id: formId, response_id: responseId },
-    }).catch(() => {});
+    invokeEdgeFunction("sync-google-sheets", { form_id: formId, response_id: responseId }).catch(() => {});
   };
 
   const formatValueText = (val: any): string => {

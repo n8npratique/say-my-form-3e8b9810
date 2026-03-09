@@ -12,7 +12,7 @@ import {
   Code, Eye, EyeOff, Sparkles, Copy, Check
 } from "lucide-react";
 import { WhatsAppIcon } from "@/components/icons/BrandIcons";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, invokeEdgeFunction } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import type { FormField } from "@/types/workflow";
 
@@ -363,8 +363,8 @@ export const WhatsAppPanel = ({ formId, fields = [], hasAppointment = false }: W
     if (!editing) return;
     setSendingTest(true);
     try {
-      const { data, error } = await supabase.functions.invoke("send-whatsapp", {
-        body: { form_id: formId, test_mode: true, test_template: editing },
+      const { data, error } = await invokeEdgeFunction("send-whatsapp", {
+        form_id: formId, test_mode: true, test_template: editing,
       });
       if (error) throw error;
       if (data?.sent === false) throw new Error(data.reason || "Falha ao enviar");

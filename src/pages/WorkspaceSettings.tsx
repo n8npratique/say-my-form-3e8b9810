@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, invokeEdgeFunction } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -168,10 +168,8 @@ const WorkspaceSettings = () => {
 
   const fetchOAuthConnections = async () => {
     try {
-      const { data, error } = await supabase.functions.invoke("google-oauth", {
-        body: { action: "status", workspace_id: workspaceId },
-      });
-      if (!error && data?.connections) {
+      const { data } = await invokeEdgeFunction("google-oauth", { action: "status", workspace_id: workspaceId });
+      if (data?.connections) {
         setOauthConnections(data.connections);
       }
     } catch {
@@ -182,9 +180,7 @@ const WorkspaceSettings = () => {
   const connectGoogleOAuth = async () => {
     setConnectingOAuth(true);
     try {
-      const { data, error } = await supabase.functions.invoke("google-oauth", {
-        body: { action: "authorize", workspace_id: workspaceId, origin: window.location.origin },
-      });
+      const { data, error } = await invokeEdgeFunction("google-oauth", { action: "authorize", workspace_id: workspaceId, origin: window.location.origin });
       if (error) throw error;
       if (data?.authorization_url) {
         // Open as popup
@@ -215,9 +211,7 @@ const WorkspaceSettings = () => {
   const disconnectGoogleOAuth = async (connectionId: string) => {
     setDisconnectingId(connectionId);
     try {
-      const { error } = await supabase.functions.invoke("google-oauth", {
-        body: { action: "disconnect", connection_id: connectionId },
-      });
+      const { error } = await invokeEdgeFunction("google-oauth", { action: "disconnect", connection_id: connectionId });
       if (error) throw error;
       setOauthConnections((prev) => prev.filter((c) => c.id !== connectionId));
       toast({ title: "Conta Google desconectada" });

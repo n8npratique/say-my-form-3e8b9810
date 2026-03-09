@@ -15,3 +15,34 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, 
     autoRefreshToken: true,
   }
 });
+
+/**
+ * Direct edge function invocation that bypasses supabase.functions.invoke()
+ * to avoid 401 errors caused by JWT verification config mismatch.
+ * Uses the user's session token when available, falls back to anon key.
+ */
+export async function invokeEdgeFunction<T = any>(
+  functionName: string,
+  body?: Record<string, unknown>,
+): Promise<{ data: T | null; error: Error | null }> {
+  try {
+    const session = (await supabase.auth.getSession()).data.session;
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/${functionName}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": `Bearer ${session?.access_token || SUPABASE_ANON_KEY}`,
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      return { data: null, error: new Error(`HTTP ${res.status}: ${text}`) };
+    }
+    const data = await res.json();
+    return { data, error: null };
+  } catch (err: any) {
+    return { data: null, error: err };
+  }
+}

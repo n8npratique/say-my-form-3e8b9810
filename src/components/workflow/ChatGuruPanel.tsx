@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, invokeEdgeFunction } from "@/integrations/supabase/client";
 import { AlertTriangle, CheckCircle2, Loader2, Play, Unlink } from "lucide-react";
 import type { FormField } from "@/types/workflow";
 import { expandFieldOptions } from "@/lib/fieldUtils";
@@ -142,8 +142,8 @@ export const ChatGuruPanel = ({ formId, fields }: ChatGuruPanelProps) => {
         return;
       }
 
-      const { error } = await supabase.functions.invoke("sync-chatguru", {
-        body: { form_id: formId, response_id: resp.id },
+      const { error } = await invokeEdgeFunction("sync-chatguru", {
+        form_id: formId, response_id: resp.id,
       });
 
       if (error) throw error;

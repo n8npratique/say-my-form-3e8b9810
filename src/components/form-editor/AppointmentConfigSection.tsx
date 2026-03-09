@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, invokeEdgeFunction } from "@/integrations/supabase/client";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -172,8 +172,8 @@ export const AppointmentConfigSection = ({ field, onChange, workspaceId, fields 
       setLoadingCalendars(true);
       setCalendarError("");
       try {
-        const { data, error } = await supabase.functions.invoke("check-availability", {
-          body: { action: "list_calendars", google_connection_id: config.google_connection_id },
+        const { data, error } = await invokeEdgeFunction("check-availability", {
+          action: "list_calendars", google_connection_id: config.google_connection_id,
         });
         if (error) {
           setCalendarError(typeof error === "object" ? JSON.stringify(error) : String(error));

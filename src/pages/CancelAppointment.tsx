@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, invokeEdgeFunction } from "@/integrations/supabase/client";
 import { CalendarX2, CheckCircle2, AlertTriangle, Loader2, CalendarClock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import logoPratique from "@/assets/logo-pratique.png";
@@ -93,8 +93,8 @@ const CancelAppointment = () => {
   const handleCancel = async () => {
     setState("confirming");
     try {
-      const { data, error } = await supabase.functions.invoke("cancel-appointment", {
-        body: { session_token: token },
+      const { data, error } = await invokeEdgeFunction("cancel-appointment", {
+        session_token: token,
       });
 
       if (error) throw error;

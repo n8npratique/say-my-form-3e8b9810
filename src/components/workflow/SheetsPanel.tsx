@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, invokeEdgeFunction } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -147,8 +147,8 @@ export const SheetsPanel = ({ formId }: SheetsPanelProps) => {
     if (!integration) return;
     setCreating(true);
     try {
-      const { data, error } = await supabase.functions.invoke("sync-google-sheets", {
-        body: { form_id: formId, create_only: true },
+      const { data, error } = await invokeEdgeFunction("sync-google-sheets", {
+        form_id: formId, create_only: true,
       });
       if (error) throw error;
       toast({
@@ -166,8 +166,8 @@ export const SheetsPanel = ({ formId }: SheetsPanelProps) => {
     if (!integration) return;
     setSaving(true);
     try {
-      const { data, error } = await supabase.functions.invoke("sync-google-sheets", {
-        body: { form_id: formId, fix_permissions: true },
+      const { data, error } = await invokeEdgeFunction("sync-google-sheets", {
+        form_id: formId, fix_permissions: true,
       });
       if (error) throw error;
       if (data?.fixed) {
@@ -185,8 +185,8 @@ export const SheetsPanel = ({ formId }: SheetsPanelProps) => {
     if (!integration) return;
     setSyncing(true);
     try {
-      const { data, error } = await supabase.functions.invoke("sync-google-sheets", {
-        body: { form_id: formId, batch_sync: true },
+      const { data, error } = await invokeEdgeFunction("sync-google-sheets", {
+        form_id: formId, batch_sync: true,
       });
       if (error) throw error;
       if (data?.count === 0) {
