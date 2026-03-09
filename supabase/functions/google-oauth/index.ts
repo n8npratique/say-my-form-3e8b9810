@@ -144,7 +144,18 @@ Deno.serve(async (req) => {
       const error = url.searchParams.get("error");
       const fallbackOrigin = Deno.env.get("SITE_URL") || "";
 
-      // Try to extract origin from state early (even before full verification)
+      // Helper: redirect back to app — the popup will auto-close via polling in the opener
+      const redirect = (origin: string, status: string, detail: string) => {
+        // Minimal HTML that stores result in localStorage (triggers storage event in opener) then closes
+        const html = `<!DOCTYPE html><html><head><script>
+try{localStorage.setItem("google-oauth-result",JSON.stringify({status:"${status}",detail:${JSON.stringify(detail)}}));}catch(e){}
+window.close();
+setTimeout(function(){location.href="${(origin || "").replace(/\/+$/, "")}/dashboard";},500);
+</script></head><body></body></html>`;
+        return new Response(html, { headers: { ...corsHeaders, "Content-Type": "text/html; charset=utf-8" } });
+      };
+
+      // Try to extract origin from state early
       let earlyOrigin = fallbackOrigin;
       if (state) {
         try {
@@ -154,25 +165,12 @@ Deno.serve(async (req) => {
         } catch {}
       }
 
-      if (error) {
-        return new Response(callbackHTML("error", error, earlyOrigin), {
-          headers: { "Content-Type": "text/html; charset=utf-8" },
-        });
-      }
-
-      if (!code || !state) {
-        return new Response(callbackHTML("error", "Missing code or state", earlyOrigin), {
-          headers: { "Content-Type": "text/html; charset=utf-8" },
-        });
-      }
+      if (error) return redirect(earlyOrigin, "error", error);
+      if (!code || !state) return redirect(earlyOrigin, "error", "Missing code or state");
 
       // Verify HMAC state
       const stateData = await verifyState(state);
-      if (!stateData) {
-        return new Response(callbackHTML("error", "Invalid state signature", earlyOrigin), {
-          headers: { "Content-Type": "text/html; charset=utf-8" },
-        });
-      }
+      if (!stateData) return redirect(earlyOrigin, "error", "Invalid state signature");
 
       const { workspace_id, user_id, origin: stateOrigin } = stateData;
       const appOrigin = stateOrigin || fallbackOrigin;
@@ -192,10 +190,7 @@ Deno.serve(async (req) => {
       const tokenData = await tokenRes.json();
 
       if (!tokenData.access_token) {
-        return new Response(
-          callbackHTML("error", `Token exchange failed: ${tokenData.error || "unknown"}`, appOrigin),
-          { headers: { "Content-Type": "text/html; charset=utf-8" } }
-        );
+        return redirect(appOrigin, "error", `Token exchange failed: ${tokenData.error || "unknown"}`);
       }
 
       // Get user email from Google
@@ -205,12 +200,7 @@ Deno.serve(async (req) => {
       const userinfo = await userinfoRes.json();
       const googleEmail = userinfo.email;
 
-      if (!googleEmail) {
-        return new Response(
-          callbackHTML("error", "Could not retrieve Google email", appOrigin),
-          { headers: { "Content-Type": "text/html; charset=utf-8" } }
-        );
-      }
+      if (!googleEmail) return redirect(appOrigin, "error", "Could not retrieve Google email");
 
       // Calculate token expiry
       const expiresAt = new Date(
@@ -236,16 +226,10 @@ Deno.serve(async (req) => {
 
       if (dbError) {
         console.error("DB upsert error:", dbError);
-        return new Response(
-          callbackHTML("error", `Database error: ${dbError.message}`, appOrigin),
-          { headers: { "Content-Type": "text/html; charset=utf-8" } }
-        );
+        return redirect(appOrigin, "error", `Database error: ${dbError.message}`);
       }
 
-      return new Response(
-        callbackHTML("success", googleEmail, appOrigin),
-        { headers: { "Content-Type": "text/html; charset=utf-8" } }
-      );
+      return redirect(appOrigin, "success", googleEmail);
     }
 
     // ── ACTION: status ────────────────────────────────────────────────────
@@ -360,128 +344,3 @@ Deno.serve(async (req) => {
   }
 });
 
-// ── Callback HTML page (shown in popup/redirect) ────────────────────────────
-function callbackHTML(status: "success" | "error", detail: string, appOrigin?: string): string {
-  const safeOrigin = (appOrigin || "").replace(/\/+$/, "");
-  const isSuccess = status === "success";
-  const safeDetail = detail.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  return `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Google OAuth - TecForms</title>
-  <style>
-    * { box-sizing: border-box; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      display: flex; align-items: center; justify-content: center;
-      min-height: 100vh; margin: 0;
-      background: #f8fafc; color: #1a1a2e;
-    }
-    .card {
-      background: white; border-radius: 16px; padding: 2.5rem 2rem; text-align: center;
-      box-shadow: 0 4px 24px rgba(0,0,0,0.08); max-width: 420px; width: 90%;
-    }
-    .icon { font-size: 3rem; margin-bottom: 1rem; }
-    h2 { margin: 0 0 0.5rem; font-size: 1.25rem; font-weight: 700; }
-    p { color: #64748b; font-size: 0.875rem; margin: 0; line-height: 1.5; }
-    .email { color: #3b82f6; font-weight: 600; }
-    .status-msg { margin-top: 1rem; color: #94a3b8; font-size: 0.75rem; }
-    .btn {
-      display: none; margin-top: 1.25rem; padding: 0.625rem 1.5rem;
-      background: #6366f1; color: white; border: none; border-radius: 8px;
-      font-size: 0.875rem; font-weight: 600; cursor: pointer;
-      text-decoration: none;
-    }
-    .btn:hover { background: #4f46e5; }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <div class="icon">${isSuccess ? "&#10004;&#65039;" : "&#10060;"}</div>
-    <h2>${isSuccess ? "Conta conectada!" : "Erro na conexao"}</h2>
-    <p>${isSuccess
-      ? `A conta <span class="email">${safeDetail}</span> foi conectada com sucesso.`
-      : safeDetail
-    }</p>
-    <p class="status-msg" id="statusMsg">Fechando esta janela...</p>
-    <a class="btn" id="closeBtn" href="${safeOrigin}/dashboard">Voltar para o TecForms</a>
-  </div>
-  <script>
-    (function() {
-      var result = { status: "${status}", detail: ${JSON.stringify(detail)}, ts: Date.now() };
-      var appOrigin = "${safeOrigin}";
-      var isPopup = !!window.opener;
-      var closed = false;
-
-      // 1) Try postMessage to opener (works if same origin)
-      function notifyOpener() {
-        try {
-          if (window.opener && !window.opener.closed) {
-            window.opener.postMessage({
-              type: "google-oauth-callback",
-              status: result.status,
-              detail: result.detail
-            }, appOrigin || "*");
-          }
-        } catch(e) {}
-      }
-
-      // 2) Try localStorage (works if same origin, triggers storage event in other tabs)
-      function notifyStorage() {
-        try {
-          localStorage.setItem("google-oauth-result", JSON.stringify(result));
-        } catch(e) {}
-      }
-
-      // 3) Try closing the window
-      function tryClose() {
-        try {
-          window.close();
-          // Check if it actually closed after a tick
-          setTimeout(function() {
-            if (!window.closed) showFallback();
-          }, 300);
-        } catch(e) {
-          showFallback();
-        }
-      }
-
-      // 4) Fallback: show a button to go back or message to close manually
-      function showFallback() {
-        if (closed) return;
-        closed = true;
-        var msg = document.getElementById("statusMsg");
-        var btn = document.getElementById("closeBtn");
-        if (appOrigin) {
-          // Redirect back to app automatically
-          msg.textContent = "Redirecionando...";
-          btn.style.display = "inline-block";
-          setTimeout(function() {
-            window.location.href = appOrigin + "/dashboard";
-          }, 1000);
-        } else {
-          msg.textContent = "Pode fechar esta janela manualmente.";
-          btn.style.display = "none";
-        }
-      }
-
-      // Execute: notify, then close
-      notifyOpener();
-      notifyStorage();
-
-      // Give a moment for the user to see the success message, then close
-      setTimeout(function() {
-        if (isPopup) {
-          tryClose();
-        } else {
-          // Not a popup — redirect back to app
-          showFallback();
-        }
-      }, 1200);
-    })();
-  </script>
-</body>
-</html>`;
-}
