@@ -1,25 +1,49 @@
-project_id = "lnvxyinjtnjlhygqhwet"
+project_id = "adgjmkkiaeffonyzsyjw"
+
+[functions.cancel-appointment]
+verify_jwt = false
+
+[functions.check-availability]
+verify_jwt = false
 
 [functions.check-duplicate]
-verify_jwt = false
-
-[functions.sync-google-sheets]
-verify_jwt = false
-
-[functions.send-email]
-verify_jwt = false
-
-[functions.sync-unnichat]
-verify_jwt = false
-
-[functions.send-whatsapp]
-verify_jwt = false
-
-[functions.manage-service-account]
 verify_jwt = false
 
 [functions.create-calendar-event]
 verify_jwt = false
 
+[functions.fire-webhooks]
+verify_jwt = false
+
 [functions.generate-form]
+verify_jwt = false
+
+[functions.google-oauth]
+verify_jwt = false
+
+[functions.manage-service-account]
+verify_jwt = false
+
+[functions.reschedule-appointment]
+verify_jwt = false
+
+[functions.send-email]
+verify_jwt = false
+
+[functions.send-invite]
+verify_jwt = false
+
+[functions.send-whatsapp]
+verify_jwt = false
+
+[functions.sync-chatguru]
+verify_jwt = false
+
+[functions.sync-google-sheets]
+verify_jwt = false
+
+[functions.sync-unnichat]
+verify_jwt = false
+
+[functions.translate-form]
 verify_jwt = false
