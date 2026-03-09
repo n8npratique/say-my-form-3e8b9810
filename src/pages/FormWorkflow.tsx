@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -13,7 +13,7 @@ import { TaggingPanel } from "@/components/workflow/TaggingPanel";
 import { OutcomePanel } from "@/components/workflow/OutcomePanel";
 import { ActionsPanel } from "@/components/workflow/ActionsPanel";
 import { AddFieldDialog } from "@/components/form-editor/AddFieldDialog";
-import { ArrowLeft, Save, GitBranch, Award, Tag, Trophy, RefreshCw, Smartphone, Monitor } from "lucide-react";
+import { ArrowLeft, Save, GitBranch, Award, Tag, Trophy } from "lucide-react";
 import logoPratique from "@/assets/logo-pratique.png";
 import type { FormField, FieldLogic, ScoringConfig, TaggingConfig, OutcomesConfig, FormSchema, EmailTemplate } from "@/types/workflow";
 import { DEFAULT_SCORING, DEFAULT_TAGGING, DEFAULT_OUTCOMES } from "@/types/workflow";
@@ -37,9 +37,6 @@ const FormWorkflow = () => {
   const [activeTab, setActiveTab] = useState("branching");
   const [insertAfterIndex, setInsertAfterIndex] = useState<number | null>(null);
   const [insertDialogOpen, setInsertDialogOpen] = useState(false);
-  const [previewKey, setPreviewKey] = useState(0);
-  const [previewSize, setPreviewSize] = useState<"mobile" | "desktop">("mobile");
-
   const selectedField = fields.find((f) => f.id === selectedFieldId) || null;
 
   const handleInsertField = (afterIndex: number) => {
@@ -152,7 +149,6 @@ const FormWorkflow = () => {
       toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
     } else {
       toast({ title: "Integrações salvas!" });
-      setPreviewKey((k) => k + 1); // refresh preview
     }
     setSaving(false);
   };
@@ -217,11 +213,11 @@ const FormWorkflow = () => {
                 </TabsList>
               </div>
 
-              {/* Branching tab: two columns - Regras | Preview */}
+              {/* Branching tab: two columns - Regras | Flow diagram */}
               <TabsContent value="branching" className="mt-0">
                 <div style={{ display: "flex", height: "calc(100vh - 260px)" }}>
-                  {/* Regras - left half */}
-                  <div style={{ width: "50%", borderRight: "1px solid hsl(var(--border))", overflowY: "auto" }}>
+                  {/* Regras - left */}
+                  <div style={{ flex: 1, borderRight: "1px solid hsl(var(--border))", overflowY: "auto" }}>
                     <div className="p-4">
                       {selectedField ? (
                         <BranchingPanel
@@ -237,28 +233,16 @@ const FormWorkflow = () => {
                       )}
                     </div>
                   </div>
-                  {/* Preview - right half */}
-                  <div style={{ width: "50%", display: "flex", flexDirection: "column" }}>
-                    <div className="flex items-center justify-between px-3 py-1.5 border-b bg-card/50" style={{ flexShrink: 0 }}>
-                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Preview</span>
-                      <div className="flex items-center gap-1">
-                        <Button variant={previewSize === "mobile" ? "secondary" : "ghost"} size="icon" className="h-6 w-6" onClick={() => setPreviewSize("mobile")}>
-                          <Smartphone className="h-3 w-3" />
-                        </Button>
-                        <Button variant={previewSize === "desktop" ? "secondary" : "ghost"} size="icon" className="h-6 w-6" onClick={() => setPreviewSize("desktop")}>
-                          <Monitor className="h-3 w-3" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setPreviewKey((k) => k + 1)}>
-                          <RefreshCw className="h-3 w-3" />
-                        </Button>
-                      </div>
+                  {/* Flow diagram - right */}
+                  <div style={{ width: "320px", flexShrink: 0, overflowY: "auto" }}>
+                    <div className="p-4">
+                      <FlowPreview
+                        fields={fields}
+                        logic={logic}
+                        selectedFieldId={selectedFieldId}
+                        onSelectField={setSelectedFieldId}
+                      />
                     </div>
-                    <iframe
-                      key={previewKey}
-                      src={`/form/${formId}/preview`}
-                      style={{ flex: 1, width: "100%", border: "none", minHeight: 0 }}
-                      title="Form Preview"
-                    />
                   </div>
                 </div>
               </TabsContent>
