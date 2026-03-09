@@ -144,15 +144,11 @@ Deno.serve(async (req) => {
       const error = url.searchParams.get("error");
       const fallbackOrigin = Deno.env.get("SITE_URL") || "";
 
-      // Helper: redirect back to app — the popup will auto-close via polling in the opener
+      // Helper: 302 redirect back to app with oauth result in query params
       const redirect = (origin: string, status: string, detail: string) => {
-        // Minimal HTML that stores result in localStorage (triggers storage event in opener) then closes
-        const html = `<!DOCTYPE html><html><head><script>
-try{localStorage.setItem("google-oauth-result",JSON.stringify({status:"${status}",detail:${JSON.stringify(detail)}}));}catch(e){}
-window.close();
-setTimeout(function(){location.href="${(origin || "").replace(/\/+$/, "")}/dashboard";},500);
-</script></head><body></body></html>`;
-        return new Response(html, { headers: { ...corsHeaders, "Content-Type": "text/html; charset=utf-8" } });
+        const base = (origin || "").replace(/\/+$/, "") || "/";
+        const target = `${base}/dashboard?oauth=${encodeURIComponent(status)}&detail=${encodeURIComponent(detail)}`;
+        return new Response(null, { status: 302, headers: { Location: target } });
       };
 
       // Try to extract origin from state early

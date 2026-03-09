@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -45,6 +45,29 @@ const Dashboard = () => {
   const [isAdmin, setIsAdmin] = useState(false);
 
   const { newCount, recentResponses, resetCount } = useRealtimeResponses({ formIds: allFormIds });
+
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Handle Google OAuth redirect result
+  useEffect(() => {
+    const oauthStatus = searchParams.get("oauth");
+    const oauthDetail = searchParams.get("detail");
+    if (oauthStatus) {
+      if (oauthStatus === "success") {
+        toast({ title: "Conta Google conectada!", description: oauthDetail || "" });
+      } else {
+        toast({ title: "Erro ao conectar Google", description: oauthDetail || "", variant: "destructive" });
+      }
+      // Clean up query params
+      searchParams.delete("oauth");
+      searchParams.delete("detail");
+      setSearchParams(searchParams, { replace: true });
+      // Close popup if this is running inside one
+      if (window.opener) {
+        try { window.close(); } catch {}
+      }
+    }
+  }, []);
 
   useEffect(() => {
     fetchWorkspaces();
