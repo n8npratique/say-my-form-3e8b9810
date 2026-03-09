@@ -189,7 +189,277 @@ export const FORM_TEMPLATES: FormTemplate[] = [
     },
   },
 
-  // ── 6. Agendamento Inteligente ───────────────────────────────────────────
+  // ── 6. Jump Simples — Triagem Sim/Não ───────────────────────────────────
+  {
+    id: "jump-simple",
+    name: "Triagem Sim/Não (Jump Simples)",
+    description: "Exemplo de jump simples: uma pergunta Sim/Não que direciona para caminhos diferentes.",
+    icon: "GitBranch",
+    category: "Exemplos de Jump",
+    themeColors: ["#ECFDF5", "#10B981", "#065F46"],
+    buildSchema: (): FormSchema => {
+      const welcome = crypto.randomUUID();
+      const q1 = crypto.randomUUID();
+      const q2_sim = crypto.randomUUID();
+      const q3_sim = crypto.randomUUID();
+      const q2_nao = crypto.randomUUID();
+      const endOk = crypto.randomUUID();
+      const endNao = crypto.randomUUID();
+      return {
+        fields: [
+          { id: welcome, type: "welcome_screen", label: "Pesquisa de Interesse", required: false, placeholder: "Responda rapidinho para te direcionarmos!" },
+          { id: q1, type: "yes_no", label: "Você tem interesse em nossos serviços?", required: true },
+          { id: q2_sim, type: "multiple_choice", label: "Qual serviço te interessa?", required: true, options: ["Consultoria", "Treinamento", "Suporte técnico"] },
+          { id: q3_sim, type: "contact_info", label: "Deixe seu contato para retorno", required: true, contact_fields: ["first_name", "email", "phone"] },
+          { id: q2_nao, type: "long_text", label: "O que podemos melhorar para te atender?", required: false },
+          { id: endOk, type: "end_screen", label: "Obrigado pelo interesse! Entraremos em contato em breve.", required: false },
+          { id: endNao, type: "end_screen", label: "Agradecemos seu feedback! Até a próxima.", required: false },
+        ],
+        logic: [
+          {
+            field_id: q1,
+            rules: [
+              { condition: { op: "equals", value: "Sim" }, action: { type: "jump_to", target: q2_sim } },
+              { condition: { op: "equals", value: "Não" }, action: { type: "jump_to", target: q2_nao } },
+            ],
+            default_action: { type: "next" },
+          },
+          {
+            field_id: q3_sim,
+            rules: [{ condition: { op: "always" }, action: { type: "jump_to", target: endOk } }],
+            default_action: { type: "jump_to", target: endOk },
+          },
+          {
+            field_id: q2_nao,
+            rules: [{ condition: { op: "always" }, action: { type: "jump_to", target: endNao } }],
+            default_action: { type: "jump_to", target: endNao },
+          },
+        ],
+        theme: getTheme("Floresta"),
+      };
+    },
+  },
+
+  // ── 7. Jump Intermediário — Qualificação de Lead ──────────────────────
+  {
+    id: "jump-intermediate",
+    name: "Qualificação de Lead (Jump Intermediário)",
+    description: "Ramificação por setor e porte da empresa com telas finais diferentes.",
+    icon: "GitBranch",
+    category: "Exemplos de Jump",
+    themeColors: ["#EFF6FF", "#3B82F6", "#1E40AF"],
+    buildSchema: (): FormSchema => {
+      const welcome = crypto.randomUUID();
+      const qNome = crypto.randomUUID();
+      const qSetor = crypto.randomUUID();
+      const qPorteTech = crypto.randomUUID();
+      const qPorteSaude = crypto.randomUUID();
+      const qPorteOutro = crypto.randomUUID();
+      const qOrcamento = crypto.randomUUID();
+      const qContato = crypto.randomUUID();
+      const endEnterprise = crypto.randomUUID();
+      const endPME = crypto.randomUUID();
+      return {
+        fields: [
+          { id: welcome, type: "welcome_screen", label: "Qualificação de Lead", required: false, placeholder: "Nos ajude a entender sua necessidade para oferecer a melhor solução." },
+          { id: qNome, type: "short_text", label: "Qual é o nome da sua empresa?", required: true },
+          { id: qSetor, type: "dropdown", label: "Qual o setor da sua empresa?", required: true, options: ["Tecnologia", "Saúde", "Educação", "Varejo", "Outro"] },
+          { id: qPorteTech, type: "multiple_choice", label: "Quantos funcionários na área de TI?", required: true, options: ["1 a 10", "11 a 50", "51 a 200", "Mais de 200"] },
+          { id: qPorteSaude, type: "multiple_choice", label: "Qual o tipo de unidade?", required: true, options: ["Consultório", "Clínica", "Hospital", "Laboratório"] },
+          { id: qPorteOutro, type: "multiple_choice", label: "Porte da empresa", required: true, options: ["MEI/Micro", "Pequena", "Média", "Grande"] },
+          { id: qOrcamento, type: "dropdown", label: "Faixa de orçamento mensal", required: true, options: ["Até R$ 1.000", "R$ 1.000 a R$ 5.000", "R$ 5.000 a R$ 20.000", "Acima de R$ 20.000"] },
+          { id: qContato, type: "contact_info", label: "Dados para contato", required: true, contact_fields: ["first_name", "last_name", "email", "phone"] },
+          { id: endEnterprise, type: "end_screen", label: "Perfeito! Nosso time Enterprise entrará em contato em até 24h.", required: false },
+          { id: endPME, type: "end_screen", label: "Obrigado! Confira seu email com nossos planos para PME.", required: false },
+        ],
+        logic: [
+          {
+            field_id: qSetor,
+            rules: [
+              { condition: { op: "equals", value: "Tecnologia" }, action: { type: "jump_to", target: qPorteTech } },
+              { condition: { op: "equals", value: "Saúde" }, action: { type: "jump_to", target: qPorteSaude } },
+            ],
+            default_action: { type: "jump_to", target: qPorteOutro },
+          },
+          {
+            field_id: qPorteTech,
+            rules: [{ condition: { op: "always" }, action: { type: "jump_to", target: qOrcamento } }],
+            default_action: { type: "jump_to", target: qOrcamento },
+          },
+          {
+            field_id: qPorteSaude,
+            rules: [{ condition: { op: "always" }, action: { type: "jump_to", target: qOrcamento } }],
+            default_action: { type: "jump_to", target: qOrcamento },
+          },
+          {
+            field_id: qPorteOutro,
+            rules: [{ condition: { op: "always" }, action: { type: "jump_to", target: qOrcamento } }],
+            default_action: { type: "jump_to", target: qOrcamento },
+          },
+          {
+            field_id: qOrcamento,
+            rules: [
+              { condition: { op: "equals", value: "Acima de R$ 20.000" }, action: { type: "jump_to", target: qContato } },
+              { condition: { op: "equals", value: "R$ 5.000 a R$ 20.000" }, action: { type: "jump_to", target: qContato } },
+            ],
+            default_action: { type: "next" },
+          },
+          {
+            field_id: qContato,
+            rules: [],
+            default_action: { type: "jump_to", target: endEnterprise },
+          },
+        ],
+        tagging: {
+          enabled: true,
+          tags: ["tech", "saude", "pme", "enterprise"],
+          field_tags: {
+            [qSetor]: { "Tecnologia": ["tech"], "Saúde": ["saude"] },
+            [qOrcamento]: { "Acima de R$ 20.000": ["enterprise"], "R$ 5.000 a R$ 20.000": ["enterprise"], "R$ 1.000 a R$ 5.000": ["pme"], "Até R$ 1.000": ["pme"] },
+          },
+        },
+        theme: getTheme("Oceano"),
+      };
+    },
+  },
+
+  // ── 8. Jump Complexo — Diagnóstico Completo ────────────────────────────
+  {
+    id: "jump-complex",
+    name: "Diagnóstico Empresarial (Jump Complexo)",
+    description: "Formulário com múltiplas ramificações, scoring, tagging e outcomes baseados nas respostas.",
+    icon: "GitBranch",
+    category: "Exemplos de Jump",
+    themeColors: ["#FDF2F8", "#EC4899", "#9D174D"],
+    buildSchema: (): FormSchema => {
+      const welcome = crypto.randomUUID();
+      const qObj = crypto.randomUUID();
+      // Caminho Marketing
+      const qMktCanal = crypto.randomUUID();
+      const qMktBudget = crypto.randomUUID();
+      const qMktEquipe = crypto.randomUUID();
+      // Caminho Vendas
+      const qVendasCRM = crypto.randomUUID();
+      const qVendasMeta = crypto.randomUUID();
+      const qVendasEquipe = crypto.randomUUID();
+      // Caminho Operações
+      const qOpsProcess = crypto.randomUUID();
+      const qOpsAuto = crypto.randomUUID();
+      // Comum
+      const qSatisf = crypto.randomUUID();
+      const qContato = crypto.randomUUID();
+      // End screens
+      const endMktAvancado = crypto.randomUUID();
+      const endMktIniciante = crypto.randomUUID();
+      const endVendasPro = crypto.randomUUID();
+      const endVendasBasico = crypto.randomUUID();
+      const endOps = crypto.randomUUID();
+
+      return {
+        fields: [
+          { id: welcome, type: "welcome_screen", label: "Diagnóstico Empresarial", required: false, placeholder: "Descubra como otimizar sua empresa em 2 minutos." },
+          { id: qObj, type: "multiple_choice", label: "Qual área da empresa você quer melhorar?", required: true, options: ["Marketing Digital", "Vendas", "Operações e Processos"] },
+          // Marketing path
+          { id: qMktCanal, type: "checkbox", label: "Quais canais de marketing você usa?", required: true, options: ["Google Ads", "Facebook/Instagram Ads", "SEO", "Email Marketing", "TikTok", "LinkedIn"] },
+          { id: qMktBudget, type: "dropdown", label: "Qual o investimento mensal em marketing?", required: true, options: ["Até R$ 2.000", "R$ 2.000 a R$ 10.000", "R$ 10.000 a R$ 50.000", "Acima de R$ 50.000"] },
+          { id: qMktEquipe, type: "yes_no", label: "Você tem uma equipe dedicada de marketing?", required: true },
+          // Vendas path
+          { id: qVendasCRM, type: "yes_no", label: "Sua empresa usa CRM?", required: true },
+          { id: qVendasMeta, type: "number", label: "Qual a meta de faturamento mensal? (em R$)", required: true },
+          { id: qVendasEquipe, type: "dropdown", label: "Tamanho da equipe de vendas", required: true, options: ["Somente eu", "2 a 5 pessoas", "6 a 20 pessoas", "Mais de 20 pessoas"] },
+          // Operações path
+          { id: qOpsProcess, type: "multiple_choice", label: "Qual o principal gargalo?", required: true, options: ["Processos manuais", "Falta de integração", "Comunicação interna", "Gestão de estoque"] },
+          { id: qOpsAuto, type: "yes_no", label: "Já usa ferramentas de automação?", required: true },
+          // Comum
+          { id: qSatisf, type: "nps", label: "De 0 a 10, quão satisfeito está com os resultados atuais?", required: true },
+          { id: qContato, type: "contact_info", label: "Deixe seu contato para receber o diagnóstico", required: true, contact_fields: ["first_name", "email", "phone"] },
+          // End screens
+          { id: endMktAvancado, type: "end_screen", label: "Seu marketing está avançado! Vamos escalar juntos. Confira o diagnóstico no seu email.", required: false },
+          { id: endMktIniciante, type: "end_screen", label: "Identificamos oportunidades de crescimento no seu marketing. Confira as recomendações no email.", required: false },
+          { id: endVendasPro, type: "end_screen", label: "Sua estrutura de vendas é profissional! Vamos otimizar os resultados.", required: false },
+          { id: endVendasBasico, type: "end_screen", label: "Há muito potencial para melhorar suas vendas. Veja nossas dicas no email!", required: false },
+          { id: endOps, type: "end_screen", label: "Recebemos seu diagnóstico de operações. Confira as recomendações de automação no email.", required: false },
+        ],
+        logic: [
+          // Objetivo -> ramifica para área
+          {
+            field_id: qObj,
+            rules: [
+              { condition: { op: "equals", value: "Marketing Digital" }, action: { type: "jump_to", target: qMktCanal } },
+              { condition: { op: "equals", value: "Vendas" }, action: { type: "jump_to", target: qVendasCRM } },
+              { condition: { op: "equals", value: "Operações e Processos" }, action: { type: "jump_to", target: qOpsProcess } },
+            ],
+            default_action: { type: "next" },
+          },
+          // Marketing -> satisfação
+          {
+            field_id: qMktEquipe,
+            rules: [{ condition: { op: "always" }, action: { type: "jump_to", target: qSatisf } }],
+            default_action: { type: "jump_to", target: qSatisf },
+          },
+          // Vendas -> satisfação
+          {
+            field_id: qVendasEquipe,
+            rules: [{ condition: { op: "always" }, action: { type: "jump_to", target: qSatisf } }],
+            default_action: { type: "jump_to", target: qSatisf },
+          },
+          // Operações -> satisfação
+          {
+            field_id: qOpsAuto,
+            rules: [{ condition: { op: "always" }, action: { type: "jump_to", target: qSatisf } }],
+            default_action: { type: "jump_to", target: qSatisf },
+          },
+        ],
+        scoring: {
+          enabled: true,
+          field_scores: {
+            [qMktBudget]: { "Até R$ 2.000": 10, "R$ 2.000 a R$ 10.000": 30, "R$ 10.000 a R$ 50.000": 60, "Acima de R$ 50.000": 90 },
+            [qMktEquipe]: { "Sim": 50, "Não": 10 },
+            [qVendasCRM]: { "Sim": 50, "Não": 10 },
+            [qVendasEquipe]: { "Somente eu": 10, "2 a 5 pessoas": 30, "6 a 20 pessoas": 60, "Mais de 20 pessoas": 90 },
+            [qSatisf]: { "0": 0, "1": 10, "2": 20, "3": 30, "4": 40, "5": 50, "6": 60, "7": 70, "8": 80, "9": 90, "10": 100 },
+          },
+          ranges: [
+            { min: 0, max: 30, label: "Iniciante" },
+            { min: 31, max: 60, label: "Intermediário" },
+            { min: 61, max: 100, label: "Avançado" },
+          ],
+        },
+        tagging: {
+          enabled: true,
+          tags: ["marketing", "vendas", "operacoes", "budget-alto", "sem-crm", "sem-automacao"],
+          field_tags: {
+            [qObj]: { "Marketing Digital": ["marketing"], "Vendas": ["vendas"], "Operações e Processos": ["operacoes"] },
+            [qMktBudget]: { "Acima de R$ 50.000": ["budget-alto"], "R$ 10.000 a R$ 50.000": ["budget-alto"] },
+            [qVendasCRM]: { "Não": ["sem-crm"] },
+            [qOpsAuto]: { "Não": ["sem-automacao"] },
+          },
+        },
+        outcomes: {
+          enabled: true,
+          definitions: [
+            { id: "mkt-avancado", label: "Marketing Avançado", end_screen_id: endMktAvancado },
+            { id: "mkt-iniciante", label: "Marketing Iniciante", end_screen_id: endMktIniciante },
+            { id: "vendas-pro", label: "Vendas Profissional", end_screen_id: endVendasPro },
+            { id: "vendas-basico", label: "Vendas Básico", end_screen_id: endVendasBasico },
+            { id: "ops", label: "Operações", end_screen_id: endOps },
+          ],
+          field_outcomes: {
+            [qObj]: {
+              "Marketing Digital": "mkt-avancado",
+              "Vendas": "vendas-pro",
+              "Operações e Processos": "ops",
+            },
+            [qMktEquipe]: { "Sim": "mkt-avancado", "Não": "mkt-iniciante" },
+            [qVendasCRM]: { "Sim": "vendas-pro", "Não": "vendas-basico" },
+          },
+        },
+        theme: getTheme("Gradiente"),
+      };
+    },
+  },
+
+  // ── 9. Agendamento Inteligente ───────────────────────────────────────────
   {
     id: "scheduling",
     name: "Agendamento Inteligente",
