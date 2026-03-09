@@ -219,9 +219,9 @@ const FormWorkflow = () => {
 
               {/* Branching tab: two columns - Regras | Preview */}
               <TabsContent value="branching" className="mt-0">
-                <div className="flex" style={{ height: "calc(100vh - 260px)" }}>
+                <div style={{ display: "flex", height: "calc(100vh - 260px)" }}>
                   {/* Regras - left half */}
-                  <div className="w-1/2 border-r overflow-y-auto">
+                  <div style={{ width: "50%", borderRight: "1px solid hsl(var(--border))", overflowY: "auto" }}>
                     <div className="p-4">
                       {selectedField ? (
                         <BranchingPanel
@@ -238,8 +238,8 @@ const FormWorkflow = () => {
                     </div>
                   </div>
                   {/* Preview - right half */}
-                  <div className="w-1/2 flex flex-col">
-                    <div className="flex items-center justify-between px-3 py-1.5 border-b bg-card/50 shrink-0">
+                  <div style={{ width: "50%", display: "flex", flexDirection: "column" }}>
+                    <div className="flex items-center justify-between px-3 py-1.5 border-b bg-card/50" style={{ flexShrink: 0 }}>
                       <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Preview</span>
                       <div className="flex items-center gap-1">
                         <Button variant={previewSize === "mobile" ? "secondary" : "ghost"} size="icon" className="h-6 w-6" onClick={() => setPreviewSize("mobile")}>
@@ -253,14 +253,12 @@ const FormWorkflow = () => {
                         </Button>
                       </div>
                     </div>
-                    <div className="flex-1 p-2">
-                      <iframe
-                        key={previewKey}
-                        src={`/form/${formId}/preview`}
-                        style={{ width: "100%", height: "100%", border: "none", borderRadius: "8px" }}
-                        title="Form Preview"
-                      />
-                    </div>
+                    <iframe
+                      key={previewKey}
+                      src={`/form/${formId}/preview`}
+                      style={{ flex: 1, width: "100%", border: "none", minHeight: 0 }}
+                      title="Form Preview"
+                    />
                   </div>
                 </div>
               </TabsContent>
