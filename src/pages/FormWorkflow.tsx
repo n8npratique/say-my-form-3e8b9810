@@ -218,8 +218,8 @@ const FormWorkflow = () => {
               </div>
 
               {/* Branching tab: two columns - Regras | Preview */}
-              <TabsContent value="branching" className="mt-0 flex-1 overflow-hidden">
-                <div className="flex h-full">
+              <TabsContent value="branching" className="mt-0">
+                <div className="flex" style={{ height: "calc(100vh - 260px)" }}>
                   {/* Regras - left half */}
                   <div className="w-1/2 border-r overflow-y-auto">
                     <div className="p-4">
@@ -238,7 +238,7 @@ const FormWorkflow = () => {
                     </div>
                   </div>
                   {/* Preview - right half */}
-                  <div className="w-1/2 flex flex-col min-h-0">
+                  <div className="w-1/2 flex flex-col">
                     <div className="flex items-center justify-between px-3 py-1.5 border-b bg-card/50 shrink-0">
                       <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Preview</span>
                       <div className="flex items-center gap-1">
@@ -253,11 +253,11 @@ const FormWorkflow = () => {
                         </Button>
                       </div>
                     </div>
-                    <div className="flex-1 min-h-0 p-2">
+                    <div className="flex-1 p-2">
                       <iframe
                         key={previewKey}
                         src={`/form/${formId}/preview`}
-                        className="w-full h-full border-0 rounded-lg"
+                        style={{ width: "100%", height: "100%", border: "none", borderRadius: "8px" }}
                         title="Form Preview"
                       />
                     </div>
