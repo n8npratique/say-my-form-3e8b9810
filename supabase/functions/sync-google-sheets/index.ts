@@ -455,7 +455,7 @@ Deno.serve(async (req) => {
                 values: headers.map((h) => ({
                   userEnteredValue: { stringValue: h },
                   userEnteredFormat: {
-                    backgroundColor: { red: 0.318, green: 0.176, blue: 0.659 },
+                    backgroundColor: { red: 0.1, green: 0.1, blue: 0.1 },
                     textFormat: { foregroundColor: { red: 1, green: 1, blue: 1 }, bold: true, fontSize: 10 },
                     horizontalAlignment: "CENTER",
                     verticalAlignment: "MIDDLE",
@@ -605,7 +605,7 @@ Deno.serve(async (req) => {
                 range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: startCol, endColumnIndex: endCol },
                 cell: {
                   userEnteredFormat: {
-                    backgroundColor: { red: 0.318, green: 0.176, blue: 0.659 },
+                    backgroundColor: { red: 0.1, green: 0.1, blue: 0.1 },
                     textFormat: { foregroundColor: { red: 1, green: 1, blue: 1 }, bold: true, fontSize: 10 },
                     horizontalAlignment: "CENTER",
                     verticalAlignment: "MIDDLE",
@@ -739,7 +739,7 @@ Deno.serve(async (req) => {
                 range: { sheetId: batchSheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: expectedHeaders.length },
                 cell: {
                   userEnteredFormat: {
-                    backgroundColor: { red: 0.318, green: 0.176, blue: 0.659 },
+                    backgroundColor: { red: 0.1, green: 0.1, blue: 0.1 },
                     textFormat: { foregroundColor: { red: 1, green: 1, blue: 1 }, bold: true, fontSize: 10 },
                     horizontalAlignment: "CENTER",
                     verticalAlignment: "MIDDLE",
