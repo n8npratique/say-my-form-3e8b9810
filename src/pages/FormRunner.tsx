@@ -148,8 +148,10 @@ const FormRunner = ({ previewMode = false }: FormRunnerProps) => {
       }
       if (schema?.theme?.welcome_screen?.enabled) setShowWelcome(true);
       // Also show welcome if there's a welcome_screen field (e.g. from AI generation)
-      const wsField = allF.find((f) => f.type === "welcome_screen");
-      if (wsField && !schema?.theme?.welcome_screen?.enabled) setShowWelcome(true);
+      if (schema?.fields) {
+        const wsField = (schema.fields as FormField[]).find((f) => f.type === "welcome_screen");
+        if (wsField && !schema?.theme?.welcome_screen?.enabled) setShowWelcome(true);
+      }
     }
 
     setLoading(false);
@@ -207,8 +209,10 @@ const FormRunner = ({ previewMode = false }: FormRunnerProps) => {
         }
       }
       if (schema?.theme?.welcome_screen?.enabled) setShowWelcome(true);
-      const wsField = allF.find((f) => f.type === "welcome_screen");
-      if (wsField && !schema?.theme?.welcome_screen?.enabled) setShowWelcome(true);
+      if (schema?.fields) {
+        const wsField = (schema.fields as FormField[]).find((f) => f.type === "welcome_screen");
+        if (wsField && !schema?.theme?.welcome_screen?.enabled) setShowWelcome(true);
+      }
     }
 
     setLoading(false);
